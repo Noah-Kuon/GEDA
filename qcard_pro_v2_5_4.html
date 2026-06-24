@@ -416,11 +416,10 @@
         .scenario-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 
         /* ─── GRID ─── */
-        .grid-wrapper { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px; position: relative; z-index: 1; }
+        .grid-wrapper { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px; position: relative; z-index: 1; display: flex; flex-direction: column; }
         .grid-container {
             display: grid; gap: 7px;
             transition: opacity 0.3s ease;
-            /* height は auto — データ数に応じて縦伸長 */
         }
         .grid-container.dimmed { opacity: 0.12; pointer-events: none; }
 
@@ -1807,7 +1806,7 @@
         }
         .grid-container { display: none !important; }
         #mobile-swipe-wrap {
-            display: flex;
+            /* display はbody.mob-swipe / body.mob-gridクラスで制御 */
             flex-direction: column;
             width: 100%;
             height: 100%;
@@ -1963,7 +1962,9 @@
             font-size: 0.72rem;
             color: var(--text-dim);
         }
-        #mobile-swipe-wrap { display: none; }
+        /* スワイプ表示はbodyクラスで制御 */
+        body.mob-grid  #mobile-swipe-wrap { display: none !important; }
+        body.mob-swipe #mobile-swipe-wrap { display: flex !important; flex-direction: column !important; }
     }
 
     @media (min-width: 641px) {
@@ -2274,7 +2275,7 @@
     }
     </style>
 </head>
-<body class="edit-mode-active">
+<body class="edit-mode-active mob-swipe">
 
 <!-- TOP BAR -->
 <div class="top-bar">
@@ -2322,10 +2323,10 @@
         <div class="mob-drawer-label">グリッド</div>
         <div class="mob-drawer-row">
             <label>行</label>
-            <input type="number" id="rowsInputMob" min="1" max="999" value="4">
+            <input type="number" id="rowsInputMob" min="1" max="999" value="3">
             <span style="font-size:0.72rem;color:var(--text-dim)">×</span>
             <label>列</label>
-            <input type="number" id="colsInputMob" min="1" max="99" value="4">
+            <input type="number" id="colsInputMob" min="1" max="99" value="3">
         </div>
     </div>
 
@@ -2405,10 +2406,10 @@
         <div id="display-settings-popover">
             <div class="ds-row">
                 <label>行</label>
-                <input type="number" id="rowsInput" min="1" max="999" value="4" class="num">
+                <input type="number" id="rowsInput" min="1" max="999" value="3" class="num">
                 <span style="color:var(--text-dim);font-size:0.7rem;">×</span>
                 <label>列</label>
-                <input type="number" id="colsInput" min="1" max="99"  value="4" class="num">
+                <input type="number" id="colsInput" min="1" max="99"  value="3" class="num">
             </div>
             <div class="ds-row">
                 <label>文字</label>
@@ -3328,7 +3329,7 @@ function setAppMode(mode) {
         if (studyBar)  studyBar.style.display  = 'none';
     }
     // モバイルスワイプUIの編集可否・対象データを再同期
-    if (typeof mSync === 'function') { setTimeout(mSync, 0); }
+    if (typeof window.mSync === 'function') { setTimeout(window.mSync, 0); }
 }
 
 // ===== SCENARIOS =====
@@ -3400,6 +3401,16 @@ function loadScenarios() {
         activeScenarioId = scenarios[0] ? scenarios[0].id : null;
     }
     if (migrated) saveScenarios();
+
+    // [v2.5.5] グリッドデフォルトを3×3に移行。未移行環境のみ一度だけ適用
+    if (!localStorage.getItem('kp_grid_migrated_v255')) {
+        scenarios.forEach(function(s) {
+            if (s.cols === 4) s.cols = 3;
+            if (s.rows === 4) s.rows = 3;
+        });
+        saveScenarios();
+        localStorage.setItem('kp_grid_migrated_v255', '1');
+    }
 }
 
 function getActiveCols() {
@@ -3547,6 +3558,11 @@ function toggleTheme() {
     // Show tutorial if first time
     var tutorialDone = localStorage.getItem('kp_tutorial_done');
     if (!tutorialDone) { showTutorial(); }
+
+    // モバイル表示モードの初期適用（mSync登録完了後に呼ぶ必要があるためloadイベントで実行）
+    window.addEventListener('load', function() {
+        mobSetView(localStorage.getItem('mob_view') || 'swipe');
+    });
 })();
 
 // ===== TUTORIAL =====
@@ -3722,7 +3738,7 @@ function addScenario() {
     renderScenarioTabs();
     updateGrid();
     document.dispatchEvent(new CustomEvent('scenarioChanged'));
-    if (typeof mSync === 'function') setTimeout(mSync, 0);
+    if (typeof window.mSync === 'function') setTimeout(window.mSync, 0);
 }
 
 function scenarioDragClearIndicators() {
@@ -3870,13 +3886,13 @@ function applyCardRatio() {
     }
 
     if (cardRatioMode === 'fit') {
-        // [NEW] フィット：余白を作らず、利用可能な領域いっぱいにカードを表示する
-        // ・複数カードグリッド時：grid-wrapperの余白を最小化し、各行が画面の高さを均等に分け合う
-        // ・single-card-mode（行1×列1）時：余白ゼロで1枚を最大化する
+        // フィット：grid-wrapperをflex列にし、grid-containerをflex:1で引き伸ばす。
+        // grid-template-rowsはupdateGrid()側でrepeat(rows,1fr)を設定するため、
+        // ここではgrid-containerが利用可能高さいっぱいに広がるCSSのみ担当する。
         styleEl.textContent =
             'body:not(.mob-grid) .grid-wrapper { padding: 6px !important; overflow: hidden !important; }' +
-            'body:not(.mob-grid) .grid-container { align-content: stretch !important; height: 100% !important; }' +
-            'body:not(.mob-grid) .grid-item { aspect-ratio: auto !important; height: 100% !important; }' +
+            'body:not(.mob-grid) .grid-container { flex: 1 !important; min-height: 0 !important; align-content: stretch !important; }' +
+            'body:not(.mob-grid) .grid-item { height: auto !important; aspect-ratio: auto !important; min-height: 0 !important; }' +
             '.grid-container.single-card-mode { padding: 0 !important; }' +
             '.grid-container.single-card-mode .grid-item { width: 100% !important; height: 100% !important; max-height: 100% !important; aspect-ratio: auto !important; }';
     } else if (ratio === null) {
@@ -3897,7 +3913,7 @@ function applyCardRatio() {
 function onCardRatioChange(value) {
     cardRatioMode = value;
     localStorage.setItem('kp_card_ratio_mode', value);
-    applyCardRatio();
+    updateGrid(); // grid-template-rows の再計算も含む
 }
 
 function onCardRatioCustomChange(value) {
@@ -3917,13 +3933,17 @@ function updateGrid() {
     var rowsEl = document.getElementById('rowsInput');
     if (rowsEl) rowsEl.value = rows;
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-    grid.style.gridTemplateRows = '';
+    // フィットモード時は行高さをgrid-template-rowsで均等分割する
+    // それ以外はauto（コンテンツ高さに依存）
+    grid.style.gridTemplateRows = (cardRatioMode === 'fit') ? 'repeat(' + rows + ', 1fr)' : '';
     // [NEW] 行1×列1の場合：横長1枚ではなく、画面に収まる大きなカード1枚として表示する
     grid.classList.toggle('single-card-mode', rows === 1 && cols === 1);
     renderGrid(data, total);
     applyCardRatio();
     // [MOD] 録音・アップロード済みマークを全モードで更新する
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
+    // モバイルスワイプUIを再同期
+    if (typeof window.mSync === 'function') setTimeout(window.mSync, 0);
 }
 
 function renderGrid(data, total) {
@@ -6441,6 +6461,8 @@ function rdSaveRate(v) {
 
     function mSync() {
         if (!isMobile()) return;
+        if (!mWrap) { return; }
+
         var active = getActive();
         var allData = active ? active.data : [];
         var isEditMode = (typeof appMode !== 'undefined' && appMode === 'edit');
@@ -6457,19 +6479,19 @@ function rdSaveRate(v) {
             mData = allData.filter(function(d) {
                 return (d.title && d.title.trim()) || (d.content && d.content.trim());
             });
+            // 空カードしかない場合でも全件表示（表示0件で真っ白にしない）
+            if (mData.length === 0 && allData.length > 0) {
+                mData = allData.slice();
+            }
         }
 
         if (mIdx >= mData.length) mIdx = Math.max(0, mData.length - 1);
 
-        // グリッドモード時はスワイプUIを非表示
+        // グリッドモード時はCSSクラスで制御するためここでは何もしない
         if (document.body.classList.contains('mob-grid')) {
-            mWrap.style.display = 'none';
             return;
         }
         mRender();
-        var showWrap = isEditMode ? (mData.length > 0) : (mData.length > 0);
-        mWrap.style.display = showWrap ? 'flex' : 'none';
-        mWrap.style.flexDirection = 'column';
     }
 
     // 外部からインデックス指定でスワイプUIを開く
@@ -6668,7 +6690,7 @@ function rdSaveRate(v) {
 
     // PCとモバイルの表示切替
     function mRefresh() {
-        if (isMobile()) { mSync(); } else { mWrap.style.display = 'none'; mobSpeakStop(); }
+        if (isMobile()) { mSync(); } else { mobSpeakStop(); }
     }
 
     var gridEl = document.getElementById('grid');
@@ -7172,18 +7194,22 @@ function mobSyncTitleLabels() {
 function mobSetView(v) {
     mobView = v;
     localStorage.setItem('mob_view', v);
-    document.body.classList.remove('mob-grid', 'mob-grid1', 'mob-grid2');
+    document.body.classList.remove('mob-grid', 'mob-grid1', 'mob-grid2', 'mob-swipe');
     document.querySelectorAll('.mob-view-btn').forEach(function(b){
         b.classList.toggle('active', b.dataset.view === v);
     });
-    if (v === 'grid1') {
+
+    if (v === 'swipe') {
+        document.body.classList.add('mob-swipe');
+    } else if (v === 'grid1') {
         document.body.classList.add('mob-grid', 'mob-grid1');
         mobSyncTitleLabels();
     } else if (v === 'grid2') {
         document.body.classList.add('mob-grid', 'mob-grid2');
         mobSyncTitleLabels();
     }
-    if (typeof mSync === 'function') mSync();
+
+    if (typeof window.mSync === 'function') window.mSync();
 }
 
 // グリッドモードでカードをタップ → スワイプUIに切替してそのカードを表示
@@ -7216,12 +7242,6 @@ grid.addEventListener('click', function(e) {
         }, 50);
     }
 }, true);
-
-window.addEventListener('load', function() {
-    // 初期状態を復元
-    var btn = document.querySelector('.mob-view-btn[data-view="' + mobView + '"]');
-    if (btn) mobSetView(mobView);
-});
 
 window.mSetIdx = null; // mSync後に外部から設定
 function mobDrawerOpen() {
