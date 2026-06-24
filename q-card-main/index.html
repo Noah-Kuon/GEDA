@@ -2446,7 +2446,7 @@
                     <span id="themeLabel">ライト</span>
                 </div>
                 <!-- [NEW] グリッド画像表示トグル -->
-                <div class="top-btn" id="mediaToggleBtn" onclick="toggleMediaDisplay()">🖼 画像: ON</div>
+                <div class="top-btn" id="mediaToggleBtn" onclick="toggleMediaDisplay()">🖼 画像: OFF</div>
             </div>
             <div class="ds-row">
                 <div class="top-btn" id="timerToggleBtn" onclick="toggleTimerWidget()" style="width:100%;text-align:center;">⏱ タイマー表示切替</div>
@@ -2498,6 +2498,7 @@
 <!-- GRID -->
 <div class="grid-wrapper">
     <div class="grid-container" id="grid"></div>
+</div>
 
 <!-- 学習モード フラッシュカードオーバーレイ -->
 <div id="study-card-overlay">
@@ -2523,7 +2524,6 @@
         <button class="study-nav-btn" id="study-next-btn" onclick="studyNav(1)">›</button>
     </div>
     <button id="study-close-btn" onclick="setAppMode('edit')" title="学習を終了">✕</button>
-</div>
     <!-- MOBILE SWIPE UI -->
     <div id="mobile-swipe-wrap">
         <div id="mobile-card">
@@ -2709,33 +2709,104 @@
 <div id="data-modal-backdrop" onclick="closeDataModal()" style="display:none;position:fixed;inset:0;background:rgba(4,8,18,0.7);z-index:1000;backdrop-filter:blur(4px);"></div>
 <div id="data-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1001;width:380px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,0.6);overflow:hidden;">
     <div style="padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--text);letter-spacing:0.06em;">データ管理</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--text);letter-spacing:0.06em;">QCF データ管理</span>
+            <span style="font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:4px;padding:1px 6px;opacity:0.7;">Qcard Format</span>
+        </div>
         <span onclick="closeDataModal()" style="cursor:pointer;color:var(--text-dim);font-size:1.2rem;line-height:1;padding:2px 6px;transition:color 0.15s;border-radius:4px;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</span>
     </div>
-    <div style="padding:16px 18px;">
-        <!-- このシナリオ -->
+    <div style="padding:16px 18px;overflow-y:auto;max-height:80vh;">
+        <!-- シナリオ設定 -->
         <div style="margin-bottom:18px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">このシナリオ</div>
-            <div style="display:flex;gap:6px;">
-                <button class="modal-btn" onclick="copyToClipboard('active')" title="テキストとしてコピー"><span class="modal-btn-icon">📋</span><span>コピー</span></button>
-                <button class="modal-btn" onclick="exportActiveJSON()" title="JSONでダウンロード"><span class="modal-btn-icon">{ }</span><span>JSON</span></button>
-                <button class="modal-btn" onclick="exportActiveCSV()" title="CSVでダウンロード"><span class="modal-btn-icon">⊞</span><span>CSV</span></button>
-                <!-- [NEW] Markdown出力 -->
-                <button class="modal-btn" onclick="exportActiveMD()" title="Markdownでダウンロード"><span class="modal-btn-icon">M↓</span><span>MD</span></button>
-            </div>
-            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:7px;line-height:1.6;">ファイル名：シナリオ名-列数-日時</div>
-        </div>
-        <!-- 全シナリオ -->
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">シナリオ設定</div>
+            <div id="qcf-meta-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+                <!-- タイトル -->
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:72px;flex-shrink:0;">タイトル</label>
+                    <input id="qcf-meta-title" type="text" placeholder="シナリオタイトル" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;font-family:'Noto Sans JP',sans-serif;" oninput="qcfMetaSave()">
+                </div>
+                <!-- 作成者表示名 -->
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:72px;flex-shrink:0;">作成者名</label>
+                    <input id="qcf-meta-authorname" type="text" placeholder="表示名（例: Q録員-0458）" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;font-family:'Noto Sans JP',sans-serif;" oninput="qcfMetaSave()">
+                </div>
+                <!-- 作成者ID -->
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:72px;flex-shrink:0;">作成者ID</label>
+                    <input id="qcf-meta-authorid" type="text" placeholder="obs_xxxx（将来のRegistry ID）" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text-muted);font-size:0.65rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
+                </div>
+                <!-- 説明 -->
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                    <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:72px;flex-shrink:0;padding-top:5px;">説明</label>
+                    <textarea id="qcf-meta-desc" rows="2" placeholder="このシナリオの説明..." style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;resize:none;font-family:'Noto Sans JP',sans-serif;line-height:1.5;" oninput="qcfMetaSave()"></textarea>
+                </div>
+                <!-- タグ -->
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                    <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:72px;flex-shrink:0;padding-top:5px;">タグ</label>
+                    <div style="flex:1;">
+                        <div id="qcf-tags-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;min-height:6px;"></div>
+                        <div style="display:flex;gap:4px;">
+                            <input id="qcf-tag-input" type="text" placeholder="タグを追加してEnter" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.68rem;padding:3px 7px;outline:none;font-family:'Noto Sans JP',sans-serif;" onkeydown="qcfTagKeydown(event)">
+                        </div>
+                    </div>
+                </div>
+                <!-- ライセンス・バージョン -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;white-space:nowrap;">バージョン</label>
+                        <input id="qcf-meta-version" type="text" placeholder="1.0" style="width:60px;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;white-space:nowrap;">ライセンス</label>
+                        <select id="qcf-meta-license" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.68rem;padding:3px 4px;cursor:pointer;" onchange="qcfMetaSave()">
+                            <option value="private">private</option>
+                            <option value="share">share</option>
+                            <option value="commercial">commercial</option>
+                            <option value="public-domain">public-domain</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- メタ情報フッター -->
+                <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:3px;">
+                    <div style="display:flex;gap:6px;font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;">
+                        <span style="white-space:nowrap;">scnID:</span><span id="qcf-meta-id" style="color:var(--text-muted);word-break:break-all;font-size:0.55rem;"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;">
+                        <span style="white-space:nowrap;">qcfID:</span><span id="qcf-meta-qcfid" style="color:var(--accent2);word-break:break-all;font-size:0.55rem;"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;">
+                        <span style="white-space:nowrap;">作成:</span><span id="qcf-meta-created" style="color:var(--text-muted);"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;">
+                        <span style="white-space:nowrap;">更新:</span><span id="qcf-meta-updated" style="color:var(--success);font-weight:700;"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;">
+                        <span style="white-space:nowrap;">カード数:</span><span id="qcf-meta-cards" style="color:var(--accent);font-weight:700;"></span>
+                    </div>
+                </div><!-- /メタ情報フッター -->
+            </div><!-- /qcf-meta-panel -->
+        </div><!-- /シナリオ設定 -->
+        <!-- このシナリオ -->
         <div style="margin-bottom:18px;border-top:1px solid var(--border);padding-top:14px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">全シナリオ</div>
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">このシナリオ</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="modal-btn" onclick="copyToClipboard('active')" title="テキストとしてコピー"><span class="modal-btn-icon">📋</span><span>コピー</span></button>
+                <button class="modal-btn" onclick="exportActiveJSON()" title="QCFでダウンロード（このシナリオ）"><span class="modal-btn-icon">📄</span><span>QCF</span></button>
+                <button class="modal-btn" onclick="exportActiveCSV()" title="CSVでダウンロード"><span class="modal-btn-icon">⊞</span><span>CSV</span></button>
+                <button class="modal-btn" onclick="exportActiveMD()" title="Markdownでダウンロード"><span class="modal-btn-icon">M↓</span><span>MD</span></button>
+                <button class="modal-btn" onclick="qcfShareComingSoon()" title="QCF共有（準備中）" style="border-color:var(--accent2);color:var(--accent2);opacity:0.75;"><span class="modal-btn-icon">🔗</span><span>Share</span></button>
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:7px;line-height:1.6;">QCF：1シナリオ = 1ファイル（推奨）／ Share準備中</div>
+        </div>
+        <div style="margin-bottom:18px;border-top:1px solid var(--border);padding-top:14px;">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">全シナリオ <span style="font-family:'DM Mono',monospace;font-size:0.55rem;border:1px solid var(--border2);border-radius:3px;padding:1px 5px;opacity:0.7;">.qcp</span></div>
             <div style="display:flex;gap:6px;">
                 <button class="modal-btn" onclick="copyToClipboard('all')" title="テキストとしてコピー"><span class="modal-btn-icon">📋</span><span>コピー</span></button>
-                <button class="modal-btn" onclick="exportJSON()" title="JSONでダウンロード"><span class="modal-btn-icon">{ }</span><span>JSON</span></button>
+                <button class="modal-btn" onclick="exportJSON()" title="QCPでダウンロード（全シナリオパッケージ）"><span class="modal-btn-icon">📦</span><span>QCP</span></button>
                 <button class="modal-btn" onclick="exportCSV()" title="CSVでダウンロード"><span class="modal-btn-icon">⊞</span><span>CSV</span></button>
-                <!-- [NEW] Markdown出力（全シナリオ） -->
                 <button class="modal-btn" onclick="exportMD()" title="Markdownでダウンロード"><span class="modal-btn-icon">M↓</span><span>MD</span></button>
             </div>
-            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:7px;line-height:1.6;">JSON：完全バックアップ（推奨）／CSV：表計算ソフト対応／MD：閲覧・共有向け</div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:7px;line-height:1.6;">QCP：複数シナリオをひとつにパッケージ／ CSV・MD：汎用形式</div>
         </div>
         <!-- [NEW] 録音データ -->
         <div style="margin-bottom:18px;border-top:1px solid var(--border);padding-top:14px;">
@@ -2747,41 +2818,74 @@
         </div>
         <!-- インポート -->
         <div style="border-top:1px solid var(--border);padding-top:16px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:'DM Mono',monospace;">インポート</div>
-            <div style="display:flex;gap:8px;">
-                <button class="modal-btn" onclick="document.getElementById('importFileJSON').click()"><span class="modal-btn-icon">{ }</span><span>JSON</span></button>
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;font-family:'DM Mono',monospace;">インポート</div>
+
+            <!-- QCF（メイン） -->
+            <button onclick="document.getElementById('importFileJSON').click()" style="width:100%;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(61,139,255,0.08),rgba(108,99,255,0.06));border:1px solid rgba(61,139,255,0.3);border-radius:10px;padding:11px 14px;cursor:pointer;margin-bottom:8px;transition:all 0.15s;text-align:left;" onmouseover="this.style.borderColor='var(--accent)';this.style.background='linear-gradient(135deg,rgba(61,139,255,0.14),rgba(108,99,255,0.10))'" onmouseout="this.style.borderColor='rgba(61,139,255,0.3)';this.style.background='linear-gradient(135deg,rgba(61,139,255,0.08),rgba(108,99,255,0.06))'">
+                <span style="font-size:1.1rem;flex-shrink:0;">📦</span>
+                <div>
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--text);margin-bottom:2px;">QCF <span style="font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:3px;padding:1px 5px;margin-left:4px;">Qcard Format</span></div>
+                    <div style="font-size:0.62rem;color:var(--text-muted);">.qcf および標準 .json に対応</div>
+                </div>
+            </button>
+
+            <!-- CSV / MD（サブ） -->
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
                 <button class="modal-btn" onclick="document.getElementById('importFileCSV').click()"><span class="modal-btn-icon">⊞</span><span>CSV</span></button>
                 <button class="modal-btn" onclick="document.getElementById('importFileMD').click()"><span class="modal-btn-icon">M↓</span><span>MD</span></button>
-                <button class="modal-btn" onclick="document.getElementById('importFileQCF').click()"><span class="modal-btn-icon">📦</span><span>QCF</span></button>
             </div>
-            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:7px;line-height:1.6;">⚠️ 現在のデータは上書きされます</div>
-            <input type="file" id="importFileJSON" accept=".json" style="display:none" onchange="importJSON(event)">
+
+            <div style="font-size:0.63rem;color:var(--text-dim);line-height:1.7;padding:8px 10px;background:rgba(242,82,106,0.06);border:1px solid rgba(242,82,106,0.18);border-radius:7px;margin-bottom:12px;">⚠️ 追加 or 全置換 を選択できます。全置換は現在のデータが消去されます。</div>
+
+            <input type="file" id="importFileJSON" accept=".json,.qcf,.qcp" style="display:none" onchange="importJSON(event)">
             <input type="file" id="importFileCSV"  accept=".csv"  style="display:none" onchange="importCSV(event)">
             <input type="file" id="importFileMD"   accept=".md,.markdown,.txt" style="display:none" onchange="importMD(event)">
-            <input type="file" id="importFileQCF"  accept=".qcf,.qcp" style="display:none" onchange="importQCF(event)">
-            <!-- 貼り付けで読み込み（JSON / Markdownを自動判定） -->
-            <div style="margin-top:12px;">
-                <textarea id="paste-import-area" placeholder="ここにJSONまたはMarkdownを貼り付け…" style="width:100%;height:64px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.72rem;padding:8px 10px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;"></textarea>
-                <button class="modal-btn" style="width:100%;margin-top:6px;" onclick="importFromPaste()"><span class="modal-btn-icon">📥</span><span>貼り付けた内容を読み込む</span></button>
+
+            <!-- 貼り付けインポート -->
+            <div style="border-top:1px solid var(--border);padding-top:10px;">
+                <div style="font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:0.06em;margin-bottom:6px;">テキストを貼り付け（QCF / JSON / MD）</div>
+                <textarea id="paste-import-area" placeholder="QCF・JSON・Markdownをここに貼り付け…" style="width:100%;height:60px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.7rem;padding:8px 10px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+                <button class="modal-btn" style="width:100%;margin-top:6px;" onclick="importFromPaste()"><span class="modal-btn-icon">📥</span><span>読み込む</span></button>
             </div>
         </div>
 
-        <!-- QCF -->
+        <!-- プラグイン -->
         <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;font-family:'DM Mono',monospace;">QCF — 知識コンテナ</div>
-            <div style="font-size:0.65rem;color:var(--text-dim);margin-bottom:10px;line-height:1.6;">シナリオを将来の共有・配布に対応した形式で書き出します。</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button class="modal-btn" onclick="exportQCF()" title="このシナリオを .qcf で書き出し"><span class="modal-btn-icon">📄</span><span>このシナリオ (.qcf)</span></button>
-                <button class="modal-btn" onclick="exportQCP()" title="全シナリオを .qcp パッケージで書き出し"><span class="modal-btn-icon">📦</span><span>全シナリオ (.qcp)</span></button>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span style="font-size:0.62rem;font-weight:700;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;font-family:'DM Mono',monospace;">プラグイン</span>
+                <span style="font-family:'DM Mono',monospace;font-size:0.55rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:3px;padding:1px 5px;opacity:0.8;">.qplugin</span>
             </div>
-            <div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
-                <div style="font-size:0.6rem;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:0.06em;margin-bottom:6px;">COMING SOON</div>
-                <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.7;">
-                    🔗 URL共有 &nbsp;·&nbsp; 📱 QR配布 &nbsp;·&nbsp; 🛒 QCFマーケット
+            <button onclick="document.getElementById('importFilePlugin').click()" style="width:100%;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(108,99,255,0.08),rgba(167,139,250,0.05));border:1px solid rgba(108,99,255,0.3);border-radius:10px;padding:11px 14px;cursor:pointer;transition:all 0.15s;text-align:left;" onmouseover="this.style.borderColor='var(--accent2)';this.style.background='linear-gradient(135deg,rgba(108,99,255,0.14),rgba(167,139,250,0.10))'" onmouseout="this.style.borderColor='rgba(108,99,255,0.3)';this.style.background='linear-gradient(135deg,rgba(108,99,255,0.08),rgba(167,139,250,0.05))'">
+                <span style="font-size:1.1rem;flex-shrink:0;">🧩</span>
+                <div>
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--text);margin-bottom:2px;">プラグインを読み込む</div>
+                    <div style="font-size:0.62rem;color:var(--text-muted);">神経衰弱・タロット・ゲームなど機能を一時拡張</div>
+                </div>
+            </button>
+            <input type="file" id="importFilePlugin" accept=".qplugin,.js" style="display:none" onchange="pluginLoad(event)">
+            <div id="plugin-status" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.25);border-radius:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <div id="plugin-name" style="font-size:0.75rem;font-weight:700;color:var(--accent2);margin-bottom:2px;"></div>
+                        <div id="plugin-desc" style="font-size:0.62rem;color:var(--text-muted);"></div>
+                    </div>
+                    <button onclick="pluginUnload()" style="background:rgba(242,82,106,0.12);border:1px solid rgba(242,82,106,0.3);border-radius:6px;color:var(--danger);font-size:0.65rem;padding:4px 9px;cursor:pointer;white-space:nowrap;transition:all 0.15s;" onmouseover="this.style.background='rgba(242,82,106,0.22)'" onmouseout="this.style.background='rgba(242,82,106,0.12)'">解除</button>
                 </div>
             </div>
-        </div>
+            <div style="font-size:0.6rem;color:var(--text-dim);margin-top:8px;line-height:1.7;">プラグインはカードデータを読み取り専用で操作します。解除するといつでも通常モードに戻れます。</div>
+        </div><!-- /プラグイン -->
+    </div><!-- /スクロール領域 -->
+</div><!-- /data-modal -->
+
+<!-- PLUGIN LAYER（プラグインが描画するフルスクリーン領域） -->
+<div id="plugin-layer" style="display:none;position:fixed;inset:0;z-index:600;background:var(--bg);flex-direction:column;">
+    <div id="plugin-topbar" style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;">
+        <span style="font-size:0.75rem;">🧩</span>
+        <span id="plugin-layer-name" style="font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--text);letter-spacing:0.06em;flex:1;"></span>
+        <span id="plugin-layer-author" style="font-size:0.62rem;color:var(--text-muted);font-family:'DM Mono',monospace;"></span>
+        <button onclick="pluginUnload()" style="background:rgba(242,82,106,0.1);border:1px solid rgba(242,82,106,0.3);border-radius:6px;color:var(--danger);font-size:0.68rem;padding:5px 12px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(242,82,106,0.2)'" onmouseout="this.style.background='rgba(242,82,106,0.1)'">✕ プラグイン終了</button>
     </div>
+    <div id="plugin-content" style="flex:1;overflow:auto;"></div>
 </div>
 
 <!-- TOAST -->
@@ -3110,7 +3214,7 @@ function overlayMediaRemove() {
 }
 
 // [NEW] グリッド画像表示トグル
-var mediaDisplayOn = (localStorage.getItem('kp_media_display') !== '0'); // デフォルトON
+var mediaDisplayOn = (localStorage.getItem('kp_media_display') === '1'); // デフォルトOFF
 function toggleMediaDisplay() {
     mediaDisplayOn = !mediaDisplayOn;
     localStorage.setItem('kp_media_display', mediaDisplayOn ? '1' : '0');
@@ -3239,21 +3343,63 @@ function loadScenarios() {
     } catch(e) {}
     if (scenarios.length === 0) {
         scenarios = [
-            { id: uid(), name: 'シナリオ1', cols: 4, rows: 4, data: [] },
-            { id: uid(), name: 'シナリオ2', cols: 4, rows: 4, data: [] },
-            { id: uid(), name: 'シナリオ3', cols: 4, rows: 4, data: [] },
-            { id: uid(), name: 'シナリオ4', cols: 4, rows: 4, data: [] },
+            newScenarioMeta('シナリオ1'),
+            newScenarioMeta('シナリオ2'),
+            newScenarioMeta('シナリオ3'),
+            newScenarioMeta('シナリオ4'),
         ];
         activeScenarioId = scenarios[0].id;
     }
-    // 旧データ移行：cols フィールドがなければ補完
+    // ─── QCF v1.0 マイグレーション ───
+    var migrated = false;
     scenarios.forEach(function(s) {
-    if (!s.cols) s.cols = 4;
-    if (!s.rows) s.rows = 4;
-});
+        if (!s.cols)          { s.cols = 4;           migrated = true; }
+        if (!s.rows)          { s.rows = 4;           migrated = true; }
+        // scn_ UUID
+        if (!s.id || typeof s.id === 'number' || !String(s.id).startsWith('scn_')) {
+            s.id = scnUid();                           migrated = true;
+        }
+        // QCF基本フィールド
+        if (!s.qcfVersion)    { s.qcfVersion    = '1.0';          migrated = true; }
+        if (!s.schemaVersion) { s.schemaVersion = '1.0';          migrated = true; }
+        if (!s.qcfId)         { s.qcfId         = qcfUid();       migrated = true; }
+        if (!s.title)         { s.title         = s.name || '';   migrated = true; }
+        if (s.description === undefined) { s.description = '';    migrated = true; }
+        if (!s.authorName)    { s.authorName    = '';             migrated = true; }
+        if (!s.authorId)      { s.authorId      = '';             migrated = true; }
+        if (!s.originId)      { s.originId      = '';             migrated = true; }
+        if (s.hash      === undefined) { s.hash      = null;      migrated = true; }
+        if (s.signature === undefined) { s.signature = null;      migrated = true; }
+        if (!s.license)       { s.license       = 'private';      migrated = true; }
+        if (!s.tags)          { s.tags          = [];             migrated = true; }
+        if (!s.share)         { s.share         = { enabled: false, expiresAt: null, downloadLimit: 0 }; migrated = true; }
+        // 旧 meta フィールド吸収
+        if (s.meta) {
+            if (!s.title       && s.meta.title)       s.title       = s.meta.title;
+            if (!s.authorName  && s.meta.author)      s.authorName  = s.meta.author;
+            if (!s.description && s.meta.description) s.description = s.meta.description;
+            if (!s.license     && s.meta.license)     s.license     = s.meta.license;
+            if (!s.authorId    && s.meta.authorId)    s.authorId    = s.meta.authorId;
+            delete s.meta;
+            migrated = true;
+        }
+        // タイムスタンプ
+        if (!s.createdAt) { s.createdAt = nowMs(); migrated = true; }
+        if (!s.updatedAt) { s.updatedAt = nowMs(); migrated = true; }
+        // カードスキーマ
+        (s.data || []).forEach(function(card) {
+            if (!card.id || !String(card.id).startsWith('card_')) { card.id = cardUid();  migrated = true; }
+            if (!card.createdAt)    { card.createdAt    = nowMs(); migrated = true; }
+            if (!card.updatedAt)    { card.updatedAt    = nowMs(); migrated = true; }
+            if (card.createdBy    === undefined) { card.createdBy    = ''; migrated = true; }
+            if (card.updatedBy    === undefined) { card.updatedBy    = ''; migrated = true; }
+            if (card.originCardId === undefined) { card.originCardId = ''; migrated = true; }
+        });
+    });
     if (!scenarios.find(function(s){ return s.id === activeScenarioId; })) {
         activeScenarioId = scenarios[0] ? scenarios[0].id : null;
     }
+    if (migrated) saveScenarios();
 }
 
 function getActiveCols() {
@@ -3273,7 +3419,69 @@ function saveScenarios() {
     }));
 }
 
-function uid() { return crypto.randomUUID(); }
+function uid()      { return crypto.randomUUID(); }
+function scnUid()   { return 'scn_'  + crypto.randomUUID(); }
+function cardUid()  { return 'card_' + crypto.randomUUID(); }
+
+function nowMs() { return Date.now(); }
+
+function fmtTs(ms) {
+    if (!ms) return '—';
+    var d = new Date(ms);
+    var pad = function(n, w) { return String(n).padStart(w || 2, '0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+         + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+         + '.' + pad(d.getMilliseconds(), 3);
+}
+
+function qcfUid()  { return 'qcf_'  + crypto.randomUUID(); }
+function qcpUid()  { return 'pkg_'  + crypto.randomUUID(); }
+
+function newScenarioMeta(name) {
+    var now = nowMs();
+    return {
+        // ── 内部管理 ──
+        id:            scnUid(),
+        name:          name,
+        cols:          4,
+        rows:          4,
+        data:          [],
+        createdAt:     now,
+        updatedAt:     now,
+        // ── QCF v1.0 スキーマ ──
+        qcfVersion:    '1.0',
+        schemaVersion: '1.0',
+        qcfId:         qcfUid(),
+        title:         name,
+        description:   '',
+        authorName:    '',
+        authorId:      '',
+        originId:      '',
+        hash:          null,
+        signature:     null,
+        license:       'private',
+        tags:          [],
+        share: {
+            enabled:       false,
+            expiresAt:     null,
+            downloadLimit: 0
+        }
+    };
+}
+function newCardMeta(title, content) {
+    var now = nowMs();
+    return {
+        id:           cardUid(),
+        title:        title  || '',
+        content:      content || '',
+        createdAt:    now,
+        updatedAt:    now,
+        createdBy:    '',
+        updatedBy:    '',
+        originCardId: ''
+    };
+}
+
 function getActive() { return scenarios.find(function(s){ return s.id === activeScenarioId; }); }
 
 // ===== THEME =====
@@ -3301,7 +3509,6 @@ function toggleTheme() {
 (function init() {
     applyTheme();
     loadScenarios();
-    migrateToQCF(); // QCFスキーマへ自動マイグレーション
     // [MODIFIED] interview モードも復元
     if (appMode === 'interview') {
         setAppMode('interview');
@@ -3506,7 +3713,9 @@ function switchScenario(id) {
 
 function addScenario() {
     saveCurrentGridData();
-    var s = { id: uid(), name: 'シナリオ' + (scenarios.length + 1), cols: getActiveCols(), rows: getActiveRows(), data: [] };
+    var s = newScenarioMeta('シナリオ' + (scenarios.length + 1));
+    s.cols = getActiveCols();
+    s.rows = getActiveRows();
     scenarios.push(s);
     activeScenarioId = s.id;
     saveScenarios();
@@ -3550,26 +3759,37 @@ function deleteScenario(id) {
 }
 
 function getCurrentGridData() {
-    var items = grid.querySelectorAll('.grid-item');
+    var items  = grid.querySelectorAll('.grid-item');
     var result = [];
+    var active = getActive();
     items.forEach(function(item, index) {
-        var t = item.querySelector('.title-input');
-        var c = item.querySelector('.content-textarea');
-        // [MOD] mediaId（画像のIndexedDBキー）をデータに保持し続ける（カードに画像が登録済みの場合）
+        var t    = item.querySelector('.title-input');
+        var c    = item.querySelector('.content-textarea');
+        var prev = active && active.data[index];
+        var now  = nowMs();
+        var curTitle   = t ? t.value : '';
+        var curContent = c ? c.value : '';
+        var prevTitle   = prev ? (prev.title   || '') : '';
+        var prevContent = prev ? (prev.content || '') : '';
+        var changed = (curTitle !== prevTitle || curContent !== prevContent);
         var entry = {
-            title:   t ? t.value : '',
-            content: c ? c.value : ''
+            // ── 必須 ──
+            id:           (prev && prev.id)           || cardUid(),
+            title:        curTitle,
+            content:      curContent,
+            // ── タイムスタンプ ──
+            createdAt:    (prev && prev.createdAt)    || now,
+            updatedAt:    changed ? now : ((prev && prev.updatedAt) || now),
+            // ── 作者・派生 ──
+            createdBy:    (prev && prev.createdBy)    || '',
+            updatedBy:    changed ? '' : ((prev && prev.updatedBy) || ''),
+            originCardId: (prev && prev.originCardId) || ''
         };
-        if (item.dataset.mediaId) entry.mediaId = item.dataset.mediaId;
-        // [NEW] itvId（録音・アップロード音声のキー）も同様に永続化する
-        if (item.dataset.itvId) entry.itvId = item.dataset.itvId;
-        // [NEW] 朗読音声ソース設定（speech / recorded / uploaded）
+        // ── メディア・音声・学習ステータス（既存フィールド維持） ──
+        if (item.dataset.mediaId)     entry.mediaId     = item.dataset.mediaId;
+        if (item.dataset.itvId)       entry.itvId       = item.dataset.itvId;
         if (item.dataset.audioSource) entry.audioSource = item.dataset.audioSource;
-        // [STUDY] 学習ステータス
-        var active = getActive();
-        if (active && active.data[index] && active.data[index].studyStatus) {
-            entry.studyStatus = active.data[index].studyStatus;
-        }
+        if (prev && prev.studyStatus) entry.studyStatus = prev.studyStatus;
         result.push(entry);
     });
     return result;
@@ -3578,7 +3798,8 @@ function getCurrentGridData() {
 function saveCurrentGridData() {
     var active = getActive();
     if (!active) return;
-    active.data = getCurrentGridData();
+    active.data      = getCurrentGridData();
+    active.updatedAt = nowMs();
     saveScenarios();
 }
 
@@ -4560,11 +4781,204 @@ function clearAll() {
     hideOverlay();
 }
 
-// ===== DATA MODAL =====
+// ===== QCF METADATA PANEL =====
+function qcfMetaLoad() {
+    var a = getActive(); if (!a) return;
+    // 旧 meta オブジェクトが残っていれば吸収
+    if (a.meta) {
+        if (!a.title       && a.meta.title)       a.title       = a.meta.title;
+        if (!a.authorName  && a.meta.author)       a.authorName  = a.meta.author;
+        if (!a.description && a.meta.description)  a.description = a.meta.description;
+        if (!a.license     && a.meta.license)      a.license     = a.meta.license;
+        if (!a.authorId    && a.meta.authorId)     a.authorId    = a.meta.authorId;
+        delete a.meta;
+    }
+    document.getElementById('qcf-meta-title').value      = a.title       || a.name || '';
+    document.getElementById('qcf-meta-authorname').value = a.authorName  || '';
+    document.getElementById('qcf-meta-authorid').value   = a.authorId    || '';
+    document.getElementById('qcf-meta-desc').value       = a.description || '';
+    document.getElementById('qcf-meta-version').value    = a.qcfVersion  || '1.0';
+    document.getElementById('qcf-meta-license').value    = a.license     || 'private';
+    document.getElementById('qcf-meta-id').textContent      = a.id;
+    document.getElementById('qcf-meta-qcfid').textContent   = a.qcfId || '—';
+    document.getElementById('qcf-meta-created').textContent = fmtTs(a.createdAt);
+    document.getElementById('qcf-meta-updated').textContent = fmtTs(a.updatedAt);
+    document.getElementById('qcf-meta-cards').textContent   = (a.data || []).length + ' 枚';
+    qcfTagsRender(a.tags || []);
+}
+
+function qcfMetaSave() {
+    var a = getActive(); if (!a) return;
+    a.title       = document.getElementById('qcf-meta-title').value;
+    a.authorName  = document.getElementById('qcf-meta-authorname').value;
+    a.authorId    = document.getElementById('qcf-meta-authorid').value;
+    a.description = document.getElementById('qcf-meta-desc').value;
+    a.qcfVersion  = document.getElementById('qcf-meta-version').value  || '1.0';
+    a.license     = document.getElementById('qcf-meta-license').value;
+    a.updatedAt   = nowMs();
+    document.getElementById('qcf-meta-updated').textContent = fmtTs(a.updatedAt);
+    saveScenarios();
+}
+
+// ── タグ UI ──
+function qcfTagsRender(tags) {
+    var list = document.getElementById('qcf-tags-list');
+    if (!list) return;
+    list.innerHTML = tags.map(function(tag, i) {
+        return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(61,139,255,0.12);border:1px solid rgba(61,139,255,0.3);border-radius:4px;padding:2px 6px;font-size:0.6rem;color:var(--accent);font-family:\'DM Mono\',monospace;">'
+            + tag
+            + '<span onclick="qcfTagRemove(' + i + ')" style="cursor:pointer;opacity:0.6;font-size:0.7rem;margin-left:2px;" title="削除">×</span></span>';
+    }).join('');
+}
+
+function qcfTagKeydown(e) {
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    var input = document.getElementById('qcf-tag-input');
+    var val   = input.value.trim().replace(/,/g, '');
+    if (!val) return;
+    var a = getActive(); if (!a) return;
+    if (!a.tags) a.tags = [];
+    if (a.tags.indexOf(val) === -1) {
+        a.tags.push(val);
+        qcfTagsRender(a.tags);
+        saveScenarios();
+    }
+    input.value = '';
+}
+
+function qcfTagRemove(idx) {
+    var a = getActive(); if (!a || !a.tags) return;
+    a.tags.splice(idx, 1);
+    qcfTagsRender(a.tags);
+    saveScenarios();
+}
+
+function qcfShareComingSoon() {
+    showToast('🔗 QCF共有機能は開発中です');
+}
+
+// ===== PLUGIN SYSTEM =====
+var _activePlugin = null;
+
+// Qcard公開API（プラグインはこれだけを使う）
+window.QcardAPI = {
+    version: '1.0',
+    // カードデータ取得
+    getCards: function() {
+        var a = getActive();
+        return (a && a.data) ? a.data.map(function(c) {
+            return { id: c.id, title: c.title || '', content: c.content || '' };
+        }) : [];
+    },
+    getScenario: function() {
+        var a = getActive();
+        return a ? { id: a.id, name: a.name, meta: a.meta } : null;
+    },
+    // プラグイン描画領域
+    getContainer: function() {
+        return document.getElementById('plugin-content');
+    },
+    // トースト通知
+    toast: function(msg) { showToast(msg); },
+    // 終了
+    exit: function() { pluginUnload(); }
+};
+
+function pluginLoad(e) {
+    var file = e.target.files[0]; if (!file) return;
+    var isPlugin = file.name.endsWith('.qplugin');
+    var isJs     = file.name.endsWith('.js');
+    if (!isPlugin && !isJs) { showToast('対応形式: .qplugin / .js'); return; }
+
+    readFile(file, function(text) {
+        try {
+            var manifest = { name: file.name, description: '', author: '', version: '' };
+            var code = text;
+
+            // .qpluginはJSONエンベロープ: { manifest:{...}, code:"..." }
+            if (isPlugin) {
+                var parsed = JSON.parse(text);
+                manifest = Object.assign(manifest, parsed.manifest || {});
+                code = parsed.code || '';
+            }
+
+            if (!code.trim()) { showToast('プラグインコードが空です'); return; }
+
+            // 確認ダイアログ
+            var bd = document.createElement('div');
+            bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.88);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
+            bd.innerHTML =
+                '<div style="background:var(--surface);border:1px solid rgba(108,99,255,0.4);border-radius:16px;padding:28px 30px;width:360px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.8)">' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+                '<span style="font-size:1.4rem;">🧩</span>' +
+                '<div>' +
+                '<div style="font-size:0.82rem;font-weight:700;color:var(--text);">' + (manifest.name || file.name) + '</div>' +
+                (manifest.author ? '<div style="font-size:0.62rem;color:var(--text-muted);font-family:\'DM Mono\',monospace;">by ' + manifest.author + (manifest.version ? ' · v' + manifest.version : '') + '</div>' : '') +
+                '</div></div>' +
+                (manifest.description ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">' + manifest.description + '</div>' : '') +
+                '<div style="font-size:0.65rem;color:var(--text-dim);background:rgba(242,82,106,0.07);border:1px solid rgba(242,82,106,0.2);border-radius:7px;padding:8px 10px;margin-bottom:18px;line-height:1.7;">⚠️ プラグインはJavaScriptを実行します。信頼できる作者のファイルのみ読み込んでください。</div>' +
+                '<div style="display:flex;gap:8px;">' +
+                '<button id="plg-ok"     style="flex:1;background:linear-gradient(135deg,rgba(108,99,255,0.2),rgba(61,139,255,0.15));border:1px solid rgba(108,99,255,0.4);color:var(--text);border-radius:8px;padding:10px;font-size:0.75rem;font-weight:700;cursor:pointer;">読み込む</button>' +
+                '<button id="plg-cancel" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:10px;font-size:0.75rem;cursor:pointer;">キャンセル</button>' +
+                '</div></div>';
+            document.body.appendChild(bd);
+
+            document.getElementById('plg-cancel').onclick = function() { document.body.removeChild(bd); };
+            document.getElementById('plg-ok').onclick = function() {
+                document.body.removeChild(bd);
+                pluginExecute(manifest, code);
+                closeDataModal();
+            };
+        } catch(err) {
+            showToast('プラグイン読み込み失敗: ' + err.message);
+        }
+    });
+    e.target.value = '';
+}
+
+function pluginExecute(manifest, code) {
+    // 既存プラグインを解除
+    if (_activePlugin) pluginUnload(true);
+
+    _activePlugin = manifest;
+
+    // レイヤー表示
+    var layer = document.getElementById('plugin-layer');
+    document.getElementById('plugin-layer-name').textContent   = manifest.name || 'プラグイン';
+    document.getElementById('plugin-layer-author').textContent = manifest.author ? 'by ' + manifest.author : '';
+    document.getElementById('plugin-content').innerHTML = '';
+    layer.style.display = 'flex';
+
+    // モーダルステータス更新
+    document.getElementById('plugin-name').textContent = manifest.name || '';
+    document.getElementById('plugin-desc').textContent = manifest.description || '';
+    document.getElementById('plugin-status').style.display = 'block';
+
+    // コード実行（Function経由でスコープを分離）
+    try {
+        (new Function('QcardAPI', code))(window.QcardAPI);
+    } catch(err) {
+        document.getElementById('plugin-content').innerHTML =
+            '<div style="padding:32px;color:var(--danger);font-family:\'DM Mono\',monospace;font-size:0.75rem;">' +
+            '⚠️ プラグイン実行エラー<br><br>' + err.message + '</div>';
+        showToast('プラグインエラー: ' + err.message);
+    }
+}
+
+function pluginUnload(silent) {
+    _activePlugin = null;
+    document.getElementById('plugin-layer').style.display = 'none';
+    document.getElementById('plugin-content').innerHTML = '';
+    document.getElementById('plugin-status').style.display = 'none';
+    if (!silent) showToast('プラグインを終了しました');
+}
+
 function openDataModal() {
     saveCurrentGridData();
     document.getElementById('data-modal-backdrop').style.display = 'block';
     document.getElementById('data-modal').style.display          = 'block';
+    qcfMetaLoad();
     // [NEW] 録音件数を表示
     itvCountActiveScenarioRecs().then(function(count) {
         var el = document.getElementById('itv-modal-count');
@@ -4578,232 +4992,82 @@ function closeDataModal() {
     document.getElementById('data-modal').style.display          = 'none';
 }
 
-// ===== QCF FORMAT =====
+// ===== QCF v1.0 エクスポート =====
 
-// qcfId生成
-function qcfUid() {
-    return 'qcf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-function qcpUid() {
-    return 'pkg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-// SHA-256ハッシュ（cards配列を対象）
+// SHA-256ハッシュ（cards配列対象）
 async function qcfHash(cards) {
     try {
-        var str  = JSON.stringify(cards);
-        var buf  = new TextEncoder().encode(str);
-        var hash = await crypto.subtle.digest('SHA-256', buf);
-        return Array.from(new Uint8Array(hash)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-    } catch(e) { return ''; }
+        var text = JSON.stringify(cards);
+        var buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    } catch(e) { return null; }
 }
 
-// シナリオ → QCFオブジェクト生成
-async function scenarioToQCF(s) {
-    var now   = new Date().toISOString();
-    var cards = (s.data || []).map(function(d, i) {
+// シナリオ → QCF v1.0オブジェクト生成
+async function buildQCF(s) {
+    var cards = (s.data || []).map(function(card) {
         return {
-            id:          d.id          || ('card_' + i),
-            createdAt:   d.createdAt   || now,
-            updatedAt:   d.updatedAt   || now,
-            title:       d.title       || '',
-            content:     d.content     || '',
-            studyStatus: d.studyStatus || '',
-            originCardId: d.originCardId || ''
+            id:           card.id           || cardUid(),
+            title:        card.title        || '',
+            content:      card.content      || '',
+            createdAt:    card.createdAt    || nowMs(),
+            updatedAt:    card.updatedAt    || nowMs(),
+            createdBy:    card.createdBy    || '',
+            updatedBy:    card.updatedBy    || '',
+            originCardId: card.originCardId || ''
         };
     });
     var hash = await qcfHash(cards);
     return {
         qcfVersion:    '1.0',
         schemaVersion: '1.0',
-        qcfId:         s.qcfId       || qcfUid(),
-        title:         s.name        || '',
-        description:   s.description || '',
-        createdAt:     s.createdAt   || now,
-        updatedAt:     now,
-        authorName:    s.authorName  || '',
-        authorId:      s.authorId    || '',
-        originId:      s.originId    || '',
+        qcfId:         s.qcfId         || qcfUid(),
+        title:         s.title         || s.name || '',
+        description:   s.description   || '',
+        createdAt:     s.createdAt     || nowMs(),
+        updatedAt:     s.updatedAt     || nowMs(),
+        authorName:    s.authorName    || '',
+        authorId:      s.authorId      || '',
+        originId:      s.originId      || '',
         hash:          hash,
         signature:     null,
-        license:       s.license     || 'private',
-        tags:          s.tags        || [],
-        cols:          s.cols        || 4,
-        rows:          s.rows        || 4,
+        license:       s.license       || 'private',
+        tags:          s.tags          || [],
+        cols:          s.cols          || 4,
+        rows:          s.rows          || 4,
         cardCount:     cards.length,
         cards:         cards,
-        share: {
-            enabled:       false,
-            expiresAt:     '',
-            downloadLimit: 0
-        }
+        share: s.share || { enabled: false, expiresAt: null, downloadLimit: 0 }
     };
 }
 
-// QCFオブジェクト → シナリオ形式に変換（インポート用）
-function qcfToScenario(qcf) {
-    return {
-        id:          uid(),
-        name:        qcf.title        || 'インポートシナリオ',
-        description: qcf.description  || '',
-        cols:        qcf.cols         || 4,
-        rows:        qcf.rows         || 4,
-        qcfId:       qcf.qcfId        || '',
-        createdAt:   qcf.createdAt    || '',
-        authorName:  qcf.authorName   || '',
-        authorId:    qcf.authorId     || '',
-        originId:    qcf.originId     || '',
-        license:     qcf.license      || 'private',
-        tags:        qcf.tags         || [],
-        data: (qcf.cards || []).map(function(c) {
-            return {
-                title:        c.title       || '',
-                content:      c.content     || '',
-                studyStatus:  c.studyStatus || '',
-                id:           c.id          || '',
-                createdAt:    c.createdAt   || '',
-                originCardId: c.originCardId || ''
-            };
-        })
-    };
-}
-
-// ===== EXPORT QCF =====
-window.exportQCF = async function() {
+// QCF（単体シナリオ）エクスポート
+async function exportActiveJSON() {
     var a = getActive(); if (!a) return;
     saveCurrentGridData();
-    var qcf  = await scenarioToQCF(a);
+    var active = getActive();
+    var qcf  = await buildQCF(active);
     var blob = new Blob([JSON.stringify(qcf, null, 2)], { type: 'application/json' });
-    var name = (a.name || 'scenario').replace(/[\\/:*?"<>|]/g, '_') + '_' + today() + '.qcf';
-    downloadBlob(blob, name);
-    showToast('📄 QCFをエクスポートしました'); closeDataModal();
-};
+    downloadBlob(blob, activeFilename('qcf'));
+    showToast('QCFをエクスポート'); closeDataModal();
+}
 
-// ===== EXPORT QCP =====
-window.exportQCP = async function() {
+// QCP（複数シナリオパッケージ）エクスポート
+async function exportJSON() {
     saveCurrentGridData();
-    var now  = new Date().toISOString();
-    var items = [];
-    for (var i = 0; i < scenarios.length; i++) {
-        items.push(await scenarioToQCF(scenarios[i]));
-    }
+    var items = await Promise.all(scenarios.map(function(s){ return buildQCF(s); }));
     var pkg = {
         packageVersion: '1.0',
         packageId:      qcpUid(),
-        title:          'Qcard Package',
-        createdAt:      now,
-        updatedAt:      now,
+        title:          'Qcard エクスポート',
+        createdAt:      nowMs(),
+        exportedAt:     nowMs(),
         itemCount:      items.length,
         items:          items
     };
     var blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, 'qcard_package_' + today() + '.qcp');
-    showToast('📦 QCPをエクスポートしました'); closeDataModal();
-};
-
-// ===== IMPORT QCF / QCP =====
-window.importQCF = function(e) {
-    var file = e.target.files[0]; if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-        try {
-            var parsed = JSON.parse(ev.target.result);
-            // QCPかQCFかを判定
-            var incomingList = [];
-            if (parsed.packageVersion && Array.isArray(parsed.items)) {
-                // QCP
-                incomingList = parsed.items;
-            } else if (parsed.qcfVersion && Array.isArray(parsed.cards)) {
-                // QCF
-                incomingList = [parsed];
-            } else {
-                showToast('❌ QCF/QCP形式ではありません'); return;
-            }
-            qcfImportWithDialog(incomingList, file.name);
-        } catch(err) { showToast('❌ ファイルの読み込みに失敗しました'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-};
-
-function qcfImportWithDialog(qcfList, filename) {
-    // 既存シナリオとqcfIdの重複チェック
-    var duplicates = [];
-    qcfList.forEach(function(qcf) {
-        if (qcf.qcfId) {
-            var existing = scenarios.find(function(s){ return s.qcfId === qcf.qcfId; });
-            if (existing) duplicates.push({ qcf: qcf, existing: existing });
-        }
-    });
-
-    if (duplicates.length > 0) {
-        // 重複あり → 3択ダイアログ
-        var names = duplicates.map(function(d){ return '・' + d.qcf.title; }).join('\n');
-        var bd = document.createElement('div');
-        bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.85);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
-        bd.innerHTML =
-            '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:24px 28px;width:360px;max-width:92vw;box-shadow:0 4px 16px rgba(0,0,0,0.3)">' +
-            '<div style="font-family:\'DM Mono\',monospace;font-size:0.6rem;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">QCF インポート</div>' +
-            '<div style="font-size:0.8rem;color:var(--text);font-weight:600;margin-bottom:6px">' + filename + '</div>' +
-            '<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:6px">以下のシナリオは既に存在します：</div>' +
-            '<div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:16px;line-height:1.6">' + names + '</div>' +
-            '<div style="display:flex;flex-direction:column;gap:8px">' +
-            '<button id="qcf-add-btn"      style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;text-align:left">➕ 新規追加　<span style="color:var(--text-muted);font-weight:400">別シナリオとして追加（推奨）</span></button>' +
-            '<button id="qcf-overwrite-btn" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;text-align:left">🔄 上書き　<span style="color:var(--danger);font-weight:400">既存データを置き換え</span></button>' +
-            '<button id="qcf-cancel-btn"   style="background:transparent;border:none;color:var(--text-dim);border-radius:8px;padding:8px 14px;font-size:0.72rem;cursor:pointer;text-align:center">キャンセル</button>' +
-            '</div></div>';
-        document.body.appendChild(bd);
-        var close = function() { document.body.removeChild(bd); };
-        document.getElementById('qcf-cancel-btn').onclick = close;
-        document.getElementById('qcf-add-btn').onclick = function() {
-            close(); qcfDoImport(qcfList, 'add');
-        };
-        document.getElementById('qcf-overwrite-btn').onclick = function() {
-            if (!confirm('既存データを上書きします。よろしいですか？')) return;
-            close(); qcfDoImport(qcfList, 'overwrite');
-        };
-    } else {
-        // 重複なし → そのまま追加
-        qcfDoImport(qcfList, 'add');
-    }
-}
-
-function qcfDoImport(qcfList, mode) {
-    qcfList.forEach(function(qcf) {
-        var s = qcfToScenario(qcf);
-        if (mode === 'overwrite' && qcf.qcfId) {
-            var idx = scenarios.findIndex(function(x){ return x.qcfId === qcf.qcfId; });
-            if (idx >= 0) { scenarios[idx] = s; return; }
-        }
-        scenarios.push(s);
-    });
-    activeScenarioId = scenarios[scenarios.length - 1].id;
-    saveScenarios(); renderScenarioTabs();
-    document.getElementById('colsInput').value = getActiveCols();
-    updateGrid();
-    showToast('✅ QCFを読み込みました（' + qcfList.length + '件）');
-    closeDataModal();
-}
-
-// ===== 旧JSON自動マイグレーション =====
-function migrateToQCF() {
-    var migrated = false;
-    scenarios.forEach(function(s) {
-        if (!s.qcfId) { s.qcfId = qcfUid(); migrated = true; }
-        if (!s.createdAt) { s.createdAt = new Date().toISOString(); migrated = true; }
-        if (!s.license) { s.license = 'private'; migrated = true; }
-        if (!s.tags) { s.tags = []; migrated = true; }
-        (s.data || []).forEach(function(d, i) {
-            if (!d.id) { d.id = 'card_' + i; migrated = true; }
-        });
-    });
-    if (migrated) { saveScenarios(); }
-}
-
-function exportJSON() {
-    var blob = new Blob([JSON.stringify({ scenarios: scenarios, activeId: activeScenarioId }, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, 'qcard_' + today() + '.json');
-    showToast('JSONをエクスポート'); closeDataModal();
+    downloadBlob(blob, 'qcard_' + today() + '.qcp');
+    showToast('QCPをエクスポート（全シナリオ）'); closeDataModal();
 }
 
 function exportCSV() {
@@ -4833,13 +5097,6 @@ function activeFilename(ext) {
         + ('0'+dt.getMinutes()).slice(-2)
         + ('0'+dt.getSeconds()).slice(-2);
     return name + '-' + cols + 'col-' + ts + '.' + ext;
-}
-
-function exportActiveJSON() {
-    var a = getActive(); if (!a) return;
-    var blob = new Blob([JSON.stringify({ scenarios: [a], activeId: a.id }, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, activeFilename('json'));
-    showToast('このシナリオをJSON保存'); closeDataModal();
 }
 
 function exportActiveCSV() {
@@ -4938,18 +5195,19 @@ function importFromPaste() {
     var text = ta ? ta.value.trim() : '';
     if (!text) { showToast('テキストが貼り付けられていません'); return; }
 
-    // ① JSONとして解釈を試みる
+    // ① JSON/QCF/QCPとして解釈を試みる
     try {
         var parsed = JSON.parse(text);
-        if (parsed.scenarios && Array.isArray(parsed.scenarios)) {
-            scenarios = parsed.scenarios;
-            scenarios.forEach(function(s) { if (!s.cols) s.cols = 4; });
-            activeScenarioId = parsed.activeId || scenarios[0].id;
+        var normalized = normalizeImportedScenarios(parsed);
+        if (normalized) {
+            var typeLabel = normalized.isQcf ? 'QCF' : normalized.isQcp ? 'QCP' : 'JSON';
+            scenarios        = normalized.scenarios;
+            activeScenarioId = normalized.activeId || scenarios[0].id;
             saveScenarios(); renderScenarioTabs();
             document.getElementById('colsInput').value = getActiveCols();
             updateGrid();
             ta.value = '';
-            showToast('JSON（貼り付け）をインポート'); closeDataModal();
+            showToast(typeLabel + '（貼り付け）をインポート'); closeDataModal();
             return;
         }
     } catch (e) {
@@ -4991,58 +5249,233 @@ function importMD(e) {
     e.target.value = '';
 }
 
+// QCF単体オブジェクト → 内部シナリオ形式へ変換（hash検証付き）
+async function qcfToScenarioAsync(qcf) {
+    var s = qcfToScenario(qcf);
+    // hash検証
+    if (qcf.hash) {
+        var recomputed = await qcfHash(s.data);
+        if (recomputed === qcf.hash) {
+            s._hashStatus = 'verified';
+        } else {
+            s._hashStatus = 'mismatch';
+        }
+    } else {
+        s._hashStatus = 'none';
+    }
+    return s;
+}
+
+// QCF単体オブジェクト → 内部シナリオ形式へ変換
+function qcfToScenario(qcf) {
+    var now = nowMs();
+    var cards = (qcf.cards || []).map(function(card) {
+        return {
+            id:           card.id           || cardUid(),
+            title:        card.title        || '',
+            content:      card.content      || '',
+            createdAt:    card.createdAt    || now,
+            updatedAt:    card.updatedAt    || now,
+            createdBy:    card.createdBy    || '',
+            updatedBy:    card.updatedBy    || '',
+            originCardId: card.originCardId || ''
+        };
+    });
+    return {
+        id:            scnUid(),
+        name:          qcf.title || 'インポート',
+        cols:          qcf.cols          || 4,
+        rows:          qcf.rows          || 4,
+        data:          cards,
+        createdAt:     qcf.createdAt     || now,
+        updatedAt:     qcf.updatedAt     || now,
+        qcfVersion:    qcf.qcfVersion    || '1.0',
+        schemaVersion: qcf.schemaVersion || '1.0',
+        qcfId:         qcf.qcfId        || qcfUid(),
+        title:         qcf.title        || '',
+        description:   qcf.description  || '',
+        authorName:    qcf.authorName   || '',
+        authorId:      qcf.authorId     || '',
+        originId:      qcf.originId     || '',
+        hash:          qcf.hash         || null,
+        signature:     qcf.signature    || null,
+        license:       qcf.license      || 'private',
+        tags:          qcf.tags         || [],
+        share:         qcf.share        || { enabled: false, expiresAt: null, downloadLimit: 0 }
+    };
+}
+
+// 旧JSON形式（scenarios配列）→ QCF v1.0マイグレーション
+function normalizeImportedScenarios(parsed) {
+    var now = nowMs();
+    // ① QCP（packageVersion）
+    if (parsed.packageVersion && Array.isArray(parsed.items)) {
+        var list = parsed.items.map(function(qcf){ return qcfToScenario(qcf); });
+        return { scenarios: list, activeId: list[0] ? list[0].id : null, isQcp: true };
+    }
+    // ② QCF単体（qcfVersion、cardsあり）
+    if (parsed.qcfVersion && Array.isArray(parsed.cards)) {
+        var s = qcfToScenario(parsed);
+        return { scenarios: [s], activeId: s.id, isQcf: true };
+    }
+    // ③ 旧JSON（scenarios配列）
+    if (Array.isArray(parsed.scenarios)) {
+        var list2 = parsed.scenarios.map(function(s) {
+            // 旧形式を一旦QCF風に変換してからqcfToScenario
+            var pseudo = {
+                qcfVersion: '1.0', schemaVersion: '1.0',
+                qcfId: s.qcfId || qcfUid(),
+                title: s.title || s.name || '',
+                description: s.description || (s.meta && s.meta.description) || '',
+                authorName:  s.authorName  || (s.meta && s.meta.author)      || '',
+                authorId:    s.authorId    || (s.meta && s.meta.authorId)     || '',
+                license:     s.license     || (s.meta && s.meta.license)      || 'private',
+                tags:        s.tags        || [],
+                cols:        s.cols || 4,
+                rows:        s.rows || 4,
+                createdAt:   s.createdAt || now,
+                updatedAt:   s.updatedAt || now,
+                originId:    s.originId  || '',
+                hash:        null, signature: null,
+                share:       s.share || { enabled: false, expiresAt: null, downloadLimit: 0 },
+                cards:       (s.data || []).map(function(card) {
+                    return {
+                        id: card.id || cardUid(),
+                        title: card.title || '', content: card.content || '',
+                        createdAt: card.createdAt || now, updatedAt: card.updatedAt || now,
+                        createdBy: card.createdBy || '', updatedBy: card.updatedBy || '',
+                        originCardId: card.originCardId || ''
+                    };
+                })
+            };
+            var converted = qcfToScenario(pseudo);
+            // 内部IDは旧IDを引き継ぐ（重複検出用）
+            if (s.id && String(s.id).startsWith('scn_')) converted.id = s.id;
+            return converted;
+        });
+        var activeId = parsed.activeId || (list2[0] ? list2[0].id : null);
+        return { scenarios: list2, activeId: activeId, isLegacy: true };
+    }
+    return null;
+}
+
 function importJSON(e) {
     var file = e.target.files[0]; if (!file) return;
-    readFile(file, function(text) {
+    readFile(file, async function(text) {
         try {
             var parsed = JSON.parse(text);
-            if (!parsed.scenarios || !Array.isArray(parsed.scenarios)) { showToast('JSONの形式が不正です'); return; }
-            parsed.scenarios.forEach(function(s) { if (!s.cols) s.cols = 4; });
+            var normalized = normalizeImportedScenarios(parsed);
+            if (!normalized) { showToast('対応形式ではありません（QCF / QCP / JSON）'); return; }
+
+            var list     = normalized.scenarios;
+            var activeId = normalized.activeId;
+            var isQcf    = normalized.isQcf;
+            var isQcp    = normalized.isQcp;
+            var isLegacy = normalized.isLegacy;
+
+            var typeLabel = isQcf ? 'QCF' : isQcp ? 'QCP' : 'JSON（旧形式）';
+            var typeBadge = isQcf ? 'var(--accent2)' : isQcp ? 'var(--accent)' : 'var(--text-dim)';
+
+            // ── hash検証（QCF / QCP のみ） ──
+            var hashResults = {};
+            if (isQcf || isQcp) {
+                var srcItems = isQcf ? [parsed] : (parsed.items || []);
+                await Promise.all(srcItems.map(async function(qcf, i) {
+                    if (!qcf.hash) { hashResults[i] = 'none'; return; }
+                    var cards = (qcf.cards || []).map(function(c) {
+                        return { id: c.id||'', title: c.title||'', content: c.content||'',
+                                 createdAt: c.createdAt||0, updatedAt: c.updatedAt||0,
+                                 createdBy: c.createdBy||'', updatedBy: c.updatedBy||'', originCardId: c.originCardId||'' };
+                    });
+                    var recomputed = await qcfHash(cards);
+                    hashResults[i] = (recomputed === qcf.hash) ? 'verified' : 'mismatch';
+                }));
+            }
+
+            // ── メタプレビュー ──
+            var metaHtml = '';
+            if (isQcf || isQcp) {
+                var previews = isQcf ? [list[0]] : list.slice(0, 3);
+                metaHtml = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;">';
+                previews.forEach(function(s, i) {
+                    var hStatus = hashResults[i];
+                    var hashBadge = hStatus === 'verified'
+                        ? '<span style="color:var(--success);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--success);border-radius:3px;padding:1px 5px;">✓ Verified</span>'
+                        : hStatus === 'mismatch'
+                        ? '<span style="color:var(--danger);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--danger);border-radius:3px;padding:1px 5px;" title="ファイルが改変されている可能性があります">⚠ Hash Mismatch</span>'
+                        : '<span style="color:var(--text-dim);font-family:\'DM Mono\',monospace;font-size:0.58rem;">hash なし</span>';
+                    metaHtml +=
+                        (i > 0 ? '<div style="border-top:1px solid var(--border);margin:8px 0;"></div>' : '') +
+                        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;">' +
+                        '<div style="font-size:0.73rem;font-weight:700;color:var(--text);">' + (s.title || s.name || '—') + '</div>' +
+                        hashBadge + '</div>' +
+                        (s.description ? '<div style="font-size:0.62rem;color:var(--text-muted);margin-bottom:3px;">' + s.description + '</div>' : '') +
+                        '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:0.6rem;font-family:\'DM Mono\',monospace;">' +
+                        (s.authorName ? '<span style="color:var(--text-dim);">by ' + s.authorName + '</span>' : '') +
+                        '<span style="color:var(--accent);">' + (s.data||[]).length + ' 枚</span>' +
+                        '<span style="color:var(--text-dim);">' + (s.license || 'private') + '</span>' +
+                        (s.tags && s.tags.length ? '<span style="color:var(--text-dim);">' + s.tags.join(', ') + '</span>' : '') +
+                        '</div>';
+                });
+                if (isQcp && list.length > 3) {
+                    metaHtml += '<div style="font-size:0.6rem;color:var(--text-dim);margin-top:6px;">他 ' + (list.length - 3) + ' シナリオ</div>';
+                }
+                metaHtml += '</div>';
+            }
+
+            // ── 重複チェック ──
+            var duplicates = list.filter(function(s) {
+                return scenarios.find(function(ex){ return ex.qcfId && ex.qcfId === s.qcfId; });
+            });
+            var dupHtml = duplicates.length > 0
+                ? '<div style="font-size:0.63rem;color:var(--warning,#f5a623);background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.25);border-radius:7px;padding:7px 10px;margin-bottom:12px;">⚠️ ' + duplicates.length + ' 件の重複 QCF ID を検出。「新規追加」では別シナリオとして追加されます。</div>'
+                : '';
 
             var bd = document.createElement('div');
-            bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.85);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
+            bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.88);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
             bd.innerHTML =
-                '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:28px 32px;width:360px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.8)">' +
-                '<div style="font-family:\'DM Mono\',monospace;font-size:0.62rem;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px">インポート</div>' +
-                '<div style="font-size:0.82rem;color:var(--text);font-weight:600;margin-bottom:6px">' + file.name + '</div>' +
-                '<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:22px">読み込み方法を選択してください。</div>' +
-                '<div style="display:flex;flex-direction:column;gap:8px">' +
-                '<button id="imp-add"     style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;text-align:left">➕ 追加　<span style="color:var(--text-muted);font-weight:400">既存シナリオを保持して追加</span></button>' +
-                '<button id="imp-replace" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;text-align:left">🔄 全置換　<span style="color:var(--danger);font-weight:400">既存データを消去して置き換え</span></button>' +
-                '<button id="imp-cancel"  style="background:transparent;border:none;color:var(--text-dim);border-radius:8px;padding:8px 14px;font-size:0.72rem;cursor:pointer;text-align:center">キャンセル</button>' +
+                '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:26px 28px;width:400px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.8);max-height:90vh;overflow-y:auto;">' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+                '<span style="font-family:\'DM Mono\',monospace;font-size:0.6rem;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;">インポート</span>' +
+                '<span style="font-family:\'DM Mono\',monospace;font-size:0.56rem;color:' + typeBadge + ';border:1px solid ' + typeBadge + ';border-radius:3px;padding:1px 6px;">' + typeLabel + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:3px;">' + file.name + '</div>' +
+                '<div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:14px;">シナリオ ' + list.length + ' 件</div>' +
+                metaHtml + dupHtml +
+                '<div style="display:flex;flex-direction:column;gap:7px;">' +
+                '<button id="imp-add"     style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">➕ 新規追加　<span style="color:var(--text-muted);font-weight:400;">既存シナリオを保持して追加（推奨）</span></button>' +
+                '<button id="imp-replace" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">🔄 全置換　<span style="color:var(--danger);font-weight:400;">既存データを消去して置き換え</span></button>' +
+                '<button id="imp-cancel"  style="background:transparent;border:none;color:var(--text-dim);border-radius:8px;padding:8px;font-size:0.7rem;cursor:pointer;text-align:center;">キャンセル</button>' +
                 '</div></div>';
 
             document.body.appendChild(bd);
-
             function close() { document.body.removeChild(bd); }
-
             document.getElementById('imp-cancel').onclick = close;
 
             document.getElementById('imp-add').onclick = function() {
-                parsed.scenarios.forEach(function(s) {
-                    var ex = scenarios.find(function(x){ return x.name === s.name; });
-                    if (ex) { ex.data = s.data; ex.cols = s.cols; }
-                    else    { scenarios.push(s); }
+                list.forEach(function(s) {
+                    var ex = scenarios.find(function(x){ return x.qcfId && x.qcfId === s.qcfId; });
+                    if (ex) { s.qcfId = qcfUid(); s.id = scnUid(); s.name = (s.title || s.name) + ' (インポート)'; }
+                    scenarios.push(s);
                 });
-                saveScenarios(); renderScenarioTabs();
-                document.getElementById('colsInput').value = getActiveCols();
-                updateGrid();
-                showToast('追加インポート完了'); close(); closeDataModal();
+                afterImport(list[0] ? list[0].id : null); close();
             };
-
             document.getElementById('imp-replace').onclick = function() {
                 if (!confirm('既存のデータをすべて消去して置き換えます。よろしいですか？')) return;
-                scenarios = parsed.scenarios;
-                activeScenarioId = parsed.activeId || scenarios[0].id;
-                saveScenarios(); renderScenarioTabs();
-                document.getElementById('colsInput').value = getActiveCols();
-                updateGrid();
-                showToast('全置換インポート完了'); close(); closeDataModal();
+                scenarios = list; activeScenarioId = activeId || list[0].id;
+                afterImport(null); close();
             };
-
-        } catch(err) { showToast('JSON読み込み失敗'); }
+        } catch(err) { showToast('読み込み失敗：' + err.message); }
     });
     e.target.value = '';
+}
+
+function afterImport(focusId) {
+    if (focusId) activeScenarioId = focusId;
+    saveScenarios(); renderScenarioTabs();
+    document.getElementById('colsInput').value = getActiveCols();
+    updateGrid();
+    showToast('インポート完了'); closeDataModal();
 }
 
 function importCSV(e) {
