@@ -2279,7 +2279,7 @@
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.2.1</span>
+    <span class="version-badge">v2.5.5</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -2432,7 +2432,7 @@
                 <label>比率</label>
                 <select id="cardRatioSelect" onchange="onCardRatioChange(this.value)">
                     <option value="auto">自動</option>
-                    <option value="fit">フィット（画面に合わせる）</option>
+                    <option value="fit" selected>フィット（画面に合わせる）</option>
                     <option value="1:1">1:1（正方形）</option>
                     <option value="1:1.4">1:1.4（カード）</option>
                     <option value="custom">カスタム…</option>
@@ -3353,8 +3353,8 @@ function loadScenarios() {
     // ─── QCF v1.0 マイグレーション ───
     var migrated = false;
     scenarios.forEach(function(s) {
-        if (!s.cols)          { s.cols = 4;           migrated = true; }
-        if (!s.rows)          { s.rows = 4;           migrated = true; }
+        if (!s.cols)          { s.cols = 3;           migrated = true; }
+        if (!s.rows)          { s.rows = 3;           migrated = true; }
         // scn_ UUID
         if (!s.id || typeof s.id === 'number' || !String(s.id).startsWith('scn_')) {
             s.id = scnUid();                           migrated = true;
@@ -3404,12 +3404,12 @@ function loadScenarios() {
 
 function getActiveCols() {
     var a = getActive();
-    return (a && a.cols) ? a.cols : 4;
+    return (a && a.cols) ? a.cols : 3;
 }
 
 function getActiveRows() {
     var a = getActive();
-    return (a && a.rows) ? a.rows : 4;
+    return (a && a.rows) ? a.rows : 3;
 }
 
 function saveScenarios() {
@@ -3443,8 +3443,8 @@ function newScenarioMeta(name) {
         // ── 内部管理 ──
         id:            scnUid(),
         name:          name,
-        cols:          4,
-        rows:          4,
+        cols:          3,
+        rows:          3,
         data:          [],
         createdAt:     now,
         updatedAt:     now,
@@ -3528,7 +3528,7 @@ function toggleTheme() {
     document.getElementById('colsInput').value = getActiveCols();
     var _initActive = getActive();
     var _rowsEl = document.getElementById('rowsInput');
-    if (_rowsEl) _rowsEl.value = (_initActive && _initActive.rows) ? _initActive.rows : 4;
+    if (_rowsEl) _rowsEl.value = (_initActive && _initActive.rows) ? _initActive.rows : 3;
 
     renderScenarioTabs();
     updateGrid();
@@ -3701,9 +3701,9 @@ function switchScenario(id) {
     saveScenarios();
     renderScenarioTabs();
     var active = getActive();
-    document.getElementById('colsInput').value = active ? active.cols : 4;
+    document.getElementById('colsInput').value = active ? active.cols : 3;
     var rowsEl = document.getElementById('rowsInput');
-    if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 4;
+    if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
     updateGrid();
     applySearch(currentQuery);
     hideOverlay();
@@ -3835,7 +3835,12 @@ document.addEventListener('click', function(e) {
 
 // [NEW] カード縦横比設定
 // 'auto' = 既存仕様（height: 160px固定）/ それ以外は aspect-ratio で「横幅に対する高さの比率」を適用
-var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'auto';
+// [v2.5.5] デフォルト比率を 'fit' に変更。未移行ユーザーは強制的に 'fit' へリセット
+if (!localStorage.getItem('kp_ratio_migrated_v255')) {
+    localStorage.setItem('kp_card_ratio_mode', 'fit');
+    localStorage.setItem('kp_ratio_migrated_v255', '1');
+}
+var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 var cardRatioCustomValue = parseFloat(localStorage.getItem('kp_card_ratio_custom')) || 1.4;
 
 function applyCardRatio() {
@@ -4663,7 +4668,7 @@ function bindControls() {
                 if (willLose) {
                     if (!confirm('行を減らすと、はみ出したカードのデータが削除されます。よろしいですか？')) {
                         // キャンセル：元の行数に戻す
-                        this.value = active ? active.rows : 4;
+                        this.value = active ? active.rows : 3;
                         return;
                     }
                     // 確認後：データも切り捨て
@@ -4691,7 +4696,7 @@ function bindControls() {
             });
             if (willLose) {
                 if (!confirm('列を減らすと、はみ出したカードのデータが削除されます。よろしいですか？')) {
-                    this.value = active ? active.cols : 4;
+                    this.value = active ? active.cols : 3;
                     return;
                 }
                 if (active) { active.data = currentData.slice(0, newTotal); }
@@ -6439,10 +6444,21 @@ function rdSaveRate(v) {
         var active = getActive();
         var allData = active ? active.data : [];
         var isEditMode = (typeof appMode !== 'undefined' && appMode === 'edit');
-        // 編集モードでは空カードも含めて全件を対象にする（新規入力・編集のため）
-        mData = isEditMode ? allData.slice() : allData.filter(function(d) {
-            return (d.title && d.title.trim()) || (d.content && d.content.trim());
-        });
+
+        if (isEditMode) {
+            // 編集モード：グリッドの実カード数（rows×cols）ぶんのスロットを確保し、空カードも表示する
+            var total = (active ? (active.rows || 3) * (active.cols || 3) : 0);
+            var padded = [];
+            for (var pi = 0; pi < total; pi++) {
+                padded.push(allData[pi] || { title: '', content: '' });
+            }
+            mData = padded;
+        } else {
+            mData = allData.filter(function(d) {
+                return (d.title && d.title.trim()) || (d.content && d.content.trim());
+            });
+        }
+
         if (mIdx >= mData.length) mIdx = Math.max(0, mData.length - 1);
 
         // グリッドモード時はスワイプUIを非表示
@@ -6451,7 +6467,8 @@ function rdSaveRate(v) {
             return;
         }
         mRender();
-        mWrap.style.display = mData.length ? 'flex' : 'none';
+        var showWrap = isEditMode ? (mData.length > 0) : (mData.length > 0);
+        mWrap.style.display = showWrap ? 'flex' : 'none';
         mWrap.style.flexDirection = 'column';
     }
 
