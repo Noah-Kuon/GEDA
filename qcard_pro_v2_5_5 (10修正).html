@@ -1953,13 +1953,20 @@ body.mob-swipe #study-card-overlay {
             background: rgba(167,139,250,0.18);
             color: var(--text);
         }
-        #mobile-nav {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 16px 12px;
-            flex-shrink: 0;
-        }
+#mobile-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99999;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 6px 16px 12px;
+    flex-shrink: 0;
+}
         .mob-nav-btn {
             background: var(--surface2);
             border: 1px solid var(--border);
@@ -3326,12 +3333,14 @@ function triggerSave(fn) {
 // ===== APP MODE =====
 function setAppMode(mode) {
 
-    document.body.classList.remove(
-        'mob-swipe',
-        'mob-grid',
-        'mob-grid1',
-        'mob-grid2'
-    );
+/*
+document.body.classList.remove(
+    'mob-swipe',
+    'mob-grid',
+    'mob-grid1',
+    'mob-grid2'
+);
+*/
     appMode = mode;
     localStorage.setItem('kp_mode', mode);
     document.body.classList.remove('view-mode', 'edit-mode-active', 'interview-mode', 'reading-mode', 'study-mode');
