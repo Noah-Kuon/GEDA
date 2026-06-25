@@ -1957,15 +1957,16 @@ body.mob-swipe #study-card-overlay {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 60px;   /* フッターの上 */
+
     z-index: 99999;
 
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 18px;
 
     padding: 6px 16px 12px;
-    flex-shrink: 0;
 }
         .mob-nav-btn {
             background: var(--surface2);
