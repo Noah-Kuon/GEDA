@@ -2360,7 +2360,7 @@
             </div>
             <div class="ds-row">
                 <label>高さ</label>
-                <input type="range" id="heightSlider" min="20" max="95" value="55">
+<input type="range" id="heightSlider" min="20" max="95" value="55">
                 <span class="val-badge" id="heightDisplay">55%</span>
             </div>
             <div class="ds-divider"></div>
@@ -2374,7 +2374,7 @@
                     <option value="1:1.4">1:1.4（カード）</option>
                     <option value="custom">カスタム…</option>
                 </select>
-                <input type="number" id="cardRatioCustom" min="0.3" max="3" step="0.05" value="1.4" style="display:none;width:48px;" title="高さ ÷ 幅 の倍率" onchange="onCardRatioCustomChange(this.value)">
+                <input type="number" id="cardRatioCustom" min="0.3" max="3" step="0.05" value="1" style="display:none;width:48px;" title="高さ ÷ 幅 の倍率" onchange="onCardRatioCustomChange(this.value)">
             </div>
             <div class="ds-divider"></div>
             <div class="ds-row">
@@ -3843,6 +3843,8 @@ if (!localStorage.getItem('kp_ratio_migrated_v255')) {
     localStorage.setItem('kp_card_ratio_mode', 'fit');
     localStorage.setItem('kp_ratio_migrated_v255', '1');
 }
+
+// ⭕ 一本化（キー名は一貫して 'kp_card_ratio_mode' を使用）
 var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 var cardRatioCustomValue = parseFloat(localStorage.getItem('kp_card_ratio_custom')) || 1.4;
 
@@ -3874,8 +3876,6 @@ function applyCardRatio() {
 
     if (cardRatioMode === 'fit') {
         // フィット：grid-wrapperをflex列にし、grid-containerをflex:1で引き伸ばす。
-        // grid-template-rowsはupdateGrid()側でrepeat(rows,1fr)を設定するため、
-        // ここではgrid-containerが利用可能高さいっぱいに広がるCSSのみ担当する。
         styleEl.textContent =
             'body:not(.mob-grid1):not(.mob-grid2):not(.mob-swipe) .grid-wrapper { padding: 6px !important; overflow: hidden !important; }' +
             'body:not(.mob-grid1):not(.mob-grid2) .grid-container { flex: 1 !important; min-height: 0 !important; align-content: stretch !important; }' +
@@ -3886,10 +3886,7 @@ function applyCardRatio() {
         // 自動：既存仕様に戻す（CSSの上書きをクリア）
         styleEl.textContent = '';
     } else {
-        // [NEW] aspect-ratioで「横幅に対する高さの比率」を実現。height固定を解除する
-        // モバイルの1列/2列リスト表示（固定高さ仕様）には影響させない
-        // [FIX] align-contentはGridコンテナ自身（.grid-container）に適用する必要がある
-        // single-card-mode（行1×列1）にも比率を反映させる
+        // aspect-ratioで「横幅に対する高さの比率」を実現
         styleEl.textContent =
             'body:not(.mob-grid1):not(.mob-grid2) .grid-item { height: auto !important; aspect-ratio: 1 / ' + ratio + ' !important; }' +
             'body:not(.mob-grid1):not(.mob-grid2) .grid-container { align-content: start !important; }' +
@@ -3903,15 +3900,10 @@ function onCardRatioChange(value) {
     updateGrid(); // grid-template-rows の再計算も含む
 }
 
-function onCardRatioCustomChange(value) {
-    var v = parseFloat(value);
-    if (isNaN(v) || v <= 0) v = 1.4;
-    cardRatioCustomValue = v;
-    localStorage.setItem('kp_card_ratio_custom', v);
-    if (cardRatioMode === 'custom') applyCardRatio();
-}
-
 function updateGrid() {
+    // 💡【追記】確実に現在のモードをローカルストレージから取得（データが無ければ 'fit'）
+    cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
+
     var cols = getActiveCols();
     var rows = getActiveRows();
     var active = getActive();
@@ -3919,14 +3911,18 @@ function updateGrid() {
     var total = rows * cols;
     var rowsEl = document.getElementById('rowsInput');
     if (rowsEl) rowsEl.value = rows;
+    
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    
     // フィットモード時は行高さをgrid-template-rowsで均等分割する
-    // それ以外はauto（コンテンツ高さに依存）
     grid.style.gridTemplateRows = (cardRatioMode === 'fit') ? 'repeat(' + rows + ', 1fr)' : '';
+    
     // [NEW] 行1×列1の場合：横長1枚ではなく、画面に収まる大きなカード1枚として表示する
     grid.classList.toggle('single-card-mode', rows === 1 && cols === 1);
+    
     renderGrid(data, total);
-    applyCardRatio();
+    applyCardRatio(); // 💡ここで自動的にフィット用の動的CSSも適用されます
+    
     // [MOD] 録音・アップロード済みマークを全モードで更新する
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
     // モバイルスワイプUIを再同期
