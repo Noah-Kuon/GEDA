@@ -1661,7 +1661,7 @@
     display: none;
     flex-direction: column;
     width: 100%;
-    flex: 100; /* 💡 残りの縦幅を限界まで使い切る命令 */
+    flex: 100; /* 💡要確認 */
     height: 100%; /* calc(100vh - 130px)の場合は130pxの部分は実際のパーツの高さに応じて微調整 */
     min-height: 0;
     position: relative;
@@ -1704,7 +1704,7 @@
             box-sizing: border-box;
             min-height: 0;
         }
-        /* ── カード本体 ── */
+/* ── カード本体 ── */
         .mob-card-inner {
             flex: 1;
             background: var(--surface);
@@ -1716,6 +1716,9 @@
             gap: 12px;
             overflow-y: auto;
             min-height: 0;
+            
+            /* 💡 追加：中身の要素を横いっぱいに強制引き伸ばし */
+            align-items: stretch !important; 
         }
         .mob-card-title {
             font-size: 1.1rem;
@@ -1723,12 +1726,14 @@
             color: var(--text);
             line-height: 1.4;
             outline: none;
+            width: 100% !important; /* 💡 追加 */
         }
         .mob-card-content {
             font-size: 0.88rem;
             color: var(--text-muted);
             line-height: 1.7;
-            flex: 1;
+            flex: 1 !important;     /* 💡 importantで強化 */
+            width: 100% !important;    /* 💡 追加：横幅も100%固定 */
             white-space: pre-wrap;
             outline: none;
         }
@@ -1814,7 +1819,7 @@
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
 
-        /* ── グリッド2列 ── */
+/* ── グリッド2列 ── */
         body.mob-grid2 .grid-container {
             display: grid !important;
             grid-template-columns: 1fr 1fr !important;
@@ -1825,12 +1830,18 @@
             width: 100% !important; aspect-ratio: 1.2 !important; height: auto !important;
             padding: 8px !important; box-sizing: border-box;
             display: flex !important; flex-direction: column !important;
-            align-items: flex-start; overflow: hidden;
+            
+            /* 🛠️ 修正：左寄せをやめ、横幅いっぱいに引き伸ばす */
+            align-items: stretch !important; 
+            
+            overflow: hidden;
         }
         body.mob-grid2 .drag-handle { display: none !important; }
         body.mob-grid2 .item-meta   { font-size: 0.6rem !important; }
         body.mob-grid2 .title-input { font-size: 0.78rem !important; height: auto !important; max-height: 2.4em !important; overflow: hidden !important; }
-        body.mob-grid2 .content-textarea { font-size: 0.68rem !important; flex: 1 !important; resize: none !important; overflow: hidden !important; }
+        body.mob-grid2 .content-textarea { font-size: 0.68rem !important; flex: 1 !important; 
+        width: 100% !important; /* 💡 これを追加！ */
+        resize: none !important; overflow: hidden !important; }
         body.mob-grid2 .mob-title-label { display: none !important; }
 
         /* グリッド共通：タップターゲット・スクロール */
