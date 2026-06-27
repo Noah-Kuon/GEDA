@@ -117,3 +117,25 @@ AI支援機能
 ユーザー価値を伴わない技術的複雑化を避ける。
 
 機能追加より安定性を優先する。
+
+Qcard Core
+
+↓
+
+Grid
+
+↓
+
+Overlay
+
+↓
+
+Interview
+
+↓
+
+Plugin
+
+↓
+
+QCF
