@@ -318,7 +318,7 @@
             border-radius: 10px;
             padding: 14px;
             box-shadow: 0 12px 32px rgba(0,0,0,0.4);
-            z-index: 300;
+            z-index: 550;
             width: 280px;
             flex-direction: column;
             gap: 10px;
@@ -1577,6 +1577,30 @@
         .scenario-bar { display: none !important; }
 
         /* シナリオセレクト（モバイル専用） */
+        /* ── 反転練習ボタン ── */
+        #mob-flip-btn {
+            flex-shrink: 0;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 8px;
+            padding: 5px 9px;
+            font-size: 0.92rem;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+        #mob-flip-btn.active {
+            color: var(--accent);
+            border-color: rgba(61,139,255,0.55);
+            background: rgba(61,139,255,0.12);
+        }
+        #learningModeToggleBtn.reversed,
+        #studyBarToggleBtn.reversed,
+        #mobStudyBarToggleBtn.reversed {
+            color: var(--accent) !important;
+            border-color: rgba(61,139,255,0.55) !important;
+        }
         #mob-scenario-wrap {
             display: flex !important;
             align-items: center;
@@ -2363,9 +2387,7 @@
 <input type="range" id="heightSlider" min="20" max="95" value="55">
                 <span class="val-badge" id="heightDisplay">55%</span>
             </div>
-            <div class="ds-divider"></div>
-            <!-- [NEW] カード縦横比設定 -->
-            <div class="ds-row" id="ratioCtrlGroup">
+<div class="ds-row" id="ratioCtrlGroup">
                 <label>比率</label>
                 <select id="cardRatioSelect" onchange="onCardRatioChange(this.value)">
                     <option value="auto">自動</option>
@@ -2376,6 +2398,14 @@
                 </select>
                 <input type="number" id="cardRatioCustom" min="0.3" max="3" step="0.05" value="1" style="display:none;width:48px;" title="高さ ÷ 幅 の倍率" onchange="onCardRatioCustomChange(this.value)">
             </div>
+
+            <div class="ds-row" id="learningDirectionGroup">
+                <label>出題</label>
+                <button id="learningModeToggleBtn" onclick="toggleLearningDirection()" class="top-btn" style="flex:1; text-align:center; padding: 4px 8px;">
+                    📁 タイトル ➔ 内容
+                </button>
+            </div>
+
             <div class="ds-divider"></div>
             <div class="ds-row">
                 <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
@@ -2397,6 +2427,7 @@
     <select id="mob-scenario-select" onchange="mobScenarioChange(this.value)"></select>
     <button id="mob-scenario-add" onclick="addScenario()" title="シナリオ追加">＋</button>
     <button id="mob-card-add" onclick="addRow()" title="行追加">＋行</button>
+    <button id="mob-flip-btn" onclick="toggleLearningDirection()" title="タイトルと本文を反転して練習">⇄</button>
     <div id="mob-view-toggle">
         <button class="mob-view-btn active" data-view="swipe"  onclick="mobSetView('swipe')"  title="スワイプ">⬜</button>
         <button class="mob-view-btn"        data-view="grid1"  onclick="mobSetView('grid1')"  title="1列">▤</button>
@@ -2416,6 +2447,9 @@
     <div id="study-controls">
         <button class="top-btn" id="shuffle-btn" onclick="studyShuffle()" title="シャッフル">🔀 シャッフル</button>
         <button class="top-btn" id="unshuffle-btn" onclick="studyUnshuffle()" title="元の順番に戻す" style="display:none">↩ 元順</button>
+        
+        <button class="top-btn" id="studyBarToggleBtn" onclick="toggleLearningDirection()" title="出題方向を反転">📁 タイトル ➔ 内容</button>
+        
         <label id="study-audio-toggle-label" title="クリック時に音声を再生する">
             <input type="checkbox" id="study-audio-toggle" onchange="studyAudioToggleChange(this.checked)">
             <span>音声再生</span>
@@ -2493,11 +2527,13 @@
         <div id="mob-itv-history-list"></div>
     </div>
     <!-- 学習モード：シャッフル・進捗 -->
-    <div id="mob-study-bar">
+<div id="mob-study-bar">
         <div id="mob-study-actions">
             <button id="mob-shuffle-btn"     onclick="studyShuffle()"   title="シャッフル">🔀 シャッフル</button>
             <button id="mob-unshuffle-btn"   onclick="studyUnshuffle()" title="元の順番" style="display:none">↩ 元順</button>
             <button id="mob-study-reset-btn" onclick="studyResetAll()"  title="学習記録をリセット">🗑 リセット</button>
+            
+            <button id="mobStudyBarToggleBtn" onclick="toggleLearningDirection()" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
         </div>
         <div id="mob-study-progress-bar-wrap">
             <div id="mob-study-progress-again" class="mob-study-prog-seg"></div>
@@ -3707,6 +3743,9 @@ function switchScenario(id) {
     document.getElementById('colsInput').value = active ? active.cols : 3;
     var rowsEl = document.getElementById('rowsInput');
     if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
+    // シナリオ別反転状態をロード（updateGrid の前に更新する）
+    isLearningReversed = !!(active && active.isReversed);
+    updateLearningDirectionBtn();
     updateGrid();
     applySearch(currentQuery);
     hideOverlay();
@@ -3844,6 +3883,11 @@ if (!localStorage.getItem('kp_ratio_migrated_v255')) {
     localStorage.setItem('kp_ratio_migrated_v255', '1');
 }
 
+// [v2.6.2] 全ユーザー向けにデフォルトを 'fit' へリセット
+if (!localStorage.getItem('kp_ratio_migrated_v262')) {
+    localStorage.setItem('kp_card_ratio_mode', 'fit');
+    localStorage.setItem('kp_ratio_migrated_v262', '1');
+}
 // ⭕ 一本化（キー名は一貫して 'kp_card_ratio_mode' を使用）
 var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 var cardRatioCustomValue = parseFloat(localStorage.getItem('kp_card_ratio_custom')) || 1.4;
@@ -3853,9 +3897,13 @@ function applyCardRatio() {
     var customInput = document.getElementById('cardRatioCustom');
     // [MOD] fitモードを選択肢の判定に追加
     if (sel) {
-        var knownValues = ['auto', 'fit', '1:1', '1:1.4'];
-        sel.value = (knownValues.indexOf(cardRatioMode) !== -1) ? cardRatioMode : 'custom';
+    var knownValues = ['auto', 'fit', '1:1', '1:1.4'];
+    var newValue = (knownValues.indexOf(cardRatioMode) !== -1) ? cardRatioMode : 'custom';
+
+    if (sel.value !== newValue) {
+        sel.value = newValue;
     }
+}
     if (customInput) {
         customInput.style.display = (sel && sel.value === 'custom') ? 'inline-block' : 'none';
         customInput.value = cardRatioCustomValue;
@@ -3897,11 +3945,60 @@ function applyCardRatio() {
 function onCardRatioChange(value) {
     cardRatioMode = value;
     localStorage.setItem('kp_card_ratio_mode', value);
-    updateGrid(); // grid-template-rows の再計算も含む
+    updateGrid(); 
 }
 
+// 🌐 1. ここでアプリ共通の変数として1回だけ宣言する
+// ── 反転練習モード（シナリオ別・非破壊） ──────────────────────
+// データは変更せず、表示のみタイトル⇄本文を入れ替える。
+// 状態は各シナリオオブジェクトの .isReversed に保存される。
+var isLearningReversed = false;
+
+function toggleLearningDirection() {
+    isLearningReversed = !isLearningReversed;
+
+    // シナリオオブジェクトに保存（saveScenarios で localStorage に永続化）
+    var active = (typeof getActive === 'function') ? getActive() : null;
+    if (active) {
+        active.isReversed = isLearningReversed;
+        if (typeof saveScenarios === 'function') saveScenarios();
+    }
+
+    updateLearningDirectionBtn();
+
+    // PCグリッドを再描画
+    if (typeof updateGrid === 'function') updateGrid();
+
+    // モバイルスワイプを再描画
+    if (typeof window.mRenderAll === 'function') window.mRenderAll();
+
+    // 学習モード中はカードを再表示（PC＋モバイル）
+    if (typeof window.studyRefreshCard === 'function') window.studyRefreshCard();
+}
+
+// 全ての反転ボタンの表示を現在状態に同期する
+function updateLearningDirectionBtn() {
+    var reversed = isLearningReversed;
+    var label    = reversed ? '📝 内容 ➔ タイトル' : '📁 タイトル ➔ 内容';
+
+    var ids = ['learningModeToggleBtn', 'studyBarToggleBtn', 'mobStudyBarToggleBtn'];
+    ids.forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.innerHTML = label;
+        btn.classList.toggle('reversed', reversed);
+    });
+
+    // モバイル専用の ⇄ ボタン
+    var mobBtn = document.getElementById('mob-flip-btn');
+    if (mobBtn) mobBtn.classList.toggle('active', reversed);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateLearningDirectionBtn();
+});
+
 function updateGrid() {
-    // 💡【追記】確実に現在のモードをローカルストレージから取得（データが無ければ 'fit'）
     cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 
     var cols = getActiveCols();
@@ -3913,19 +4010,14 @@ function updateGrid() {
     if (rowsEl) rowsEl.value = rows;
     
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-    
-    // フィットモード時は行高さをgrid-template-rowsで均等分割する
     grid.style.gridTemplateRows = (cardRatioMode === 'fit') ? 'repeat(' + rows + ', 1fr)' : '';
     
-    // [NEW] 行1×列1の場合：横長1枚ではなく、画面に収まる大きなカード1枚として表示する
     grid.classList.toggle('single-card-mode', rows === 1 && cols === 1);
     
     renderGrid(data, total);
-    applyCardRatio(); // 💡ここで自動的にフィット用の動的CSSも適用されます
+    applyCardRatio(); 
     
-    // [MOD] 録音・アップロード済みマークを全モードで更新する
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
-    // モバイルスワイプUIを再同期
     if (typeof window.mSync === 'function') setTimeout(window.mSync, 0);
 }
 
@@ -3934,11 +4026,24 @@ function renderGrid(data, total) {
     var cols = getActiveCols();
     var rows = getActiveRows();
     if (total === undefined) total = rows * cols;
+
+    // ⭕【修正】varによる再宣言を削除！
+    // 共通変数「isLearningReversed」をそのまま参照します。
+
     for (var i = 0; i < total; i++) {
         var d = data[i] || { title: '', content: '' };
-        grid.appendChild(createItem(i, d));
+
+        var displayData = d;
+        if (isLearningReversed && (d.title || d.content)) {
+            displayData = {
+                title: d.content,  
+                content: d.title   
+            };
+        }
+
+        grid.appendChild(createItem(i, displayData));
     }
-    // モバイルグリッドモード時はタイトルラベルを再同期
+
     if (document.body.classList.contains('mob-grid') &&
         typeof mobSyncTitleLabels === 'function') {
         mobSyncTitleLabels();
@@ -6535,15 +6640,17 @@ function rdSaveRate(v) {
         var isEdit  = (appMode === 'edit');
         var isStudy = (appMode === 'study');
 
-        // テキスト
+        // テキスト（反転モード時はタイトルと本文を入れ替えて表示）
+        var dispTitle   = d ? (isLearningReversed ? (d.content || '') : (d.title   || '')) : '';
+        var dispContent = d ? (isLearningReversed ? (d.title   || '') : (d.content || '')) : '';
         if (titleEl) {
-            titleEl.textContent      = d ? (d.title   || '') : '';
+            titleEl.textContent      = dispTitle;
             titleEl.contentEditable  = isEdit ? 'true' : 'false';
             titleEl.classList.toggle('mob-editable', isEdit);
             titleEl.dataset.idx = idx;
         }
         if (contentEl) {
-            contentEl.textContent    = d ? (d.content || '') : '';
+            contentEl.textContent    = dispContent;
             contentEl.contentEditable= isEdit ? 'true' : 'false';
             contentEl.classList.toggle('mob-editable', isEdit);
             contentEl.dataset.idx = idx;
@@ -6780,12 +6887,16 @@ function rdSaveRate(v) {
         var contentEl = inner.querySelector('.mob-card-content');
 
         function syncToGrid(field, value) {
+            // 反転モード時：表示フィールドとデータフィールドが逆になるため補正する
+            var dataField = isLearningReversed
+                ? (field === 'title' ? 'content' : 'title')
+                : field;
             var idx = parseInt((field === 'title' ? titleEl : contentEl).dataset.idx, 10);
             if (isNaN(idx)) return;
             var items = Array.from(grid.querySelectorAll('.grid-item'));
             var el = items[idx];
             if (!el) return;
-            var input = field === 'title'
+            var input = dataField === 'title'
                 ? el.querySelector('.title-input')
                 : el.querySelector('.content-textarea');
             if (!input) return;
@@ -6793,7 +6904,7 @@ function rdSaveRate(v) {
             input.dispatchEvent(new Event('input', { bubbles: true }));
             // getActive().data も更新
             var active = (typeof getActive === 'function') ? getActive() : null;
-            if (active && active.data[idx]) active.data[idx][field] = value;
+            if (active && active.data[idx]) active.data[idx][dataField] = value;
         }
 
         if (titleEl) {
@@ -6846,7 +6957,10 @@ function rdSaveRate(v) {
         var data = getData();
         var d = data[mIdx];
         if (!d) return;
-        var text = (d.title ? d.title + '。' : '') + (d.content || '');
+        // 反転モード時は表示順（本文→タイトル）で読み上げる
+        var text = isLearningReversed
+            ? ((d.content ? d.content + '。' : '') + (d.title   || ''))
+            : ((d.title   ? d.title   + '。' : '') + (d.content || ''));
         if (!text.trim()) return;
         var utt = new SpeechSynthesisUtterance(text);
         utt.lang = 'ja-JP'; utt.rate = (typeof rdRate !== 'undefined') ? rdRate : 1.0;
@@ -6886,6 +7000,9 @@ function rdSaveRate(v) {
     });
     document.addEventListener('scenarioChanged', function() {
         mIdx = 0;
+        // シナリオ別の反転状態を同期（switchScenario 側でも更新するが念のため）
+        var _active = (typeof getActive === 'function') ? getActive() : null;
+        isLearningReversed = !!(_active && _active.isReversed);
         if (isMobileViewport() && document.body.classList.contains('mob-swipe')) mRenderAll();
     });
 
@@ -7818,14 +7935,24 @@ window.addEventListener('load', function() {
         var d = studyCards[studyIdx];
         if (!d) return;
 
-        // ── PC用フラッシュカード ──
+// ── PC用フラッシュカード ──
         var front = document.getElementById('study-card-face');
         var back  = document.getElementById('study-card-face-back');
         if (front) {
-            document.getElementById('study-card-num').textContent        = '#' + (studyIdx + 1) + ' / ' + studyCards.length;
-            document.getElementById('study-card-title-disp').textContent  = d.title   || '';
-            document.getElementById('study-card-title-back').textContent  = d.title   || '';
-            document.getElementById('study-card-content-disp').textContent= d.content || '';
+            document.getElementById('study-card-num').textContent = '#' + (studyIdx + 1) + ' / ' + studyCards.length;
+            
+            // 💡【ここがポイント】反転モードならカードの表面と裏面のデータを入れ替える
+            if (isLearningReversed) {
+                document.getElementById('study-card-title-disp').textContent  = d.content || ''; // 表に「内容」
+                document.getElementById('study-card-title-back').textContent  = d.content || ''; // 裏のヘッダーに「内容」
+                document.getElementById('study-card-content-disp').textContent = d.title   || ''; // 裏のメインに「タイトル」
+            } else {
+                // 通常モード
+                document.getElementById('study-card-title-disp').textContent  = d.title   || '';
+                document.getElementById('study-card-title-back').textContent  = d.title   || '';
+                document.getElementById('study-card-content-disp').textContent = d.content || '';
+            }
+            
             front.style.display = 'flex';
             back.style.display  = 'none';
             document.getElementById('study-card-counter').textContent = (studyIdx + 1) + ' / ' + studyCards.length;
@@ -7992,6 +8119,11 @@ window.addEventListener('load', function() {
         saveScenarios();
         studyStart();
         showToast('学習記録をリセットしました');
+    };
+
+    // 反転モード切替時に学習モードのカード表示を更新する（toggleLearningDirection から呼ばれる）
+    window.studyRefreshCard = function() {
+        if (appMode === 'study') studyShow();
     };
 
     // カードクリック（表面）でフリップ
