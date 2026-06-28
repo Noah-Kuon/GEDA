@@ -45,7 +45,7 @@ git push origin main
 git push が成功したら、1〜2分ほど待ってから いつもの公開URLにアクセスして、変更が反映されているか確認してください。
 
 🌐 公開URL: https://geda-project.vercel.app
-
+https://qcard-pro.vercel.app/
 
 ---
 
