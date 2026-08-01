@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.1                                          ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4328,19 +4328,139 @@ function getSB() {
     return sbClient;
 }
 
-// ── Phase A: テキスト共有（画像・音声なし）──────────────────────
+// ── Phase B: 画像を Supabase Storage にアップロード ─────────────
 
 /**
- * shareCard(card)
- * カード1枚を Supabase の shared_cards テーブルに保存し、共有URLを返す。
- * 画像・音声はPhase B/Cで対応。現在はテキスト・メタデータのみ。
+ * uploadMediaToStorage(cardId, ulid)
+ * IndexedDB（qcard_media）から画像Blobを取得し
+ * Supabase Storage（qcard-media バケット）にアップロードする。
+ * 成功したら公開URLを返す。
  */
-async function shareCard(card) {
+async function uploadMediaToStorage(cardId, ulid) {
+    if (!cardId || typeof mediaDB === 'undefined') return null;
+    try {
+        var record = await mediaDB.get(cardId);
+        if (!record || !record.blob) return null;
+        var sb   = getSB();
+        var ext  = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
+        var path = ulid + '.' + ext;
+        var res  = await sb.storage.from('qcard-media').upload(path, record.blob, {
+            contentType: record.mimeType || 'image/jpeg',
+            upsert: true
+        });
+        if (res.error) { console.warn('画像アップロード失敗:', res.error.message); return null; }
+        var pub = sb.storage.from('qcard-media').getPublicUrl(path);
+        return pub.data.publicUrl || null;
+    } catch(e) { console.warn('画像アップロードエラー:', e); return null; }
+}
+
+// ── Phase C: 音声を Supabase Storage にアップロード ─────────────
+
+/**
+ * uploadAudioToStorage(cardId, ulid)
+ * IndexedDB（qcard_upload_audio / qcard_interview）から音声Blobを取得し
+ * Supabase Storage（qcard-audio バケット）にアップロードする。
+ * アップロード音声を優先し、なければ録音を使用する。
+ */
+async function uploadAudioToStorage(cardId, ulid) {
+    if (!cardId) return null;
+    var sb = getSB();
+
+    // ① アップロード音声を優先
+    if (typeof uploadDB !== 'undefined') {
+        try {
+            var upRec = await uploadDB.get(cardId);
+            if (upRec && upRec.blob) {
+                var ext  = (upRec.mimeType || 'audio/mpeg').split('/')[1] || 'mp3';
+                var path = ulid + '_upload.' + ext;
+                var res  = await sb.storage.from('qcard-audio').upload(path, upRec.blob, {
+                    contentType: upRec.mimeType || 'audio/mpeg',
+                    upsert: true
+                });
+                if (!res.error) {
+                    var pub = sb.storage.from('qcard-audio').getPublicUrl(path);
+                    return pub.data.publicUrl || null;
+                }
+                console.warn('アップロード音声の送信失敗:', res.error.message);
+            }
+        } catch(e) { console.warn('uploadDB取得エラー:', e); }
+    }
+
+    // ② 録音音声（最新の1件）
+    if (typeof itvDB !== 'undefined') {
+        try {
+            var recs = await itvDB.getByCardId(cardId);
+            if (recs && recs.length > 0) {
+                var rec  = recs[recs.length - 1];
+                var path2 = ulid + '_rec.webm';
+                var res2  = await sb.storage.from('qcard-audio').upload(path2, rec.blob, {
+                    contentType: 'audio/webm',
+                    upsert: true
+                });
+                if (!res2.error) {
+                    var pub2 = sb.storage.from('qcard-audio').getPublicUrl(path2);
+                    return pub2.data.publicUrl || null;
+                }
+                console.warn('録音音声の送信失敗:', res2.error.message);
+            }
+        } catch(e) { console.warn('itvDB取得エラー:', e); }
+    }
+    return null;
+}
+
+// ── Phase A + B + C: 統合共有関数 ──────────────────────────────
+
+/**
+ * shareCard(card, cardItem)
+ * カード1枚をテキスト・画像・音声ごと Supabase に保存し共有URLを返す。
+ * cardItem: grid-item DOM要素（mediaId取得用）
+ */
+async function shareCard(card, cardItem) {
     if (!card || !card.uri) {
         showToast('URIがありません。カードを保存し直してください。');
         return null;
     }
-    var sb = getSB();
+    var ulid = card.uri.replace('fig://', '');
+    var sb   = getSB();
+
+    // Phase B: 画像アップロード
+    var mediaUrl = card.mediaUrl || null;
+    if (!mediaUrl && cardItem) {
+        var cardId = cardItem.dataset.cardId || cardItem.dataset.mediaId || null;
+        if (!cardId && cardItem.dataset.mediaId) cardId = cardItem.dataset.mediaId;
+        // dataset.cardId が主、mediaId はフォールバック
+        var cid = cardItem.dataset.cardId || null;
+        if (!cid) {
+            // itvGetCardId があれば使用
+            if (typeof itvGetCardId === 'function') cid = itvGetCardId(cardItem);
+        }
+        if (cid) {
+            showToast('画像をアップロード中...');
+            mediaUrl = await uploadMediaToStorage(cid, ulid);
+            if (mediaUrl) {
+                card.mediaUrl = mediaUrl;
+                showToast('✅ 画像アップロード完了');
+            }
+        }
+    }
+
+    // Phase C: 音声アップロード
+    var audioUrl = card.audioUrl || null;
+    if (!audioUrl && cardItem) {
+        var cid2 = cardItem.dataset.cardId || null;
+        if (!cid2 && typeof itvGetCardId === 'function') cid2 = itvGetCardId(cardItem);
+        var src  = cardItem.dataset.audioSource || 'speech';
+        if (cid2 && (src === 'uploaded' || src === 'recorded')) {
+            showToast('音声をアップロード中...');
+            audioUrl = await uploadAudioToStorage(cid2, ulid);
+            if (audioUrl) {
+                card.audioUrl = audioUrl;
+                showToast('✅ 音声アップロード完了');
+            }
+        }
+    }
+
+    // shared_cards に upsert
     var row = {
         uri:       card.uri,
         card_json: {
@@ -4354,25 +4474,23 @@ async function shareCard(card) {
             note:        card.note        || '',
             studyStatus: card.studyStatus || '',
             createdAt:   card.createdAt   || null,
-            updatedAt:   card.updatedAt   || null
+            updatedAt:   card.updatedAt   || null,
+            mediaUrl:    mediaUrl,
+            audioUrl:    audioUrl
         },
-        media_url: card.mediaUrl || null,
-        audio_url: card.audioUrl || null
+        media_url: mediaUrl,
+        audio_url: audioUrl
     };
 
-    // 既存URIは upsert（重複時は上書き更新）
     var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
     if (result.error) {
         showToast('共有に失敗しました: ' + result.error.message);
         return null;
     }
 
-    // 共有URL = SUPABASE_URL + /share/ + ULID部分
-    var ulid    = card.uri.replace('fig://', '');
-    var shareUrl = SUPABASE_URL + '/rest/v1/shared_cards?uri=eq.' + encodeURIComponent(card.uri);
-    // ユーザー向けのシンプルな共有URL（将来的なリダイレクトサービス用）
+    var shareUrl    = SUPABASE_URL + '/rest/v1/shared_cards?uri=eq.' + encodeURIComponent(card.uri);
     var friendlyUrl = 'https://qcard.app/share/' + ulid;
-    return { shareUrl: shareUrl, friendlyUrl: friendlyUrl, ulid: ulid };
+    return { shareUrl: shareUrl, friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl };
 }
 
 /**
@@ -4445,20 +4563,24 @@ window.shareCurrentCard = async function() {
     if (!card) { showToast('カードデータが見つかりません'); return; }
 
     showToast('共有中...');
-    var result = await shareCard(card);
+    // cardItem も渡して画像・音声を含めて共有
+    var result = await shareCard(card, editCardItem);
     if (!result) return;
 
     // 共有URLをクリップボードにコピー
     var copyUrl = result.friendlyUrl;
     if (navigator.clipboard) {
         await navigator.clipboard.writeText(copyUrl);
-        showToast('✅ 共有URLをコピーしました');
+        var msg = '✅ 共有URLをコピーしました';
+        if (result.mediaUrl) msg += '（画像あり）';
+        if (result.audioUrl) msg += '（音声あり）';
+        showToast(msg);
     } else {
-        showToast('✅ 共有完了: ' + copyUrl);
+        showToast('✅ 共有完了');
     }
-    // コンソールにも出力
     console.log('共有URL:', copyUrl);
-    console.log('Direct API:', result.shareUrl);
+    console.log('メディアURL:', result.mediaUrl);
+    console.log('音声URL:', result.audioUrl);
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -7529,7 +7651,7 @@ function importCSV(e) {
                 if (existing) {
                     existing.data = map[name];
                     // データ数に合わせて列数を保持（既存の cols はそのまま）
-                } else {    <!-- シナリオ数定義 } else if (scenarios.length < 8) {  -->
+                } else if (scenarios.length < 8) {
                     scenarios.push({ id: uid(), name: name, cols: 4, data: map[name] });
                 }
             });
