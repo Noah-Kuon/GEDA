@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v2.8.1                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4426,14 +4426,8 @@ async function shareCard(card, cardItem) {
     // Phase B: 画像アップロード
     var mediaUrl = card.mediaUrl || null;
     if (!mediaUrl && cardItem) {
-        var cardId = cardItem.dataset.cardId || cardItem.dataset.mediaId || null;
-        if (!cardId && cardItem.dataset.mediaId) cardId = cardItem.dataset.mediaId;
-        // dataset.cardId が主、mediaId はフォールバック
-        var cid = cardItem.dataset.cardId || null;
-        if (!cid) {
-            // itvGetCardId があれば使用
-            if (typeof itvGetCardId === 'function') cid = itvGetCardId(cardItem);
-        }
+        // mediaId は画像DBのキー（dataset.mediaId で管理）
+        var cid = cardItem.dataset.mediaId || null;
         if (cid) {
             showToast('画像をアップロード中...');
             mediaUrl = await uploadMediaToStorage(cid, ulid);
@@ -4445,12 +4439,15 @@ async function shareCard(card, cardItem) {
     }
 
     // Phase C: 音声アップロード
+    // itvGetCardId() が dataset.itvId を管理しているため、それのみを使用する
     var audioUrl = card.audioUrl || null;
     if (!audioUrl && cardItem) {
-        var cid2 = cardItem.dataset.cardId || null;
-        if (!cid2 && typeof itvGetCardId === 'function') cid2 = itvGetCardId(cardItem);
+        var cid2 = typeof itvGetCardId === 'function' ? itvGetCardId(cardItem) : null;
         var src  = cardItem.dataset.audioSource || 'speech';
-        if (cid2 && (src === 'uploaded' || src === 'recorded')) {
+        // audioSource が recorded/uploaded のとき、または itvId が存在する場合にアップロード
+        var hasAudio = (src === 'uploaded' || src === 'recorded')
+                    || (cardItem.dataset.itvId && cardItem.dataset.itvId !== '');
+        if (cid2 && hasAudio) {
             showToast('音声をアップロード中...');
             audioUrl = await uploadAudioToStorage(cid2, ulid);
             if (audioUrl) {
