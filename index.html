@@ -856,16 +856,21 @@
         #share-card-btn {
             position: absolute;
             top: 14px;
-            right: 100px;
+            right: 122px;               /* ✕16 + ✏️36 + ⇔36 = 88 → +34 = 122 */
             background: var(--surface2);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            border-radius: 8px;
-            padding: 5px 12px;
-            font-size: 0.72rem;
+            border-radius: 6px;         /* 他ボタンと統一 */
+            font-size: 0.78rem;         /* 他ボタンと統一 */
+            width: 30px;                /* 他ボタンと統一 */
+            height: 28px;               /* 他ボタンと統一 */
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.15s;
             z-index: 10;
+            line-height: 1;
         }
         #share-card-btn:hover {
             border-color: var(--accent);
@@ -3051,7 +3056,7 @@ min-height: 0;
     <span id="close-btn" onclick="hideOverlay()">×</span>
     <button id="size-panel-btn" onclick="toggleSizePanel(event)" title="表示サイズを調整">⇔</button>
     <button id="edit-mode-btn" onclick="toggleEditMode()" title="編集モード">✏️</button>
-    <button id="share-card-btn" onclick="shareCurrentCard()" title="このカードを共有（URLをコピー）">🔗 共有</button>
+    <button id="share-card-btn" onclick="shareCurrentCard()" title="このカードを共有（URLをコピー）">🔗</button>
     <!-- 本文内検索バー -->
     <div id="overlay-find-bar">
         <span class="find-icon">🔍</span>
@@ -4415,10 +4420,15 @@ async function uploadAudioToStorage(cardId, ulid) {
 
 // ── Phase A + B + C: 統合共有関数 ──────────────────────────────
 
+// 有効期限: 24時間（秒）
+var SHARE_TTL_SEC = 60 * 60 * 24;
+
 /**
  * shareCard(card, cardItem)
- * カード1枚をテキスト・画像・音声ごと Supabase に保存し共有URLを返す。
- * cardItem: grid-item DOM要素（mediaId取得用）
+ * 方式B: 毎回再アップロード + 署名付きURL（24時間有効）
+ * ・共有ボタンを押すたびに再アップロードして新しいURLを発行
+ * ・card.mediaUrl / card.audioUrl は常にリセットして再生成
+ * ・期限後はSupabaseが自動でアクセス拒否（削除はEdge Functionで別途対応）
  */
 async function shareCard(card, cardItem) {
     if (!card || !card.uri) {
@@ -4428,44 +4438,63 @@ async function shareCard(card, cardItem) {
     var ulid = card.uri.replace('fig://', '');
     var sb   = getSB();
 
-    // Phase B: 画像アップロード
-    var mediaUrl = card.mediaUrl || null;
-    if (!mediaUrl && cardItem) {
-        // mediaId は画像DBのキー（dataset.mediaId で管理）
+    // 毎回リセット（再アップロードして新しい署名付きURLを発行）
+    card.mediaUrl = null;
+    card.audioUrl = null;
+
+    // Phase B: 画像アップロード → 署名付きURL発行
+    var mediaUrl = null;
+    if (cardItem) {
         var cid = cardItem.dataset.mediaId || null;
         if (cid) {
             showToast('画像をアップロード中...');
-            mediaUrl = await uploadMediaToStorage(cid, ulid);
-            if (mediaUrl) {
+            var mediaPath = await uploadMediaToStorage(cid, ulid);
+            if (mediaPath) {
+                // 署名付きURL（24時間有効）を発行
+                var signedMedia = await sb.storage
+                    .from('qcard-media')
+                    .createSignedUrl(ulid + getMediaExt(cid), SHARE_TTL_SEC);
+                mediaUrl = (signedMedia.data && signedMedia.data.signedUrl)
+                    ? signedMedia.data.signedUrl
+                    : mediaPath; // フォールバック: 公開URL
                 card.mediaUrl = mediaUrl;
                 showToast('✅ 画像アップロード完了');
             }
         }
     }
 
-    // Phase C: 音声アップロード
-    // itvGetCardId() が dataset.itvId を管理しているため、それのみを使用する
-    var audioUrl = card.audioUrl || null;
-    if (!audioUrl && cardItem) {
+    // Phase C: 音声アップロード → 署名付きURL発行
+    var audioUrl = null;
+    if (cardItem) {
         var cid2 = typeof itvGetCardId === 'function' ? itvGetCardId(cardItem) : null;
         var src  = cardItem.dataset.audioSource || 'speech';
-        // audioSource が recorded/uploaded のとき、または itvId が存在する場合にアップロード
         var hasAudio = (src === 'uploaded' || src === 'recorded')
                     || (cardItem.dataset.itvId && cardItem.dataset.itvId !== '');
         if (cid2 && hasAudio) {
             showToast('音声をアップロード中...');
-            audioUrl = await uploadAudioToStorage(cid2, ulid);
-            if (audioUrl) {
+            var audioPath = await uploadAudioToStorage(cid2, ulid);
+            if (audioPath) {
+                // 音声の拡張子を判定
+                var audioExt = (src === 'uploaded') ? await getUploadExt(cid2) : '_rec.webm';
+                var signedAudio = await sb.storage
+                    .from('qcard-audio')
+                    .createSignedUrl(ulid + audioExt, SHARE_TTL_SEC);
+                audioUrl = (signedAudio.data && signedAudio.data.signedUrl)
+                    ? signedAudio.data.signedUrl
+                    : audioPath; // フォールバック: 公開URL
                 card.audioUrl = audioUrl;
                 showToast('✅ 音声アップロード完了');
             }
         }
     }
 
-    // shared_cards に upsert
+    // expires_at: 24時間後
+    var expiresAt = new Date(Date.now() + SHARE_TTL_SEC * 1000).toISOString();
+
+    // shared_cards に upsert（毎回上書き）
     var row = {
-        uri:       card.uri,
-        card_json: {
+        uri:        card.uri,
+        card_json:  JSON.stringify({
             id:          card.id,
             uri:         card.uri,
             title:       card.title       || '',
@@ -4479,9 +4508,11 @@ async function shareCard(card, cardItem) {
             updatedAt:   card.updatedAt   || null,
             mediaUrl:    mediaUrl,
             audioUrl:    audioUrl
-        },
-        media_url: mediaUrl,
-        audio_url: audioUrl
+        }),
+        media_url:   mediaUrl,
+        audio_url:   audioUrl,
+        expires_at:  expiresAt,
+        access_count: 0
     };
 
     var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
@@ -4490,9 +4521,28 @@ async function shareCard(card, cardItem) {
         return null;
     }
 
-    var shareUrl    = SUPABASE_URL + '/rest/v1/shared_cards?uri=eq.' + encodeURIComponent(card.uri);
     var friendlyUrl = 'https://qcard.app/share/' + ulid;
-    return { shareUrl: shareUrl, friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl };
+    return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
+}
+
+// 画像の拡張子を mediaId から取得するヘルパー
+async function getMediaExt(mediaId) {
+    try {
+        var record = await mediaDB.get(mediaId);
+        if (!record) return '.jpg';
+        var ext = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
+        return '.' + (ext === 'jpeg' ? 'jpg' : ext);
+    } catch(e) { return '.jpg'; }
+}
+
+// アップロード音声の拡張子を取得するヘルパー
+async function getUploadExt(cardId) {
+    try {
+        var record = await uploadDB.get(cardId);
+        if (!record) return '_rec.webm';
+        var ext = (record.mimeType || 'audio/mpeg').split('/')[1] || 'mp3';
+        return '_upload.' + ext;
+    } catch(e) { return '_upload.mp3'; }
 }
 
 /**
@@ -4573,16 +4623,18 @@ window.shareCurrentCard = async function() {
     var copyUrl = result.friendlyUrl;
     if (navigator.clipboard) {
         await navigator.clipboard.writeText(copyUrl);
-        var msg = '✅ 共有URLをコピーしました';
-        if (result.mediaUrl) msg += '（画像あり）';
-        if (result.audioUrl) msg += '（音声あり）';
-        showToast(msg);
+        var parts = ['✅ 共有URLをコピーしました'];
+        if (result.mediaUrl) parts.push('画像あり');
+        if (result.audioUrl) parts.push('音声あり');
+        parts.push('24時間有効');
+        showToast(parts.join(' · '));
     } else {
-        showToast('✅ 共有完了');
+        showToast('✅ 共有完了（24時間有効）');
     }
     console.log('共有URL:', copyUrl);
     console.log('メディアURL:', result.mediaUrl);
     console.log('音声URL:', result.audioUrl);
+    console.log('有効期限:', result.expiresAt);
 };
 
 // ═══════════════════════════════════════════════════════════════
