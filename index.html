@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.3                                          ║
+  ║  Qcard PRO  v2.8.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4618,9 +4618,10 @@ async function shareCard(card, cardItem) {
     var expiresAt = new Date(Date.now() + SHARE_TTL_SEC * 1000).toISOString();
 
     // shared_cards に upsert（毎回上書き）
+    // card_json は JSONB型のためオブジェクトのまま送る（JSON.stringify不要）
     var row = {
         uri:        card.uri,
-        card_json:  JSON.stringify({
+        card_json:  {
             id:          card.id,
             uri:         card.uri,
             title:       card.title       || '',
@@ -4634,7 +4635,7 @@ async function shareCard(card, cardItem) {
             updatedAt:   card.updatedAt   || null,
             mediaUrl:    mediaUrl,
             audioUrl:    audioUrl
-        }),
+        },
         media_url:   mediaUrl,
         audio_url:   audioUrl,
         expires_at:  expiresAt,
@@ -7036,14 +7037,29 @@ window.dmImportFromUrl = async function() {
     var data = await fetchSharedCard(uri);
     if (!data) { showToast('カードが見つかりません（期限切れの可能性があります）'); return; }
 
-    // card_json が文字列の場合はパース
-    var card = (typeof data.card_json === 'string')
-        ? JSON.parse(data.card_json)
-        : data.card_json;
+    // card_json のパース（文字列・オブジェクト・二重エンコード全対応）
+    var card = data.card_json;
+    if (typeof card === 'string') {
+        try { card = JSON.parse(card); } catch(e) {}
+    }
+    // 二重エンコード対策（稀にJSONBが文字列として返る場合）
+    if (typeof card === 'string') {
+        try { card = JSON.parse(card); } catch(e) { showToast('カードデータの解析に失敗しました'); return; }
+    }
+    if (!card || typeof card !== 'object') { showToast('カードデータが不正です'); return; }
 
-    // mediaUrl / audioUrl を上書き（Supabaseの列から取得）
+    // mediaUrl / audioUrl を Supabase の列から補完
     if (data.media_url) card.mediaUrl = data.media_url;
     if (data.audio_url) card.audioUrl = data.audio_url;
+
+    // uri が存在しなければ補完
+    if (!card.uri) card.uri = uri;
+
+    // 有効期限チェック
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        showToast('この共有URLは期限切れです');
+        return;
+    }
 
     var active = getActive();
     if (!active) { showToast('シナリオがありません'); return; }
