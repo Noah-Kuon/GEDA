@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.5                                          ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4707,6 +4707,8 @@ async function importSharedCard(uri) {
     var active = getActive();
     if (!active) { showToast('シナリオがありません'); return; }
     active.data.push(card);
+    console.log("after push", active.data.length);
+console.log(active.data);
     saveScenarios();
     updateGrid();
     showToast('✅ カードをインポートしました: ' + (card.title || '（無題）'));
@@ -7070,6 +7072,7 @@ window.dmImportFromUrl = async function() {
     active.data.push(card);
     saveScenarios();
     updateGrid();
+    console.log("after updateGrid", active.data.length);
     input.value = '';
     closeDataModal();
     showToast('✅ カードを受け取りました: ' + (card.title || '（無題）'));
