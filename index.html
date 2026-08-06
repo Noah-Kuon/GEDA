@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.4                                          ║
+  ║  Qcard PRO  v2.8.5                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -7063,6 +7063,10 @@ window.dmImportFromUrl = async function() {
 
     var active = getActive();
     if (!active) { showToast('シナリオがありません'); return; }
+
+    // 現在のグリッドDOMの状態を先に保存してから追加
+    // （saveCurrentGridData が push したカードを上書きしないよう順序を制御）
+    saveCurrentGridData();
     active.data.push(card);
     saveScenarios();
     updateGrid();
