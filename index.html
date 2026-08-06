@@ -7068,11 +7068,18 @@ window.dmImportFromUrl = async function() {
 
     // 現在のグリッドDOMの状態を先に保存してから追加
     // （saveCurrentGridData が push したカードを上書きしないよう順序を制御）
-    saveCurrentGridData();
-    active.data.push(card);
-    saveScenarios();
-    updateGrid();
-    console.log("after updateGrid", active.data.length);
+saveCurrentGridData();
+
+active.data.push(card);
+
+console.log("after push", active.data.length);
+console.log(active.data);
+
+saveScenarios();
+
+updateGrid();
+
+console.log("after updateGrid", active.data.length);
     input.value = '';
     closeDataModal();
     showToast('✅ カードを受け取りました: ' + (card.title || '（無題）'));
