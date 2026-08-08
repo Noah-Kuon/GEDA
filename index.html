@@ -4469,25 +4469,85 @@ function getSB() {
  */
 async function uploadMediaToStorage(cardId, ulid) {
     if (!cardId || typeof mediaDB === 'undefined') return null;
+
     try {
         var record = await mediaDB.get(cardId);
-        console.log('[Media] cardId:', cardId, 'record:', record ? record.mimeType + ' ' + record.blob.size + 'bytes' : 'null');
-        if (!record || !record.blob) return null;
-        var sb   = getSB();
-        var ext  = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
-        // ext が jpeg の場合は jpg に統一
+
+        if (!record || !record.blob) {
+            console.warn('[Media] Blob not found:', cardId);
+            return null;
+        }
+
+        var sb = getSB();
+
+        var ext = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
         if (ext === 'jpeg') ext = 'jpg';
+
         var path = ulid + '.' + ext;
-        console.log('[Media] uploading to path:', path);
-        var res  = await sb.storage.from('qcard-media').upload(path, record.blob, {
-            contentType: record.mimeType || 'image/jpeg',
-            upsert: true
-        });
-        console.log('[Media] upload result:', JSON.stringify(res));
-        if (res.error) { console.warn('画像アップロード失敗:', res.error.message); return null; }
-        var pub = sb.storage.from('qcard-media').getPublicUrl(path);
+
+        console.log('[Media] ===== UPLOAD START =====');
+        console.log('[Media] cardId:', cardId);
+        console.log('[Media] mimeType:', record.mimeType);
+        console.log('[Media] size:', record.blob.size);
+        console.log('[Media] bucket:', 'qcard-media');
+        console.log('[Media] path:', path);
+        console.log('[Media] upsert:', true);
+
+        // 現在の認証状態
+        try {
+            var authResult = await sb.auth.getSession();
+            console.log(
+                '[Media] session:',
+                authResult.data && authResult.data.session
+                    ? 'authenticated'
+                    : 'no session'
+            );
+        } catch (authErr) {
+            console.warn('[Media] auth check failed:', authErr);
+        }
+
+        // 同じパスの既存オブジェクトを確認
+        var existing = await sb.storage
+            .from('qcard-media')
+            .list('', {
+                search: path,
+                limit: 10
+            });
+
+        console.log('[Media] existing object check:', existing);
+
+        var res = await sb.storage
+            .from('qcard-media')
+            .upload(path, record.blob, {
+                contentType: record.mimeType || 'image/jpeg',
+                upsert: true
+            });
+
+        console.log('[Media] upload result:', res);
+
+        if (res.error) {
+            console.error('[Media] UPLOAD FAILED');
+            console.error('[Media] name:', res.error.name);
+            console.error('[Media] message:', res.error.message);
+            console.error('[Media] status:', res.error.status);
+            console.error('[Media] statusCode:', res.error.statusCode);
+            return null;
+        }
+
+        var pub = sb.storage
+            .from('qcard-media')
+            .getPublicUrl(path);
+
+        console.log('[Media] public URL:', pub);
+
+        console.log('[Media] ===== UPLOAD SUCCESS =====');
+
         return pub.data.publicUrl || null;
-    } catch(e) { console.warn('画像アップロードエラー:', e); return null; }
+
+    } catch (e) {
+        console.error('[Media] UPLOAD EXCEPTION:', e);
+        return null;
+    }
 }
 
 // ── Phase C: 音声を Supabase Storage にアップロード ─────────────
