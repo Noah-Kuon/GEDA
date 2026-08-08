@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v2.8.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4707,8 +4707,6 @@ async function importSharedCard(uri) {
     var active = getActive();
     if (!active) { showToast('シナリオがありません'); return; }
     active.data.push(card);
-    console.log("after push", active.data.length);
-console.log(active.data);
     saveScenarios();
     updateGrid();
     showToast('✅ カードをインポートしました: ' + (card.title || '（無題）'));
@@ -7066,20 +7064,13 @@ window.dmImportFromUrl = async function() {
     var active = getActive();
     if (!active) { showToast('シナリオがありません'); return; }
 
-    // 現在のグリッドDOMの状態を先に保存してから追加
-    // （saveCurrentGridData が push したカードを上書きしないよう順序を制御）
-saveCurrentGridData();
-
-active.data.push(card);
-
-console.log("after push", active.data.length);
-console.log(active.data);
-
-saveScenarios();
-
-updateGrid();
-
-console.log("after updateGrid", active.data.length);
+    // saveCurrentGridData() は呼ばない。
+    // 共有インポートは「データ追加処理」であり「編集保存処理」ではないため。
+    // saveCurrentGridData() を呼ぶと active.data がDOM（画面）の内容で
+    // 丸ごと上書きされ、直後に push したカードが消滅する。
+    active.data.push(card);
+    saveScenarios();
+    updateGrid();
     input.value = '';
     closeDataModal();
     showToast('✅ カードを受け取りました: ' + (card.title || '（無題）'));
