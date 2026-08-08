@@ -4628,26 +4628,42 @@ async function shareCard(card, cardItem) {
     card.mediaUrl = null;
     card.audioUrl = null;
 
-    // Phase B: 画像アップロード → 署名付きURL発行
-    var mediaUrl = null;
-    if (cardItem) {
-        var cid = cardItem.dataset.mediaId || null;
-        if (cid) {
-            showToast('画像をアップロード中...');
-            var mediaPath = await uploadMediaToStorage(cid, ulid);
-            if (mediaPath) {
-                // 署名付きURL（24時間有効）を発行
-                var signedMedia = await sb.storage
-                    .from('qcard-media')
-                    .createSignedUrl(ulid + getMediaExt(cid), SHARE_TTL_SEC);
-                mediaUrl = (signedMedia.data && signedMedia.data.signedUrl)
+
+// Phase B: 画像アップロード → 署名付きURL発行
+var mediaUrl = null;
+
+if (cardItem) {
+    var cid = cardItem.dataset.mediaId || null;
+
+    if (cid) {
+        showToast('画像をアップロード中...');
+
+        var mediaPath = await uploadMediaToStorage(cid, ulid);
+
+        if (mediaPath) {
+            // 画像の拡張子を取得
+            var mediaExt = await getMediaExt(cid);
+
+            // 署名付きURL（24時間有効）を発行
+            var signedMedia = await sb.storage
+                .from('qcard-media')
+                .createSignedUrl(
+                    ulid + mediaExt,
+                    SHARE_TTL_SEC
+                );
+
+            mediaUrl =
+                (signedMedia.data && signedMedia.data.signedUrl)
                     ? signedMedia.data.signedUrl
                     : mediaPath; // フォールバック: 公開URL
-                card.mediaUrl = mediaUrl;
-                showToast('✅ 画像アップロード完了');
-            }
+
+            card.mediaUrl = mediaUrl;
+
+            showToast('✅ 画像アップロード完了');
         }
     }
+}
+
 
     // Phase C: 音声アップロード → 署名付きURL発行
     var audioUrl = null;
