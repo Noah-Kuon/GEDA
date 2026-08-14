@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.3                                          ║
+  ║  Qcard PRO  v2.8.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3882,6 +3882,15 @@ function mediaLoadForCard(cardId, item, imgEl) {
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
             item.classList.add('has-media');
+        } else {
+            // ローカルDBになければ、カードデータのmediaUrl（CDN）を使う
+            var active = getActive();
+            if (!active) return;
+            var card = (active.data || []).find(function(c){ return c.mediaId === cardId; });
+            if (card && card.mediaUrl) {
+                imgEl.src = card.mediaUrl;
+                item.classList.add('has-media');
+            }
         }
     });
 }
@@ -8568,6 +8577,14 @@ function overlayPlayRecordedAudio() {
     var cardId = itvGetCardId(editCardItem);
     itvDB.getByCardId(cardId).then(function(records) {
         if (!records || records.length === 0) {
+            // ローカルDBになければ audioUrl（CDN）を使う
+            var active = getActive();
+            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
+            if (card && card.audioUrl) {
+                var audio = new Audio(card.audioUrl);
+                audio.play();
+                return;
+            }
             showToast(t('toast_no_rec_audio'));
             return;
         }
@@ -8585,6 +8602,14 @@ function overlayPlayUploadedAudio() {
     var cardId = itvGetCardId(editCardItem);
     uploadDB.get(cardId).then(function(record) {
         if (!record || !record.blob) {
+            // ローカルDBになければ audioUrl（CDN）を使う
+            var active = getActive();
+            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
+            if (card && card.audioUrl) {
+                var audio = new Audio(card.audioUrl);
+                audio.play();
+                return;
+            }
             showToast(t('toast_no_upl_audio'));
             return;
         }
