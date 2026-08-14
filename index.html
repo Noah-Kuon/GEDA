@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.4                                          ║
+  ║  Qcard PRO  v2.8.2 2108                                      ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3882,15 +3882,6 @@ function mediaLoadForCard(cardId, item, imgEl) {
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
             item.classList.add('has-media');
-        } else {
-            // ローカルDBになければ、カードデータのmediaUrl（CDN）を使う
-            var active = getActive();
-            if (!active) return;
-            var card = (active.data || []).find(function(c){ return c.mediaId === cardId; });
-            if (card && card.mediaUrl) {
-                imgEl.src = card.mediaUrl;
-                item.classList.add('has-media');
-            }
         }
     });
 }
@@ -4794,10 +4785,14 @@ window.shareCurrentScenario = async function() {
         // カードURIからULIDを取得（ファイル名に使用）
         var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
 
-        // mediaId・itvId は active.data に保存済みのため、DOMではなくデータから直接取得
-        var mediaId  = card.mediaId  || null;
-        var itvId    = card.itvId    || null;
-        var audioSrc = card.audioSource || 'speech';
+        // ── 画像アップロード ──
+        // editCardItem は共有処理では使えないため、
+        // active（本体）のdatasetからmediaIdを取得できない。
+        // mediaId は card オブジェクトには存在しないため、
+        // gridのDOM要素から取得する。
+        var gridItems = Array.from(grid.querySelectorAll('.grid-item'));
+        var gridItem  = gridItems[i] || null;
+        var mediaId   = gridItem ? gridItem.dataset.mediaId : null;
 
         if (mediaId) {
             try {
@@ -4819,6 +4814,9 @@ window.shareCurrentScenario = async function() {
         }
 
         // ── 音声アップロード ──
+        var itvId = gridItem ? gridItem.dataset.itvId : null;
+        var audioSrc = gridItem ? (gridItem.dataset.audioSource || 'speech') : 'speech';
+
         if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
             try {
                 // アップロード音声を優先
@@ -8577,14 +8575,6 @@ function overlayPlayRecordedAudio() {
     var cardId = itvGetCardId(editCardItem);
     itvDB.getByCardId(cardId).then(function(records) {
         if (!records || records.length === 0) {
-            // ローカルDBになければ audioUrl（CDN）を使う
-            var active = getActive();
-            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
-            if (card && card.audioUrl) {
-                var audio = new Audio(card.audioUrl);
-                audio.play();
-                return;
-            }
             showToast(t('toast_no_rec_audio'));
             return;
         }
@@ -8602,14 +8592,6 @@ function overlayPlayUploadedAudio() {
     var cardId = itvGetCardId(editCardItem);
     uploadDB.get(cardId).then(function(record) {
         if (!record || !record.blob) {
-            // ローカルDBになければ audioUrl（CDN）を使う
-            var active = getActive();
-            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
-            if (card && card.audioUrl) {
-                var audio = new Audio(card.audioUrl);
-                audio.play();
-                return;
-            }
             showToast(t('toast_no_upl_audio'));
             return;
         }
