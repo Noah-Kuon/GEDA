@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.2                                          ║
+  ║  Qcard PRO  v2.8.3                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4785,14 +4785,10 @@ window.shareCurrentScenario = async function() {
         // カードURIからULIDを取得（ファイル名に使用）
         var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
 
-        // ── 画像アップロード ──
-        // editCardItem は共有処理では使えないため、
-        // active（本体）のdatasetからmediaIdを取得できない。
-        // mediaId は card オブジェクトには存在しないため、
-        // gridのDOM要素から取得する。
-        var gridItems = Array.from(grid.querySelectorAll('.grid-item'));
-        var gridItem  = gridItems[i] || null;
-        var mediaId   = gridItem ? gridItem.dataset.mediaId : null;
+        // mediaId・itvId は active.data に保存済みのため、DOMではなくデータから直接取得
+        var mediaId  = card.mediaId  || null;
+        var itvId    = card.itvId    || null;
+        var audioSrc = card.audioSource || 'speech';
 
         if (mediaId) {
             try {
@@ -4814,9 +4810,6 @@ window.shareCurrentScenario = async function() {
         }
 
         // ── 音声アップロード ──
-        var itvId = gridItem ? gridItem.dataset.itvId : null;
-        var audioSrc = gridItem ? (gridItem.dataset.audioSource || 'speech') : 'speech';
-
         if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
             try {
                 // アップロード音声を優先
