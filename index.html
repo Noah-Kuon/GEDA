@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.2                                          ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3159,7 +3159,7 @@ min-height: 0;
     <span id="close-btn" onclick="hideOverlay()">×</span>
     <button id="size-panel-btn" onclick="toggleSizePanel(event)" title="表示サイズを調整">⇔</button>
     <button id="edit-mode-btn" onclick="toggleEditMode()" title="編集モード">✏️</button>
-    <button id="share-card-btn" onclick="shareCurrentCard()" title="このカードを共有（URLをコピー）">🔗</button>
+    <button id="share-card-btn" onclick="shareCurrentScenario()" title="このシナリオを共有（URLをコピー）">🔗</button>
     <!-- 本文内検索バー -->
     <div id="overlay-find-bar">
         <span class="find-icon">🔍</span>
@@ -3470,13 +3470,19 @@ min-height: 0;
 
         <!-- ── 共有 ── -->
         <div id="dm-share" class="dm-panel">
-            <div class="dm-section-label">共有URLから読み込む</div>
+            <div class="dm-section-label">このシナリオを共有</div>
+            <button class="dm-action" onclick="shareCurrentScenario(); closeDataModal();">
+                <span class="dm-icon">🔗</span>
+                <div><div class="dm-label">シナリオを共有</div><div class="dm-desc">全カード・画像・音声を含む共有URLを発行（24時間有効）</div></div>
+            </button>
+            <hr class="dm-divider">
+            <div class="dm-section-label">シナリオを受け取る</div>
             <input class="dm-url-input" id="dm-share-url-input"
                    placeholder="fig://01K… または https://qcard.app/share/…"
                    autocomplete="off" spellcheck="false">
-            <button class="dm-action" onclick="dmImportFromUrl()">
-                <span class="dm-icon">🔗</span>
-                <div><div class="dm-label">カードを受け取る</div><div class="dm-desc">現在のシナリオに追加します</div></div>
+            <button class="dm-action" onclick="dmImportScenarioFromUrl()">
+                <span class="dm-icon">📥</span>
+                <div><div class="dm-label">シナリオを受け取る</div><div class="dm-desc">共有されたシナリオを新しいシナリオとして追加します</div></div>
             </button>
             <p class="dm-note">共有URLは発行から24時間有効です。期限内に受け取ってください。</p>
         </div>
@@ -4469,85 +4475,25 @@ function getSB() {
  */
 async function uploadMediaToStorage(cardId, ulid) {
     if (!cardId || typeof mediaDB === 'undefined') return null;
-
     try {
         var record = await mediaDB.get(cardId);
-
-        if (!record || !record.blob) {
-            console.warn('[Media] Blob not found:', cardId);
-            return null;
-        }
-
-        var sb = getSB();
-
-        var ext = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
+        console.log('[Media] cardId:', cardId, 'record:', record ? record.mimeType + ' ' + record.blob.size + 'bytes' : 'null');
+        if (!record || !record.blob) return null;
+        var sb   = getSB();
+        var ext  = (record.mimeType || 'image/jpeg').split('/')[1] || 'jpg';
+        // ext が jpeg の場合は jpg に統一
         if (ext === 'jpeg') ext = 'jpg';
-
         var path = ulid + '.' + ext;
-
-        console.log('[Media] ===== UPLOAD START =====');
-        console.log('[Media] cardId:', cardId);
-        console.log('[Media] mimeType:', record.mimeType);
-        console.log('[Media] size:', record.blob.size);
-        console.log('[Media] bucket:', 'qcard-media');
-        console.log('[Media] path:', path);
-        console.log('[Media] upsert:', true);
-
-        // 現在の認証状態
-        try {
-            var authResult = await sb.auth.getSession();
-            console.log(
-                '[Media] session:',
-                authResult.data && authResult.data.session
-                    ? 'authenticated'
-                    : 'no session'
-            );
-        } catch (authErr) {
-            console.warn('[Media] auth check failed:', authErr);
-        }
-
-        // 同じパスの既存オブジェクトを確認
-        var existing = await sb.storage
-            .from('qcard-media')
-            .list('', {
-                search: path,
-                limit: 10
-            });
-
-        console.log('[Media] existing object check:', existing);
-
-        var res = await sb.storage
-            .from('qcard-media')
-            .upload(path, record.blob, {
-                contentType: record.mimeType || 'image/jpeg',
-                upsert: true
-            });
-
-        console.log('[Media] upload result:', res);
-
-        if (res.error) {
-            console.error('[Media] UPLOAD FAILED');
-            console.error('[Media] name:', res.error.name);
-            console.error('[Media] message:', res.error.message);
-            console.error('[Media] status:', res.error.status);
-            console.error('[Media] statusCode:', res.error.statusCode);
-            return null;
-        }
-
-        var pub = sb.storage
-            .from('qcard-media')
-            .getPublicUrl(path);
-
-        console.log('[Media] public URL:', pub);
-
-        console.log('[Media] ===== UPLOAD SUCCESS =====');
-
+        console.log('[Media] uploading to path:', path);
+        var res  = await sb.storage.from('qcard-media').upload(path, record.blob, {
+            contentType: record.mimeType || 'image/jpeg',
+            upsert: true
+        });
+        console.log('[Media] upload result:', JSON.stringify(res));
+        if (res.error) { console.warn('画像アップロード失敗:', res.error.message); return null; }
+        var pub = sb.storage.from('qcard-media').getPublicUrl(path);
         return pub.data.publicUrl || null;
-
-    } catch (e) {
-        console.error('[Media] UPLOAD EXCEPTION:', e);
-        return null;
-    }
+    } catch(e) { console.warn('画像アップロードエラー:', e); return null; }
 }
 
 // ── Phase C: 音声を Supabase Storage にアップロード ─────────────
@@ -4628,42 +4574,26 @@ async function shareCard(card, cardItem) {
     card.mediaUrl = null;
     card.audioUrl = null;
 
-
-// Phase B: 画像アップロード → 署名付きURL発行
-var mediaUrl = null;
-
-if (cardItem) {
-    var cid = cardItem.dataset.mediaId || null;
-
-    if (cid) {
-        showToast('画像をアップロード中...');
-
-        var mediaPath = await uploadMediaToStorage(cid, ulid);
-
-        if (mediaPath) {
-            // 画像の拡張子を取得
-            var mediaExt = await getMediaExt(cid);
-
-            // 署名付きURL（24時間有効）を発行
-            var signedMedia = await sb.storage
-                .from('qcard-media')
-                .createSignedUrl(
-                    ulid + mediaExt,
-                    SHARE_TTL_SEC
-                );
-
-            mediaUrl =
-                (signedMedia.data && signedMedia.data.signedUrl)
+    // Phase B: 画像アップロード → 署名付きURL発行
+    var mediaUrl = null;
+    if (cardItem) {
+        var cid = cardItem.dataset.mediaId || null;
+        if (cid) {
+            showToast('画像をアップロード中...');
+            var mediaPath = await uploadMediaToStorage(cid, ulid);
+            if (mediaPath) {
+                // 署名付きURL（24時間有効）を発行
+                var signedMedia = await sb.storage
+                    .from('qcard-media')
+                    .createSignedUrl(ulid + getMediaExt(cid), SHARE_TTL_SEC);
+                mediaUrl = (signedMedia.data && signedMedia.data.signedUrl)
                     ? signedMedia.data.signedUrl
                     : mediaPath; // フォールバック: 公開URL
-
-            card.mediaUrl = mediaUrl;
-
-            showToast('✅ 画像アップロード完了');
+                card.mediaUrl = mediaUrl;
+                showToast('✅ 画像アップロード完了');
+            }
         }
     }
-}
-
 
     // Phase C: 音声アップロード → 署名付きURL発行
     var audioUrl = null;
@@ -4807,38 +4737,273 @@ window.testSupabaseConnection = async function() {
     }
 };
 
-// ── オーバーレイの「共有」ボタンから呼ばれる ─────────────────────
+// shareCurrentCard: 旧カード共有（廃止）→ シナリオ共有に委譲
 window.shareCurrentCard = async function() {
-    if (!editCardItem) { showToast('カードを開いてください'); return; }
-    var active = getActive();
-    if (!active) return;
-    var items = Array.from(grid.querySelectorAll('.grid-item'));
-    var idx   = items.indexOf(editCardItem);
-    var card  = active.data[idx];
-    if (!card) { showToast('カードデータが見つかりません'); return; }
-
-    showToast('共有中...');
-    // cardItem も渡して画像・音声を含めて共有
-    var result = await shareCard(card, editCardItem);
-    if (!result) return;
-
-    // 共有URLをクリップボードにコピー
-    var copyUrl = result.friendlyUrl;
-    if (navigator.clipboard) {
-        await navigator.clipboard.writeText(copyUrl);
-        var parts = ['✅ 共有URLをコピーしました'];
-        if (result.mediaUrl) parts.push('画像あり');
-        if (result.audioUrl) parts.push('音声あり');
-        parts.push('24時間有効');
-        showToast(parts.join(' · '));
-    } else {
-        showToast('✅ 共有完了（24時間有効）');
-    }
-    console.log('共有URL:', copyUrl);
-    console.log('メディアURL:', result.mediaUrl);
-    console.log('音声URL:', result.audioUrl);
-    console.log('有効期限:', result.expiresAt);
+    await window.shareCurrentScenario();
 };
+
+// ═══════════════════════════════════════════════════════════════
+// QMS Phase: シナリオ共有（Scenario Share）
+// 設計書: QCard Pro 実装指示 #1-#33 準拠
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * shareCurrentScenario()
+ * 現在のシナリオ全体をSupabaseに保存し、共有URLを発行する。
+ * - シナリオのdeep cloneを作成し、本体データを変更しない
+ * - 各カードの画像・音声をStorageにアップロードしSigned URLを設定
+ * - shared_scenarios テーブルに保存（shared_cards は使用しない）
+ */
+window.shareCurrentScenario = async function() {
+    // 共有前にDOM上の最新編集内容を保存
+    saveCurrentGridData();
+
+    var active = getActive();
+    if (!active) { showToast('シナリオがありません'); return; }
+
+    // 共有用のdeep clone（本体データを変更しない）
+    var shareData = JSON.parse(JSON.stringify(active));
+    var cards = shareData.data || [];
+
+    console.log('[Scenario Share] scenario:', shareData.name);
+    console.log('[Scenario Share] card count:', cards.length);
+
+    var sb = getSB();
+    // シナリオ共有URI（カードURIとは別物）
+    var shareUlid = window.generateULID();
+    var shareUri  = 'fig://' + shareUlid;
+    var expiresAt = new Date(Date.now() + SHARE_TTL_SEC * 1000).toISOString();
+
+    var mediaCount = 0;
+    var audioCount = 0;
+
+    showToast('シナリオを共有中...');
+
+    // 各カードのメディアをアップロード
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        // カードURIからULIDを取得（ファイル名に使用）
+        var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
+
+        // ── 画像アップロード ──
+        // editCardItem は共有処理では使えないため、
+        // active（本体）のdatasetからmediaIdを取得できない。
+        // mediaId は card オブジェクトには存在しないため、
+        // gridのDOM要素から取得する。
+        var gridItems = Array.from(grid.querySelectorAll('.grid-item'));
+        var gridItem  = gridItems[i] || null;
+        var mediaId   = gridItem ? gridItem.dataset.mediaId : null;
+
+        if (mediaId) {
+            try {
+                var mediaRecord = await mediaDB.get(mediaId);
+                if (mediaRecord && mediaRecord.blob) {
+                    var mExt  = await getMediaExt(mediaId);
+                    var mPath = cardUlid + mExt;
+                    var mRes  = await sb.storage.from('qcard-media').upload(mPath, mediaRecord.blob, {
+                        contentType: mediaRecord.mimeType || 'image/jpeg',
+                        upsert: true
+                    });
+                    if (!mRes.error) {
+                        var mSigned = await sb.storage.from('qcard-media').createSignedUrl(mPath, SHARE_TTL_SEC);
+                        card.mediaUrl = (mSigned.data && mSigned.data.signedUrl) ? mSigned.data.signedUrl : null;
+                        if (card.mediaUrl) mediaCount++;
+                    }
+                }
+            } catch(e) { console.warn('[Scenario Share] media upload error card', i, e); }
+        }
+
+        // ── 音声アップロード ──
+        var itvId = gridItem ? gridItem.dataset.itvId : null;
+        var audioSrc = gridItem ? (gridItem.dataset.audioSource || 'speech') : 'speech';
+
+        if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
+            try {
+                // アップロード音声を優先
+                var upRec = await uploadDB.get(itvId);
+                if (upRec && upRec.blob) {
+                    var aExt  = await getUploadExt(itvId);
+                    var aPath = cardUlid + aExt;
+                    var aRes  = await sb.storage.from('qcard-audio').upload(aPath, upRec.blob, {
+                        contentType: upRec.mimeType || 'audio/mpeg',
+                        upsert: true
+                    });
+                    if (!aRes.error) {
+                        var aSigned = await sb.storage.from('qcard-audio').createSignedUrl(aPath, SHARE_TTL_SEC);
+                        card.audioUrl = (aSigned.data && aSigned.data.signedUrl) ? aSigned.data.signedUrl : null;
+                        if (card.audioUrl) audioCount++;
+                    }
+                } else {
+                    // 録音音声
+                    var recs = await itvDB.getByCardId(itvId);
+                    if (recs && recs.length > 0) {
+                        var rec   = recs[recs.length - 1];
+                        var rPath = cardUlid + '_rec.webm';
+                        var rRes  = await sb.storage.from('qcard-audio').upload(rPath, rec.blob, {
+                            contentType: 'audio/webm',
+                            upsert: true
+                        });
+                        if (!rRes.error) {
+                            var rSigned = await sb.storage.from('qcard-audio').createSignedUrl(rPath, SHARE_TTL_SEC);
+                            card.audioUrl = (rSigned.data && rSigned.data.signedUrl) ? rSigned.data.signedUrl : null;
+                            if (card.audioUrl) audioCount++;
+                        }
+                    }
+                }
+            } catch(e) { console.warn('[Scenario Share] audio upload error card', i, e); }
+        }
+    }
+
+    console.log('[Scenario Share] media uploads:', mediaCount);
+    console.log('[Scenario Share] audio uploads:', audioCount);
+
+    // shared_scenarios に保存（shared_cards は使用しない）
+    var row = {
+        uri:           shareUri,
+        scenario_json: shareData,
+        expires_at:    expiresAt,
+        access_count:  0
+    };
+
+    var result = await sb.from('shared_scenarios').upsert(row, { onConflict: 'uri' });
+    if (result.error) {
+        showToast('共有に失敗しました: ' + result.error.message);
+        return;
+    }
+
+    var friendlyUrl = 'https://qcard.app/share/' + shareUlid;
+    console.log('[Scenario Share] shared URI:', shareUri);
+    console.log('[Scenario Share] expires:', expiresAt);
+
+    if (navigator.clipboard) {
+        await navigator.clipboard.writeText(friendlyUrl);
+        var msg = '✅ シナリオを共有しました';
+        if (mediaCount) msg += ' · 画像' + mediaCount + '枚';
+        if (audioCount) msg += ' · 音声' + audioCount + '件';
+        msg += ' · 24時間有効';
+        showToast(msg);
+    } else {
+        showToast('✅ シナリオを共有しました（24時間有効）');
+    }
+
+    return { uri: shareUri, friendlyUrl: friendlyUrl, expiresAt: expiresAt };
+};
+
+/**
+ * fetchSharedScenario(uri)
+ * shared_scenarios からシナリオを取得する。
+ */
+async function fetchSharedScenario(uri) {
+    var sb = getSB();
+    var result = await sb
+        .from('shared_scenarios')
+        .select('*')
+        .eq('uri', uri)
+        .single();
+    if (result.error) return null;
+    // アクセス数をインクリメント（非同期・待たない）
+    sb.from('shared_scenarios')
+        .update({ access_count: (result.data.access_count || 0) + 1 })
+        .eq('uri', uri);
+    return result.data;
+}
+
+/**
+ * importSharedScenario(uri)
+ * 共有シナリオを取得し、新しいシナリオとしてローカルに追加する。
+ * active.data.push() は使用しない。
+ */
+async function importSharedScenario(uri) {
+    showToast('シナリオを取得中...');
+    var data = await fetchSharedScenario(uri);
+
+    if (!data) {
+        showToast('シナリオが見つかりません（期限切れの可能性があります）');
+        return;
+    }
+
+    // 有効期限チェック
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        showToast('この共有URLは期限切れです');
+        return;
+    }
+
+    // scenario_json を取得（文字列・オブジェクト両対応）
+    var scenarioJson = data.scenario_json;
+    if (typeof scenarioJson === 'string') {
+        try { scenarioJson = JSON.parse(scenarioJson); } catch(e) {
+            showToast('シナリオデータの解析に失敗しました'); return;
+        }
+    }
+    if (!scenarioJson || typeof scenarioJson !== 'object') {
+        showToast('シナリオデータが不正です'); return;
+    }
+
+    console.log('[Scenario Import] received scenario:', scenarioJson.name);
+    console.log('[Scenario Import] card count:', (scenarioJson.data || []).length);
+
+    // 受信したシナリオのIDを新しく生成（送信元IDをそのまま使わない）
+    var newScenario = JSON.parse(JSON.stringify(scenarioJson));
+    newScenario.id        = scnUid();
+    newScenario.createdAt = nowMs();
+    newScenario.updatedAt = nowMs();
+
+    // カードIDも重複を避けるため新規生成（card.uri は変更しない）
+    (newScenario.data || []).forEach(function(card) {
+        card.id = cardUid();
+        // studyStatus・studyCount はリセット（受信者の学習状態として新規スタート）
+        card.studyStatus = '';
+        card.studyCount  = 0;
+    });
+
+    // 同名シナリオの重複を回避
+    var baseName = newScenario.name || 'シナリオ';
+    var existingNames = scenarios.map(function(s){ return s.name; });
+    if (existingNames.indexOf(baseName) !== -1) {
+        var n = 2;
+        while (existingNames.indexOf(baseName + ' (' + n + ')') !== -1) n++;
+        newScenario.name = baseName + ' (' + n + ')';
+    }
+
+    var mediaCount = (newScenario.data || []).filter(function(c){ return c.mediaUrl; }).length;
+    var audioCount = (newScenario.data || []).filter(function(c){ return c.audioUrl; }).length;
+    console.log('[Scenario Import] media count:', mediaCount);
+    console.log('[Scenario Import] audio count:', audioCount);
+
+    // シナリオを追加し、新シナリオをアクティブにする
+    scenarios.push(newScenario);
+    activeScenarioId = newScenario.id;
+    saveScenarios();
+    renderScenarioTabs();
+
+    var colsInput = document.getElementById('colsInput');
+    if (colsInput) colsInput.value = getActiveCols();
+    var rowsInput = document.getElementById('rowsInput');
+    if (rowsInput) rowsInput.value = getActiveRows ? getActiveRows() : (newScenario.rows || 3);
+
+    updateGrid();
+
+    console.log('[Scenario Import] new scenario id:', newScenario.id);
+    console.log('[Scenario Import] active scenario id:', activeScenarioId);
+    setTimeout(function() {
+        var gridCount = document.querySelectorAll('.grid-item').length;
+        console.log('[Scenario Import] grid count:', gridCount);
+        console.log('[Scenario Import] data count:', (newScenario.data || []).length);
+    }, 300);
+
+    showToast('✅ 「' + newScenario.name + '」を受け取りました');
+}
+
+// ─── URL判定ヘルパー（shared_scenarios / shared_cards を自動判定）───
+async function resolveShareUri(raw) {
+    // fig://ULID または https://qcard.app/share/ULID に対応
+    var uri = raw.trim();
+    if (uri.startsWith('https://qcard.app/share/')) {
+        uri = 'fig://' + uri.replace('https://qcard.app/share/', '');
+    }
+    if (!uri.startsWith('fig://')) return null;
+    return uri;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // END Supabase
@@ -7080,6 +7245,21 @@ function pluginUnload(silent) {
     if (!silent) showToast('プラグインを終了しました');
 }
 
+// ── シナリオ受信UI関数 ──
+window.dmImportScenarioFromUrl = async function() {
+    var input = document.getElementById('dm-share-url-input');
+    if (!input) return;
+    var raw = input.value.trim();
+    if (!raw) { showToast('URLを入力してください'); return; }
+
+    var uri = await resolveShareUri(raw);
+    if (!uri) { showToast('URLの形式が正しくありません'); return; }
+
+    input.value = '';
+    closeDataModal();
+    await importSharedScenario(uri);
+};
+
 // ── データ管理パネル タブ切替 ──
 function dmTab(btn, panelId) {
     // ボタン
@@ -7092,65 +7272,11 @@ function dmTab(btn, panelId) {
 }
 
 // ── 共有URLからカードを読み込む ──
+// dmImportFromUrl: 旧カード共有受信（廃止）→ シナリオ共有受信に委譲
 window.dmImportFromUrl = async function() {
-    var input = document.getElementById('dm-share-url-input');
-    if (!input) return;
-    var raw = input.value.trim();
-    if (!raw) { showToast('URLを入力してください'); return; }
-
-    // fig://ULID または https://qcard.app/share/ULID に対応
-    var uri = raw;
-    if (raw.startsWith('https://qcard.app/share/')) {
-        var ulid = raw.replace('https://qcard.app/share/', '');
-        uri = 'fig://' + ulid;
-    }
-    if (!uri.startsWith('fig://')) {
-        showToast('URLの形式が正しくありません');
-        return;
-    }
-
-    showToast('カードを取得中...');
-    var data = await fetchSharedCard(uri);
-    if (!data) { showToast('カードが見つかりません（期限切れの可能性があります）'); return; }
-
-    // card_json のパース（文字列・オブジェクト・二重エンコード全対応）
-    var card = data.card_json;
-    if (typeof card === 'string') {
-        try { card = JSON.parse(card); } catch(e) {}
-    }
-    // 二重エンコード対策（稀にJSONBが文字列として返る場合）
-    if (typeof card === 'string') {
-        try { card = JSON.parse(card); } catch(e) { showToast('カードデータの解析に失敗しました'); return; }
-    }
-    if (!card || typeof card !== 'object') { showToast('カードデータが不正です'); return; }
-
-    // mediaUrl / audioUrl を Supabase の列から補完
-    if (data.media_url) card.mediaUrl = data.media_url;
-    if (data.audio_url) card.audioUrl = data.audio_url;
-
-    // uri が存在しなければ補完
-    if (!card.uri) card.uri = uri;
-
-    // 有効期限チェック
-    if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        showToast('この共有URLは期限切れです');
-        return;
-    }
-
-    var active = getActive();
-    if (!active) { showToast('シナリオがありません'); return; }
-
-    // saveCurrentGridData() は呼ばない。
-    // 共有インポートは「データ追加処理」であり「編集保存処理」ではないため。
-    // saveCurrentGridData() を呼ぶと active.data がDOM（画面）の内容で
-    // 丸ごと上書きされ、直後に push したカードが消滅する。
-    active.data.push(card);
-    saveScenarios();
-    updateGrid();
-    input.value = '';
-    closeDataModal();
-    showToast('✅ カードを受け取りました: ' + (card.title || '（無題）'));
+    await window.dmImportScenarioFromUrl();
 };
+
 
 function openDataModal() {
     saveCurrentGridData();
