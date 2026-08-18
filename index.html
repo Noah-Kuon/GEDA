@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.2 2108                                      ║
+  ║  Qcard PRO  v2.8.32                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3879,8 +3879,19 @@ function mediaOpenFilePicker(cardId, item) {
 function mediaLoadForCard(cardId, item, imgEl) {
     mediaDB.get(cardId).then(function(record) {
         if (record && record.blob) {
+            // ローカルIndexedDBに画像あり → 通常パス
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
+            item.classList.add('has-media');
+        } else if (item.dataset.mediaUrl) {
+            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
+            imgEl.src = item.dataset.mediaUrl;
+            item.classList.add('has-media');
+        }
+    }).catch(function() {
+        // IndexedDB取得失敗時もフォールバック
+        if (item.dataset.mediaUrl) {
+            imgEl.src = item.dataset.mediaUrl;
             item.classList.add('has-media');
         }
     });
@@ -4786,13 +4797,10 @@ window.shareCurrentScenario = async function() {
         var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
 
         // ── 画像アップロード ──
-        // editCardItem は共有処理では使えないため、
-        // active（本体）のdatasetからmediaIdを取得できない。
-        // mediaId は card オブジェクトには存在しないため、
-        // gridのDOM要素から取得する。
-        var gridItems = Array.from(grid.querySelectorAll('.grid-item'));
-        var gridItem  = gridItems[i] || null;
-        var mediaId   = gridItem ? gridItem.dataset.mediaId : null;
+        // mediaId・itvId・audioSource は getCurrentGridData() によって
+        // すでに active.data 各カードオブジェクトに保存されているため
+        // DOM参照（gridItems[i]）は使わず、card 直接参照に統一する
+        var mediaId = card.mediaId || null;
 
         if (mediaId) {
             try {
@@ -4814,8 +4822,9 @@ window.shareCurrentScenario = async function() {
         }
 
         // ── 音声アップロード ──
-        var itvId = gridItem ? gridItem.dataset.itvId : null;
-        var audioSrc = gridItem ? (gridItem.dataset.audioSource || 'speech') : 'speech';
+        // itvId・audioSource も card から直接参照
+        var itvId    = card.itvId    || null;
+        var audioSrc = card.audioSource || 'speech';
 
         if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
             try {
@@ -6097,6 +6106,9 @@ function createItem(index, d) {
     }
     var cardId = d.mediaId;
     item.dataset.mediaId = cardId;
+    // 受信シナリオの場合: Supabase URLをdatasetに保存（IndexedDBにない場合のフォールバック用）
+    if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
+    if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
 
     // [NEW] 画像表示レイヤー
     var mediaLayer = document.createElement('div');
@@ -8574,15 +8586,20 @@ function overlayPlayRecordedAudio() {
     if (!editCardItem) return;
     var cardId = itvGetCardId(editCardItem);
     itvDB.getByCardId(cardId).then(function(records) {
-        if (!records || records.length === 0) {
+        if (records && records.length > 0) {
+            // ローカルIndexedDBに録音あり → 通常パス
+            var latest = records.slice().sort(function(a,b){ return b.createdAt.localeCompare(a.createdAt); })[0];
+            var url = URL.createObjectURL(latest.blob);
+            var audio = new Audio(url);
+            audio.play();
+            audio.onended = function() { URL.revokeObjectURL(url); };
+        } else if (editCardItem.dataset.audioUrl) {
+            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
+            var audio = new Audio(editCardItem.dataset.audioUrl);
+            audio.play();
+        } else {
             showToast(t('toast_no_rec_audio'));
-            return;
         }
-        var latest = records.slice().sort(function(a,b){ return b.createdAt.localeCompare(a.createdAt); })[0];
-        var url = URL.createObjectURL(latest.blob);
-        var audio = new Audio(url);
-        audio.play();
-        audio.onended = function() { URL.revokeObjectURL(url); };
     });
 }
 
@@ -8591,14 +8608,19 @@ function overlayPlayUploadedAudio() {
     if (!editCardItem) return;
     var cardId = itvGetCardId(editCardItem);
     uploadDB.get(cardId).then(function(record) {
-        if (!record || !record.blob) {
+        if (record && record.blob) {
+            // ローカルIndexedDBにアップロード音声あり → 通常パス
+            var url = URL.createObjectURL(record.blob);
+            var audio = new Audio(url);
+            audio.play();
+            audio.onended = function() { URL.revokeObjectURL(url); };
+        } else if (editCardItem.dataset.audioUrl) {
+            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
+            var audio = new Audio(editCardItem.dataset.audioUrl);
+            audio.play();
+        } else {
             showToast(t('toast_no_upl_audio'));
-            return;
         }
-        var url = URL.createObjectURL(record.blob);
-        var audio = new Audio(url);
-        audio.play();
-        audio.onended = function() { URL.revokeObjectURL(url); };
     });
 }
 
