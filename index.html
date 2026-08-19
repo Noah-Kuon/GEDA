@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.32                                          ║
+  ║  Qcard PRO  v2.8.33                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -6517,10 +6517,21 @@ function overlayShowMediaForCard(cardItem) {
     var img   = document.getElementById('overlay-media-img');
     if (!layer || !img) return;
     var mediaId = cardItem ? cardItem.dataset.mediaId : null;
-    if (!mediaId) { layer.classList.remove('show'); img.src = ''; return; }
+    if (!mediaId) {
+        // mediaIdなしでも mediaUrl（受信シナリオ）があれば表示
+        var remoteUrl = cardItem ? cardItem.dataset.mediaUrl : null;
+        if (remoteUrl) { img.src = remoteUrl; layer.classList.add('show'); }
+        else           { layer.classList.remove('show'); img.src = ''; }
+        return;
+    }
     mediaDB.get(mediaId).then(function(record) {
         if (record && record.blob) {
+            // ローカルIndexedDBに画像あり → 通常パス
             img.src = URL.createObjectURL(record.blob);
+            layer.classList.add('show');
+        } else if (cardItem && cardItem.dataset.mediaUrl) {
+            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
+            img.src = cardItem.dataset.mediaUrl;
             layer.classList.add('show');
         } else {
             layer.classList.remove('show');
