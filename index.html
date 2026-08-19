@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.33                                          ║
+  ║  Qcard PRO  v2.8.34　　　　　　　　　　　　　　　　　　　　　　　║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5825,6 +5825,16 @@ function onCardRatioChange(value) {
     cardRatioMode = value;
     localStorage.setItem('kp_card_ratio_mode', value);
     updateGrid(); 
+}
+
+function onCardRatioCustomChange(value) {
+    var v = parseFloat(value);
+    if (isNaN(v) || v < 0.3) return;
+    cardRatioCustomValue = v;
+    cardRatioMode = 'custom';
+    localStorage.setItem('kp_card_ratio_custom', v);
+    localStorage.setItem('kp_card_ratio_mode', 'custom');
+    updateGrid();
 }
 
 // 🌐 1. ここでアプリ共通の変数として1回だけ宣言する
