@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.24-webp                                    ║
+  ║  Qcard PRO  v2.8.25                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -6153,7 +6153,7 @@ function createItem(index, d) {
                 }
                 return;
             }
-            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim()) {
+            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media')) {
                 isLocked = true;
                 showOverlay(t.value, c.value, item);
             }
