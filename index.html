@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.34　　　　　　　　　　　　　　　　　　　　　　　║
+  ║  Qcard PRO  v2.8.24-webp                                    ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3825,40 +3825,144 @@ var itvDB = (function() {
 })();
 
 // 画像ファイルを保存して即時反映
+// ===== IMAGE OPTIMIZATION =====
+// 画像を WebP（→ JPEG → 元ファイル）3段階フォールバックで最適化する
+// 呼び出し元は mediaSaveImageFile() のみ。他の保存フローには影響しない。
+var IMG_OPT = {
+    maxEdge:      1600,   // px: 長辺の上限（これ以下はリサイズしない）
+    webpQuality:  0.80,   // WebP 品質
+    jpegQuality:  0.85,   // JPEG フォールバック品質
+};
+
+/**
+ * File / Blob を受け取り、リサイズ + WebP変換 した Blob を返す Promise。
+ * 変換に失敗した場合は JPEG → 元ファイルの順にフォールバックする。
+ * @returns {Promise<{blob: Blob, mimeType: string, width: number, height: number}>}
+ */
+function optimizeImageToWebP(file) {
+    return new Promise(function(resolve) {
+
+        // Image デコード
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+
+        img.onerror = function() {
+            // デコード失敗 → 元ファイルをそのまま返す
+            URL.revokeObjectURL(url);
+            resolve({ blob: file, mimeType: file.type,
+                      width: 0, height: 0,
+                      originalSize: file.size, optimizedSize: file.size });
+        };
+
+        img.onload = function() {
+            URL.revokeObjectURL(url);
+
+            var ow = img.naturalWidth;
+            var oh = img.naturalHeight;
+
+            // リサイズ計算（長辺が maxEdge を超える場合のみ縮小）
+            var scale = 1;
+            if (Math.max(ow, oh) > IMG_OPT.maxEdge) {
+                scale = IMG_OPT.maxEdge / Math.max(ow, oh);
+            }
+            var tw = Math.round(ow * scale);
+            var th = Math.round(oh * scale);
+
+            // Canvas に描画
+            var canvas = document.createElement('canvas');
+            canvas.width  = tw;
+            canvas.height = th;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, tw, th);
+
+            // ① WebP 変換
+            canvas.toBlob(function(webpBlob) {
+
+                // ② JPEG 変換（WebP と比較するために必ず生成）
+                canvas.toBlob(function(jpegBlob) {
+
+                    // 最も小さいものを選択（元ファイル含む3択）
+                    // 「軽量化」が目的なので、大きくなるなら元ファイルを採用する
+                    var candidates = [];
+                    if (webpBlob) candidates.push({ blob: webpBlob, mimeType: 'image/webp', size: webpBlob.size });
+                    if (jpegBlob) candidates.push({ blob: jpegBlob, mimeType: 'image/jpeg', size: jpegBlob.size });
+                    candidates.push({ blob: file, mimeType: file.type, size: file.size });
+
+                    // サイズが最小のものを採用
+                    candidates.sort(function(a, b) { return a.size - b.size; });
+                    var best = candidates[0];
+
+                    resolve({
+                        blob:          best.blob,
+                        mimeType:      best.mimeType,
+                        optimizedMimeType: best.mimeType,   // 明示フィールドとして保持
+                        width:         tw,
+                        height:        th,
+                        originalWidth:  ow,
+                        originalHeight: oh,
+                        originalSize:  file.size,
+                        optimizedSize: best.size
+                    });
+
+                }, 'image/jpeg', IMG_OPT.jpegQuality);
+            }, 'image/webp', IMG_OPT.webpQuality);
+        };
+
+        img.src = url;
+    });
+}
+
 function mediaSaveImageFile(cardId, item, file) {
     if (!file) return;
-    var record = {
-        cardId:   cardId,
-        type:     'image',              // [将来拡張] 'video' / 'iframe' もこの枠で扱える
-        blob:     file,
-        mimeType: file.type,
-        size:     file.size,            // バイト数: アップロード前のサイズチェック用
-        savedAt:  new Date().toISOString(),
-        // ── サーバー共有に向けた予約フィールド ──
-        hash:     null,                 // SHA-256: 重複排除・オリジナル証明（非同期で算出）
-        mediaUrl: null                  // CDN URL: サーバーアップロード後に書き込む
-    };
 
-    // 表示は即時（ユーザー体験に影響なし）
+    // 即時プレビュー（最適化前の元ファイルで表示 → UX に影響なし）
     var img = item.querySelector('.card-media-layer img');
-    if (img) { img.src = URL.createObjectURL(file); }
+    if (img) img.src = URL.createObjectURL(file);
     item.classList.add('has-media');
     showToast(t('toast_img_added'));
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
 
-    // 保存 → hash を非同期で算出して更新（表示フローをブロックしない）
-    mediaDB.save(record).then(function() {
-        if (!crypto || !crypto.subtle) return;
-        file.arrayBuffer().then(function(buf) {
-            return crypto.subtle.digest('SHA-256', buf);
-        }).then(function(hashBuf) {
-            var hex = Array.from(new Uint8Array(hashBuf))
-                .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
-            record.hash = hex;
-            mediaDB.save(record); // hash だけ更新して再保存
-        }).catch(function() { /* hash算出失敗は無視 */ });
+    // 最適化 → IndexedDB 保存（バックグラウンドで処理。表示フローをブロックしない）
+    optimizeImageToWebP(file).then(function(result) {
+
+        // プレビューを最適化後 Blob に差し替え（変わったか見た目では分からない）
+        if (img) img.src = URL.createObjectURL(result.blob);
+
+        var record = {
+            cardId:           cardId,
+            type:             'image',
+            blob:             result.blob,
+            mimeType:         result.mimeType,
+            optimizedMimeType: result.optimizedMimeType || result.mimeType,
+            size:             result.optimizedSize,
+            // 元画像情報（メタとして保持）
+            originalFilename: file.name        || '',
+            originalMimeType: file.type        || '',
+            originalWidth:    result.originalWidth  || 0,
+            originalHeight:   result.originalHeight || 0,
+            originalSize:     result.originalSize,
+            optimizedWidth:   result.width,
+            optimizedHeight:  result.height,
+            optimizedSize:    result.optimizedSize,
+            savedAt:          new Date().toISOString(),
+            hash:             null,
+            mediaUrl:         null
+        };
+
+        // 保存 → SHA-256 ハッシュを非同期で算出して更新
+        mediaDB.save(record).then(function() {
+            if (!crypto || !crypto.subtle) return;
+            result.blob.arrayBuffer().then(function(buf) {
+                return crypto.subtle.digest('SHA-256', buf);
+            }).then(function(hashBuf) {
+                var hex = Array.from(new Uint8Array(hashBuf))
+                    .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+                record.hash = hex;
+                mediaDB.save(record);
+            }).catch(function() { /* hash算出失敗は無視 */ });
+        });
     });
 }
 
