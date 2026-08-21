@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.26                                          ║
+  ║  Qcard PRO  v2.8.27                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -6377,7 +6377,9 @@ overlay.addEventListener('mouseenter', function(){ clearTimeout(hideTimeout); })
 overlay.addEventListener('mouseleave', function(){ if (!isLocked) hideOverlay(); });
 
 function showOverlay(title, text, cardItem) {
-    if (!title.trim() && !text.trim()) return;
+    // タイトル・本文が空でも、画像があるカードはオーバーレイを開く
+    if (!title.trim() && !text.trim() &&
+        !(cardItem && cardItem.classList.contains('has-media'))) return;
     exitEditMode();
     if (cardItem !== undefined) editCardItem = cardItem;
     overlayTitle.innerText = title;
