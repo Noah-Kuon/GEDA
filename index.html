@@ -3991,12 +3991,17 @@ function mediaLoadForCard(cardId, item, imgEl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
             imgEl.src = item.dataset.mediaUrl;
             item.classList.add('has-media');
+        } else {
+            // 画像が実際には存在しない → 先付けした has-media を除去
+            item.classList.remove('has-media');
         }
     }).catch(function() {
         // IndexedDB取得失敗時もフォールバック
         if (item.dataset.mediaUrl) {
             imgEl.src = item.dataset.mediaUrl;
             item.classList.add('has-media');
+        } else {
+            item.classList.remove('has-media');
         }
     });
 }
@@ -6223,6 +6228,10 @@ function createItem(index, d) {
     // 受信シナリオの場合: Supabase URLをdatasetに保存（IndexedDBにない場合のフォールバック用）
     if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
     if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
+
+    // mediaId が存在する = 画像登録済みカード → 非同期読み込み完了を待たずに先付けで has-media を付与
+    // (mediaLoadForCard の完了前にクリックしても正しくオーバーレイが開くようにする)
+    if (d.mediaId || d.mediaUrl) item.classList.add('has-media');
 
     // [NEW] 画像表示レイヤー
     var mediaLayer = document.createElement('div');
