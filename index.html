@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.27                                          ║
+  ║  Qcard PRO  v2.8.24                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -7533,12 +7533,31 @@ async function exportJSON() {
     showToast(t('toast_qcp_export')); closeDataModal();
 }
 
+// CSV公開仕様 8列: scenario, uri, title, content, tags, source, url, note
+// url ↔ card.sourceUrl（明示的マッピング）
+// tags はカンマ区切り文字列として1セルに格納
+var CSV_HEADER = ['scenario', 'uri', 'title', 'content', 'tags', 'source', 'url', 'note'];
+
+function cardToCSVRow(scenarioName, card) {
+    var tagsStr = Array.isArray(card.tags) ? card.tags.join(',') : (card.tags || '');
+    return [
+        csvEscape(scenarioName),
+        csvEscape(card.uri        || ''),
+        csvEscape(card.title      || ''),
+        csvEscape(card.content    || ''),
+        csvEscape(tagsStr),
+        csvEscape(card.source     || ''),
+        csvEscape(card.sourceUrl  || ''),   // CSV列名 url ↔ card.sourceUrl
+        csvEscape(card.note       || '')
+    ];
+}
+
 function exportCSV() {
     var CRLF = '\r\n';
-    var rows = [['scenario', 'uri', 'title', 'content']];
+    var rows = [CSV_HEADER];
     scenarios.forEach(function(s) {
         (s.data || []).forEach(function(card) {
-            rows.push([csvEscape(s.name), csvEscape(card.uri || ''), csvEscape(card.title || ''), csvEscape(card.content || '')]);
+            rows.push(cardToCSVRow(displayScenarioName(s, scenarios.indexOf(s)), card));
         });
     });
     var csv  = rows.map(function(r){ return r.join(','); }).join(CRLF);
@@ -7565,9 +7584,10 @@ function activeFilename(ext) {
 function exportActiveCSV() {
     var a = getActive(); if (!a) return;
     var CRLF = '\r\n';
-    var rows = [['scenario', 'uri', 'title', 'content']];
+    var rows = [CSV_HEADER];
+    var sName = displayScenarioName(a, scenarios.indexOf(a));
     (a.data || []).forEach(function(card) {
-        rows.push([csvEscape(a.name), csvEscape(card.uri || ''), csvEscape(card.title || ''), csvEscape(card.content || '')]);
+        rows.push(cardToCSVRow(sName, card));
     });
     var csv  = rows.map(function(r){ return r.join(','); }).join(CRLF);
     var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -8239,31 +8259,153 @@ function importCSV(e) {
         try {
             var rows = parseCSV(text);
             if (rows.length < 2) { showToast(t('toast_csv_no_data')); return; }
+
+            // ── ヘッダー解析 ──────────────────────────────────────────
             var header = rows[0].map(function(h){ return h.toLowerCase().trim(); });
-            var si = header.indexOf('scenario'), ti = header.indexOf('title'), ci = header.indexOf('content');
-            if (si < 0 || ti < 0 || ci < 0) { showToast(t('toast_csv_bad_hdr')); return; }
-            var map = {};
-            rows.slice(1).forEach(function(row) {
-                var name = (row[si] || '').trim(), title = (row[ti] || '').trim(), content = (row[ci] || '').trim();
-                if (!name) return;
-                if (!map[name]) map[name] = [];
-                map[name].push({ title: title, content: content });
+            var col = {
+                scenario: header.indexOf('scenario'),
+                uri:      header.indexOf('uri'),
+                title:    header.indexOf('title'),
+                content:  header.indexOf('content'),
+                tags:     header.indexOf('tags'),
+                source:   header.indexOf('source'),
+                url:      header.indexOf('url'),    // ↔ card.sourceUrl
+                note:     header.indexOf('note')
+            };
+            if (col.scenario < 0 || col.title < 0 || col.content < 0) {
+                showToast(t('toast_csv_bad_hdr')); return;
+            }
+
+            var dataRows = rows.slice(1);
+
+            // ── Phase 2: 事前検証（元データへの変更なし）─────────────────
+
+            // ① 既存シナリオ名 → シナリオオブジェクトのマップ（displayScenarioName ベース）
+            var scenarioByName = {};
+            scenarios.forEach(function(s, idx) {
+                scenarioByName[displayScenarioName(s, idx)] = s;
             });
-            Object.keys(map).forEach(function(name) {
-                var existing = scenarios.find(function(s){ return s.name === name; });
-                if (existing) {
-                    existing.data = map[name];
-                    // データ数に合わせて列数を保持（既存の cols はそのまま）
-                } else if (scenarios.length < 8) {
-                    scenarios.push({ id: uid(), name: name, cols: 4, data: map[name] });
+
+            // ② 全カードの uri → {scenarioId, cardIndex} マップ
+            var uriMap = {};
+            scenarios.forEach(function(s) {
+                (s.data || []).forEach(function(card, ci) {
+                    if (card.uri) uriMap[card.uri] = { scenarioId: s.id, cardIndex: ci };
+                });
+            });
+
+            // ③ 検証実行
+            var errors = [];
+            var uriSeenInCSV = {};
+            dataRows.forEach(function(row, ri) {
+                var lineNum = ri + 2; // ヘッダー行を1行目とした行番号
+                var csvUri      = col.uri >= 0 ? (row[col.uri] || '').trim() : '';
+                var csvScenario = (row[col.scenario] || '').trim();
+
+                // シナリオ名が空はスキップ（空行扱い）
+                if (!csvScenario) return;
+
+                // 移動先シナリオが存在するか（新規カード行は除外）
+                if (!scenarioByName[csvScenario]) {
+                    errors.push('行' + lineNum + ': シナリオ「' + csvScenario + '」が存在しません。移動先シナリオを先に作成してください。');
+                }
+
+                // uri の重複チェック
+                if (csvUri) {
+                    if (uriSeenInCSV[csvUri]) {
+                        errors.push('行' + lineNum + ': URI「' + csvUri + '」がCSV内で重複しています。');
+                    }
+                    uriSeenInCSV[csvUri] = lineNum;
                 }
             });
-            activeScenarioId = scenarios[0] ? scenarios[0].id : null;
-            saveScenarios(); renderScenarioTabs();
+
+            if (errors.length > 0) {
+                // 検証失敗 → エラー表示して停止（元データへの変更なし）
+                var msg = '【CSVインポートエラー】\n' + errors.slice(0, 5).join('\n');
+                if (errors.length > 5) msg += '\n…他 ' + (errors.length - 5) + ' 件';
+                alert(msg);
+                e.target.value = '';
+                return;
+            }
+
+            // ── Phase 3 & 4: 変更計画をメモリ上に構築 ────────────────────
+            // scenarios のディープコピーに対して変更を加え、最後に一括反映する
+            var draft = JSON.parse(JSON.stringify(scenarios)); // ディープコピー
+
+            // draft 上のルックアップを再構築
+            var draftByName = {};
+            draft.forEach(function(s, idx) {
+                draftByName[displayScenarioName(s, idx)] = s;
+            });
+
+            var draftUriMap = {}; // uri → {scenario, cardIndex}
+            draft.forEach(function(s) {
+                (s.data || []).forEach(function(card, ci) {
+                    if (card.uri) draftUriMap[card.uri] = { scenario: s, cardIndex: ci };
+                });
+            });
+
+            // 行ごとに計画を適用
+            dataRows.forEach(function(row) {
+                var csvScenario  = (row[col.scenario] || '').trim(); if (!csvScenario) return;
+                var csvUri       = col.uri     >= 0 ? (row[col.uri]     || '').trim() : '';
+                var csvTitle     = col.title   >= 0 ? (row[col.title]   || '').trim() : '';
+                var csvContent   = col.content >= 0 ? (row[col.content] || '').trim() : '';
+                var csvTags      = col.tags    >= 0 ? (row[col.tags]    || '').trim() : '';
+                var csvSource    = col.source  >= 0 ? (row[col.source]  || '').trim() : '';
+                var csvUrl       = col.url     >= 0 ? (row[col.url]     || '').trim() : '';
+                var csvNote      = col.note    >= 0 ? (row[col.note]    || '').trim() : '';
+
+                var targetScenario = draftByName[csvScenario];
+
+                var applyFields = function(card) {
+                    card.title     = csvTitle;
+                    card.content   = csvContent;
+                    card.tags      = csvTags ? csvTags.split(',').map(function(t){ return t.trim(); }).filter(Boolean) : [];
+                    card.source    = csvSource;
+                    card.sourceUrl = csvUrl;   // CSV url ↔ card.sourceUrl
+                    card.note      = csvNote;
+                    card.updatedAt = Date.now();
+                };
+
+                if (csvUri && draftUriMap[csvUri]) {
+                    // URI一致 → 既存カードを更新 or 別シナリオへ移動
+                    var match = draftUriMap[csvUri];
+                    var currentScenario = match.scenario;
+
+                    if (currentScenario.id === targetScenario.id) {
+                        // 同一シナリオ内 → フィールド更新のみ
+                        applyFields(currentScenario.data[match.cardIndex]);
+                    } else {
+                        // 別シナリオ → 元から削除して移動先に追加（移動）
+                        var card = currentScenario.data.splice(match.cardIndex, 1)[0];
+                        applyFields(card);
+                        targetScenario.data.push(card);
+                        // draftUriMap を更新（同一URIの後続行に備える）
+                        draftUriMap[csvUri] = { scenario: targetScenario, cardIndex: targetScenario.data.length - 1 };
+                    }
+                } else {
+                    // URI空欄 or 一致なし → 新規カード作成
+                    var newCard = newCardMeta(csvTitle, csvContent);
+                    applyFields(newCard); // title/content も applyFields で上書きして統一
+                    targetScenario.data.push(newCard);
+                    if (newCard.uri) draftUriMap[newCard.uri] = { scenario: targetScenario, cardIndex: targetScenario.data.length - 1 };
+                }
+            });
+
+            // ── 一括反映 ─────────────────────────────────────────────────
+            scenarios = draft;
+            saveScenarios();
+            renderScenarioTabs();
             document.getElementById('colsInput').value = getActiveCols();
             updateGrid();
-            showToast(t('toast_csv_import')); closeDataModal();
-        } catch(err) { showToast(t('toast_csv_fail')); }
+            showToast(t('toast_csv_import'));
+            closeDataModal();
+
+        } catch(err) {
+            showToast(t('toast_csv_fail'));
+            console.error('[importCSV]', err);
+        }
     });
     e.target.value = '';
 }
