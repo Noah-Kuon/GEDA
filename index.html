@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.41                                          ║
+  ║  Qcard PRO  v2.8.42                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -10542,7 +10542,9 @@ function rdSyncRateUI() {
         b.classList.toggle('selected', parseFloat(b.dataset.rate) === rdRate);
     });
     var mobSel = document.getElementById('mob-speech-rate');
-    if (mobSel) mobSel.value = String(rdRate);
+    // [FIX] String(1.0) は "1" になり、<option value="1.0"> と一致せず選択状態が空白になっていた。
+    // toFixed(1) で常に "1.0" / "2.0" のような小数第1位まりの文字列に揃えて一致させる。
+    if (mobSel) mobSel.value = rdRate.toFixed(1);
     var trigger = document.getElementById('rd-rate-current');
     if (trigger) trigger.textContent = rdRate.toFixed(1) + 'x';
 }
