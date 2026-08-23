@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.24                                          ║
+  ║  Qcard PRO  v2.8.25                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -893,6 +893,25 @@
             font-size: 0.6em;
             opacity: 0.45;
         }
+
+        /* [FIX] モバイル：非表示カードをタップで復元するための案内バッジ
+           （PCは :hover で気づけるが、モバイルは hover が無いため常設のヒントで対応） */
+        .mob-hidden-restore-hint {
+            display: none;
+            position: absolute; inset: 0;
+            align-items: center; justify-content: center;
+            flex-direction: column; gap: 3px;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.66rem;
+            line-height: 1.4;
+            color: var(--text-muted);
+            background: var(--surface2);
+            border-radius: 9px;
+            pointer-events: none; /* タップはカード本体（親要素）が受け取る */
+            z-index: 2;
+        }
+        .mob-hidden-restore-hint .mhrh-icon { font-size: 1.15rem; opacity: 0.8; }
         /* hide-toggle ボタン */
         #hide-toggle-btn.active {
             background: rgba(61,139,255,0.15);
@@ -2197,6 +2216,23 @@ min-height: 0;
             white-space: pre-wrap;
             outline: none;
         }
+        /* [FIX] フリップ（スワイプ）ビュー：非表示カードのバッジ（タップで表示/非表示を解除） */
+        .mob-hidden-flip-badge {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            align-self: flex-start;
+            background: var(--surface3);
+            border: 1px solid var(--border2);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .mob-hidden-flip-badge:active { background: var(--surface2); }
+
         .mob-editable { cursor: text; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
         .mob-editable:focus { background: var(--surface2); box-shadow: 0 0 0 1px var(--accent); }
         .mob-card-title.mob-editable:empty::before  { content: 'タイトルを入力'; color: var(--text-dim); }
@@ -2311,6 +2347,23 @@ min-height: 0;
         body.mob-grid2 .grid-wrapper::-webkit-scrollbar { width: 3px; }
         body.mob-grid1 .grid-wrapper::-webkit-scrollbar-thumb,
         body.mob-grid2 .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+        /* [FIX] モバイル1列・2列：非表示カードは visibility:hidden にせず、
+           半透明＋破線枠＋案内バッジで「タップして復元できる」状態にする。
+           （PC版の visibility:hidden + :hover は、モバイルにhoverが存在しないため
+           カードに触れる手段が無くなってしまうための対策） */
+        body.card-hide-on.mob-grid1 .grid-item.is-hidden,
+        body.card-hide-on.mob-grid2 .grid-item.is-hidden {
+            visibility: visible !important;
+            opacity: 0.55;
+            outline: 1.5px dashed var(--border2);
+            outline-offset: -2px;
+            cursor: pointer;
+        }
+        body.card-hide-on.mob-grid1 .grid-item.is-hidden .mob-hidden-restore-hint,
+        body.card-hide-on.mob-grid2 .grid-item.is-hidden .mob-hidden-restore-hint {
+            display: flex;
+        }
     }
 
     @media (min-width: 641px) {
@@ -6148,6 +6201,26 @@ function createItem(index, d) {
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
             if (appMode === 'reading') return;
             if (appMode === 'study') return; // 学習モード中はカードクリックを無視
+
+            // [FIX] モバイル1列・2列グリッドで「非表示（ブランク）カード」をタップした場合は
+            // 表示に復元する（設定画面を開かずカードに直接触れて解除できるようにする）
+            if ((document.body.classList.contains('mob-grid1') ||
+                 document.body.classList.contains('mob-grid2')) &&
+                item.classList.contains('is-hidden') &&
+                document.body.classList.contains('card-hide-on')) {
+                e.stopPropagation();
+                item.classList.remove('is-hidden');
+                setCardMeta(item, { hidden: false });
+                var restoredToggle = document.getElementById('meta-hidden-toggle');
+                var restoredLabel  = document.getElementById('meta-hidden-label');
+                if (editCardItem === item) {
+                    if (restoredToggle) restoredToggle.checked = false;
+                    if (restoredLabel)  restoredLabel.textContent = 'このカードを非表示にする';
+                }
+                showToast('👁 表示に戻しました');
+                return;
+            }
+
             // モバイルグリッドモード（1列・2列）では編集モード時もオーバーレイを開かずスワイプへ誘導
             if ((document.body.classList.contains('mob-grid1') ||
                  document.body.classList.contains('mob-grid2')) && appMode === 'edit') {
@@ -6302,6 +6375,13 @@ function createItem(index, d) {
     item.appendChild(contentRow);
     item.appendChild(mediaAddBtn);
     item.appendChild(mediaLayer);
+
+    // [FIX] モバイル：非表示カードの「タップで復元」案内バッジ
+    // （通常は非表示。CSS側で body.card-hide-on.mob-grid1/2 .is-hidden 時のみ表示される）
+    var hiddenHint = document.createElement('div');
+    hiddenHint.className = 'mob-hidden-restore-hint';
+    hiddenHint.innerHTML = '<span class="mhrh-icon">🙈</span><span>非表示中<br>タップで表示に戻す</span>';
+    item.appendChild(hiddenHint);
 
     // [NEW] 既存の画像データを読み込んで表示（あれば）
     mediaLoadForCard(cardId, item, mediaImg);
@@ -9495,6 +9575,19 @@ function rdSaveRate(v) {
     function createCardDOM() {
         var inner = document.createElement('div');
         inner.className = 'mob-card-inner';
+
+        // [FIX] 非表示カード用バッジ（タップで表示/非表示をトグル）
+        var hb = document.createElement('button');
+        hb.type = 'button';
+        hb.className = 'mob-hidden-flip-badge';
+        hb.innerHTML = '🙈 <span>非表示中（タップで表示に戻す）</span>';
+        hb.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            var idx = parseInt(hb.dataset.idx, 10);
+            if (!isNaN(idx)) mobToggleHidden(idx);
+        });
+
         var t = document.createElement('div');
         t.className = 'mob-card-title';
         t.dataset.field = 'title';
@@ -9503,12 +9596,30 @@ function rdSaveRate(v) {
         c.dataset.field = 'content';
         var s = document.createElement('div');
         s.className = 'mob-card-sentences';
+        inner.appendChild(hb);
         inner.appendChild(t);
         inner.appendChild(c);
         inner.appendChild(s);
         return inner;
     }
     slides.forEach(function(sl) { sl.appendChild(createCardDOM()); });
+
+    // [FIX] カードの表示/非表示をトグルして保存し、grid側・再描画に反映する
+    function mobToggleHidden(idx) {
+        var data = getData();
+        var d = data[idx];
+        if (!d) return;
+        d.hidden = !d.hidden;
+        d.updatedAt = (typeof nowMs === 'function') ? nowMs() : Date.now();
+        var active = (typeof getActive === 'function') ? getActive() : null;
+        if (active) active.updatedAt = d.updatedAt;
+        if (typeof saveScenarios === 'function') saveScenarios();
+        // 対応する grid-item にも反映（1列・2列表示や再度スワイプへ戻った際に同期させる）
+        var gridItem = getGridItem(data, idx);
+        if (gridItem && typeof applyHiddenClass === 'function') applyHiddenClass(gridItem, d.hidden);
+        if (typeof showToast === 'function') showToast(d.hidden ? '🙈 非表示にしました' : '👁 表示に戻しました');
+        mRenderAll();
+    }
 
     // ── 状態 ──
     var mIdx = 0;
@@ -9569,6 +9680,14 @@ function rdSaveRate(v) {
         var isEdit  = (appMode === 'edit');
         var isStudy = (appMode === 'study');
 
+        // [FIX] 非表示カード：バッジを表示し、タップで解除できるようにする
+        var hiddenBadge = inner.querySelector('.mob-hidden-flip-badge');
+        if (hiddenBadge) {
+            var showHiddenBadge = !!(d && d.hidden && (appMode === 'view' || appMode === 'edit'));
+            hiddenBadge.style.display = showHiddenBadge ? 'flex' : 'none';
+            hiddenBadge.dataset.idx = idx;
+        }
+
         // テキスト（反転モード時はタイトルと本文を入れ替えて表示・正規化で旧デフォルト値を空扱い）
         var rawTitle   = d ? normalizeTitle(d.title)     : '';
         var rawContent = d ? normalizeContent(d.content) : '';
@@ -9576,8 +9695,12 @@ function rdSaveRate(v) {
         var dispContent = isLearningReversed ? rawTitle   : rawContent;
         if (titleEl) {
             // 編集モード: textContent（プレーン編集）/ 表示モード: renderMdLine（**太字**レンダリング）
+            // フォーカス中（ユーザーが入力中）は textContent を更新しない
+            // → 更新するとカーソルが先頭にリセットされ文字が逆順に入力される
             if (isEdit) {
-                titleEl.textContent     = dispTitle;
+                if (document.activeElement !== titleEl) {
+                    titleEl.textContent = dispTitle;
+                }
                 titleEl.contentEditable = 'true';
                 titleEl.classList.add('mob-editable');
             } else {
@@ -9590,8 +9713,11 @@ function rdSaveRate(v) {
         }
         if (contentEl) {
             // 編集モード: textContent + pre-wrap / 表示モード: renderMdBlock（blockquote・strong）
+            // フォーカス中は textContent を更新しない（同上）
             if (isEdit) {
-                contentEl.textContent     = dispContent;
+                if (document.activeElement !== contentEl) {
+                    contentEl.textContent = dispContent;
+                }
                 contentEl.contentEditable = 'true';
                 contentEl.classList.add('mob-editable');
                 contentEl.style.whiteSpace = 'pre-wrap';
