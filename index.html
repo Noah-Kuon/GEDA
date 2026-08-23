@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.26                                          ║
+  ║  Qcard PRO  v2.8.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -893,25 +893,6 @@
             font-size: 0.6em;
             opacity: 0.45;
         }
-
-        /* [FIX] モバイル：非表示カードをタップで復元するための案内バッジ
-           （PCは :hover で気づけるが、モバイルは hover が無いため常設のヒントで対応） */
-        .mob-hidden-restore-hint {
-            display: none;
-            position: absolute; inset: 0;
-            align-items: center; justify-content: center;
-            flex-direction: column; gap: 3px;
-            text-align: center;
-            padding: 8px;
-            font-size: 0.66rem;
-            line-height: 1.4;
-            color: var(--text-muted);
-            background: var(--surface2);
-            border-radius: 9px;
-            pointer-events: none; /* タップはカード本体（親要素）が受け取る */
-            z-index: 2;
-        }
-        .mob-hidden-restore-hint .mhrh-icon { font-size: 1.15rem; opacity: 0.8; }
         /* hide-toggle ボタン */
         #hide-toggle-btn.active {
             background: rgba(61,139,255,0.15);
@@ -1797,27 +1778,16 @@
         .app-logo::after { content: 'QPRO'; font-size: 0.88rem; font-weight: 700; letter-spacing: 0.03em; }
 
         /* モード切替：アイコンのみ */
-        /* [FIX] PC用スタイルの flex-shrink:0 のせいで5ボタン分の幅(約308px)を
-           必ず確保しようとし、狭い画面ではハンバーガーメニューを画面外へ
-           押し出してしまっていた。ここで縮小・横スクロールを許可して解消する。 */
         .mode-toggle {
             gap: 2px;
             background: transparent;
             border: none;
             padding: 0;
-            flex-shrink: 1;   /* [FIX] 縮小を許可（元は 0 で固定幅だった） */
-            min-width: 0;     /* [FIX] flexアイテムの自動最小幅を無効化し、実際に縮められるようにする */
-            overflow-x: auto; /* [FIX] 縮めても収まりきらない場合は横スクロールで全モードにアクセス可能に */
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;      /* Firefox: スクロールバーを隠す */
-            -ms-overflow-style: none;   /* IE/旧Edge */
         }
-        .mode-toggle::-webkit-scrollbar { display: none; } /* Chrome/Safari: スクロールバーを隠す */
         .mode-btn {
-            padding: 6px 7px;
+            padding: 6px 8px;
             font-size: 0.75rem;
             border-radius: 6px;
-            flex-shrink: 0; /* [FIX] 個々のボタンは潰さず、必要なら親要素をスクロールさせる */
         }
         /* テキストラベル非表示・絵文字のみ */
         .mode-btn span { display: none; }
@@ -2227,23 +2197,6 @@ min-height: 0;
             white-space: pre-wrap;
             outline: none;
         }
-        /* [FIX] フリップ（スワイプ）ビュー：非表示カードのバッジ（タップで表示/非表示を解除） */
-        .mob-hidden-flip-badge {
-            display: none;
-            align-items: center;
-            gap: 6px;
-            align-self: flex-start;
-            background: var(--surface3);
-            border: 1px solid var(--border2);
-            border-radius: 20px;
-            padding: 5px 12px;
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        .mob-hidden-flip-badge:active { background: var(--surface2); }
-
         .mob-editable { cursor: text; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
         .mob-editable:focus { background: var(--surface2); box-shadow: 0 0 0 1px var(--accent); }
         .mob-card-title.mob-editable:empty::before  { content: 'タイトルを入力'; color: var(--text-dim); }
@@ -2358,23 +2311,6 @@ min-height: 0;
         body.mob-grid2 .grid-wrapper::-webkit-scrollbar { width: 3px; }
         body.mob-grid1 .grid-wrapper::-webkit-scrollbar-thumb,
         body.mob-grid2 .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-
-        /* [FIX] モバイル1列・2列：非表示カードは visibility:hidden にせず、
-           半透明＋破線枠＋案内バッジで「タップして復元できる」状態にする。
-           （PC版の visibility:hidden + :hover は、モバイルにhoverが存在しないため
-           カードに触れる手段が無くなってしまうための対策） */
-        body.card-hide-on.mob-grid1 .grid-item.is-hidden,
-        body.card-hide-on.mob-grid2 .grid-item.is-hidden {
-            visibility: visible !important;
-            opacity: 0.55;
-            outline: 1.5px dashed var(--border2);
-            outline-offset: -2px;
-            cursor: pointer;
-        }
-        body.card-hide-on.mob-grid1 .grid-item.is-hidden .mob-hidden-restore-hint,
-        body.card-hide-on.mob-grid2 .grid-item.is-hidden .mob-hidden-restore-hint {
-            display: flex;
-        }
     }
 
     @media (min-width: 641px) {
@@ -3889,144 +3825,40 @@ var itvDB = (function() {
 })();
 
 // 画像ファイルを保存して即時反映
-// ===== IMAGE OPTIMIZATION =====
-// 画像を WebP（→ JPEG → 元ファイル）3段階フォールバックで最適化する
-// 呼び出し元は mediaSaveImageFile() のみ。他の保存フローには影響しない。
-var IMG_OPT = {
-    maxEdge:      1600,   // px: 長辺の上限（これ以下はリサイズしない）
-    webpQuality:  0.80,   // WebP 品質
-    jpegQuality:  0.85,   // JPEG フォールバック品質
-};
-
-/**
- * File / Blob を受け取り、リサイズ + WebP変換 した Blob を返す Promise。
- * 変換に失敗した場合は JPEG → 元ファイルの順にフォールバックする。
- * @returns {Promise<{blob: Blob, mimeType: string, width: number, height: number}>}
- */
-function optimizeImageToWebP(file) {
-    return new Promise(function(resolve) {
-
-        // Image デコード
-        var url = URL.createObjectURL(file);
-        var img = new Image();
-
-        img.onerror = function() {
-            // デコード失敗 → 元ファイルをそのまま返す
-            URL.revokeObjectURL(url);
-            resolve({ blob: file, mimeType: file.type,
-                      width: 0, height: 0,
-                      originalSize: file.size, optimizedSize: file.size });
-        };
-
-        img.onload = function() {
-            URL.revokeObjectURL(url);
-
-            var ow = img.naturalWidth;
-            var oh = img.naturalHeight;
-
-            // リサイズ計算（長辺が maxEdge を超える場合のみ縮小）
-            var scale = 1;
-            if (Math.max(ow, oh) > IMG_OPT.maxEdge) {
-                scale = IMG_OPT.maxEdge / Math.max(ow, oh);
-            }
-            var tw = Math.round(ow * scale);
-            var th = Math.round(oh * scale);
-
-            // Canvas に描画
-            var canvas = document.createElement('canvas');
-            canvas.width  = tw;
-            canvas.height = th;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, tw, th);
-
-            // ① WebP 変換
-            canvas.toBlob(function(webpBlob) {
-
-                // ② JPEG 変換（WebP と比較するために必ず生成）
-                canvas.toBlob(function(jpegBlob) {
-
-                    // 最も小さいものを選択（元ファイル含む3択）
-                    // 「軽量化」が目的なので、大きくなるなら元ファイルを採用する
-                    var candidates = [];
-                    if (webpBlob) candidates.push({ blob: webpBlob, mimeType: 'image/webp', size: webpBlob.size });
-                    if (jpegBlob) candidates.push({ blob: jpegBlob, mimeType: 'image/jpeg', size: jpegBlob.size });
-                    candidates.push({ blob: file, mimeType: file.type, size: file.size });
-
-                    // サイズが最小のものを採用
-                    candidates.sort(function(a, b) { return a.size - b.size; });
-                    var best = candidates[0];
-
-                    resolve({
-                        blob:          best.blob,
-                        mimeType:      best.mimeType,
-                        optimizedMimeType: best.mimeType,   // 明示フィールドとして保持
-                        width:         tw,
-                        height:        th,
-                        originalWidth:  ow,
-                        originalHeight: oh,
-                        originalSize:  file.size,
-                        optimizedSize: best.size
-                    });
-
-                }, 'image/jpeg', IMG_OPT.jpegQuality);
-            }, 'image/webp', IMG_OPT.webpQuality);
-        };
-
-        img.src = url;
-    });
-}
-
 function mediaSaveImageFile(cardId, item, file) {
     if (!file) return;
+    var record = {
+        cardId:   cardId,
+        type:     'image',              // [将来拡張] 'video' / 'iframe' もこの枠で扱える
+        blob:     file,
+        mimeType: file.type,
+        size:     file.size,            // バイト数: アップロード前のサイズチェック用
+        savedAt:  new Date().toISOString(),
+        // ── サーバー共有に向けた予約フィールド ──
+        hash:     null,                 // SHA-256: 重複排除・オリジナル証明（非同期で算出）
+        mediaUrl: null                  // CDN URL: サーバーアップロード後に書き込む
+    };
 
-    // 即時プレビュー（最適化前の元ファイルで表示 → UX に影響なし）
+    // 表示は即時（ユーザー体験に影響なし）
     var img = item.querySelector('.card-media-layer img');
-    if (img) img.src = URL.createObjectURL(file);
+    if (img) { img.src = URL.createObjectURL(file); }
     item.classList.add('has-media');
     showToast(t('toast_img_added'));
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
 
-    // 最適化 → IndexedDB 保存（バックグラウンドで処理。表示フローをブロックしない）
-    optimizeImageToWebP(file).then(function(result) {
-
-        // プレビューを最適化後 Blob に差し替え（変わったか見た目では分からない）
-        if (img) img.src = URL.createObjectURL(result.blob);
-
-        var record = {
-            cardId:           cardId,
-            type:             'image',
-            blob:             result.blob,
-            mimeType:         result.mimeType,
-            optimizedMimeType: result.optimizedMimeType || result.mimeType,
-            size:             result.optimizedSize,
-            // 元画像情報（メタとして保持）
-            originalFilename: file.name        || '',
-            originalMimeType: file.type        || '',
-            originalWidth:    result.originalWidth  || 0,
-            originalHeight:   result.originalHeight || 0,
-            originalSize:     result.originalSize,
-            optimizedWidth:   result.width,
-            optimizedHeight:  result.height,
-            optimizedSize:    result.optimizedSize,
-            savedAt:          new Date().toISOString(),
-            hash:             null,
-            mediaUrl:         null
-        };
-
-        // 保存 → SHA-256 ハッシュを非同期で算出して更新
-        mediaDB.save(record).then(function() {
-            if (!crypto || !crypto.subtle) return;
-            result.blob.arrayBuffer().then(function(buf) {
-                return crypto.subtle.digest('SHA-256', buf);
-            }).then(function(hashBuf) {
-                var hex = Array.from(new Uint8Array(hashBuf))
-                    .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
-                record.hash = hex;
-                mediaDB.save(record);
-            }).catch(function() { /* hash算出失敗は無視 */ });
-        });
+    // 保存 → hash を非同期で算出して更新（表示フローをブロックしない）
+    mediaDB.save(record).then(function() {
+        if (!crypto || !crypto.subtle) return;
+        file.arrayBuffer().then(function(buf) {
+            return crypto.subtle.digest('SHA-256', buf);
+        }).then(function(hashBuf) {
+            var hex = Array.from(new Uint8Array(hashBuf))
+                .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+            record.hash = hex;
+            mediaDB.save(record); // hash だけ更新して再保存
+        }).catch(function() { /* hash算出失敗は無視 */ });
     });
 }
 
@@ -4047,25 +3879,18 @@ function mediaOpenFilePicker(cardId, item) {
 function mediaLoadForCard(cardId, item, imgEl) {
     mediaDB.get(cardId).then(function(record) {
         if (record && record.blob) {
-            // ローカルIndexedDBに画像あり → 通常パス
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
             item.classList.add('has-media');
-        } else if (item.dataset.mediaUrl) {
-            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            imgEl.src = item.dataset.mediaUrl;
-            item.classList.add('has-media');
         } else {
-            // 画像が実際には存在しない → 先付けした has-media を除去
-            item.classList.remove('has-media');
-        }
-    }).catch(function() {
-        // IndexedDB取得失敗時もフォールバック
-        if (item.dataset.mediaUrl) {
-            imgEl.src = item.dataset.mediaUrl;
-            item.classList.add('has-media');
-        } else {
-            item.classList.remove('has-media');
+            // ローカルDBになければ、カードデータのmediaUrl（CDN）を使う
+            var active = getActive();
+            if (!active) return;
+            var card = (active.data || []).find(function(c){ return c.mediaId === cardId; });
+            if (card && card.mediaUrl) {
+                imgEl.src = card.mediaUrl;
+                item.classList.add('has-media');
+            }
         }
     });
 }
@@ -4969,11 +4794,10 @@ window.shareCurrentScenario = async function() {
         // カードURIからULIDを取得（ファイル名に使用）
         var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
 
-        // ── 画像アップロード ──
-        // mediaId・itvId・audioSource は getCurrentGridData() によって
-        // すでに active.data 各カードオブジェクトに保存されているため
-        // DOM参照（gridItems[i]）は使わず、card 直接参照に統一する
-        var mediaId = card.mediaId || null;
+        // mediaId・itvId は active.data に保存済みのため、DOMではなくデータから直接取得
+        var mediaId  = card.mediaId  || null;
+        var itvId    = card.itvId    || null;
+        var audioSrc = card.audioSource || 'speech';
 
         if (mediaId) {
             try {
@@ -4995,10 +4819,6 @@ window.shareCurrentScenario = async function() {
         }
 
         // ── 音声アップロード ──
-        // itvId・audioSource も card から直接参照
-        var itvId    = card.itvId    || null;
-        var audioSrc = card.audioSource || 'speech';
-
         if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
             try {
                 // アップロード音声を優先
@@ -6000,16 +5820,6 @@ function onCardRatioChange(value) {
     updateGrid(); 
 }
 
-function onCardRatioCustomChange(value) {
-    var v = parseFloat(value);
-    if (isNaN(v) || v < 0.3) return;
-    cardRatioCustomValue = v;
-    cardRatioMode = 'custom';
-    localStorage.setItem('kp_card_ratio_custom', v);
-    localStorage.setItem('kp_card_ratio_mode', 'custom');
-    updateGrid();
-}
-
 // 🌐 1. ここでアプリ共通の変数として1回だけ宣言する
 // ── 反転練習モード（シナリオ別・非破壊） ──────────────────────
 // データは変更せず、表示のみタイトル⇄本文を入れ替える。
@@ -6212,26 +6022,6 @@ function createItem(index, d) {
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
             if (appMode === 'reading') return;
             if (appMode === 'study') return; // 学習モード中はカードクリックを無視
-
-            // [FIX] モバイル1列・2列グリッドで「非表示（ブランク）カード」をタップした場合は
-            // 表示に復元する（設定画面を開かずカードに直接触れて解除できるようにする）
-            if ((document.body.classList.contains('mob-grid1') ||
-                 document.body.classList.contains('mob-grid2')) &&
-                item.classList.contains('is-hidden') &&
-                document.body.classList.contains('card-hide-on')) {
-                e.stopPropagation();
-                item.classList.remove('is-hidden');
-                setCardMeta(item, { hidden: false });
-                var restoredToggle = document.getElementById('meta-hidden-toggle');
-                var restoredLabel  = document.getElementById('meta-hidden-label');
-                if (editCardItem === item) {
-                    if (restoredToggle) restoredToggle.checked = false;
-                    if (restoredLabel)  restoredLabel.textContent = 'このカードを非表示にする';
-                }
-                showToast('👁 表示に戻しました');
-                return;
-            }
-
             // モバイルグリッドモード（1列・2列）では編集モード時もオーバーレイを開かずスワイプへ誘導
             if ((document.body.classList.contains('mob-grid1') ||
                  document.body.classList.contains('mob-grid2')) && appMode === 'edit') {
@@ -6242,7 +6032,7 @@ function createItem(index, d) {
                 }
                 return;
             }
-            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media')) {
+            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim()) {
                 isLocked = true;
                 showOverlay(t.value, c.value, item);
             }
@@ -6309,13 +6099,6 @@ function createItem(index, d) {
     }
     var cardId = d.mediaId;
     item.dataset.mediaId = cardId;
-    // 受信シナリオの場合: Supabase URLをdatasetに保存（IndexedDBにない場合のフォールバック用）
-    if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
-    if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
-
-    // mediaId が存在する = 画像登録済みカード → 非同期読み込み完了を待たずに先付けで has-media を付与
-    // (mediaLoadForCard の完了前にクリックしても正しくオーバーレイが開くようにする)
-    if (d.mediaId || d.mediaUrl) item.classList.add('has-media');
 
     // [NEW] 画像表示レイヤー
     var mediaLayer = document.createElement('div');
@@ -6386,13 +6169,6 @@ function createItem(index, d) {
     item.appendChild(contentRow);
     item.appendChild(mediaAddBtn);
     item.appendChild(mediaLayer);
-
-    // [FIX] モバイル：非表示カードの「タップで復元」案内バッジ
-    // （通常は非表示。CSS側で body.card-hide-on.mob-grid1/2 .is-hidden 時のみ表示される）
-    var hiddenHint = document.createElement('div');
-    hiddenHint.className = 'mob-hidden-restore-hint';
-    hiddenHint.innerHTML = '<span class="mhrh-icon">🙈</span><span>非表示中<br>タップで表示に戻す</span>';
-    item.appendChild(hiddenHint);
 
     // [NEW] 既存の画像データを読み込んで表示（あれば）
     mediaLoadForCard(cardId, item, mediaImg);
@@ -6468,9 +6244,7 @@ overlay.addEventListener('mouseenter', function(){ clearTimeout(hideTimeout); })
 overlay.addEventListener('mouseleave', function(){ if (!isLocked) hideOverlay(); });
 
 function showOverlay(title, text, cardItem) {
-    // タイトル・本文が空でも、画像があるカードはオーバーレイを開く
-    if (!title.trim() && !text.trim() &&
-        !(cardItem && cardItem.classList.contains('has-media'))) return;
+    if (!title.trim() && !text.trim()) return;
     exitEditMode();
     if (cardItem !== undefined) editCardItem = cardItem;
     overlayTitle.innerText = title;
@@ -6733,21 +6507,10 @@ function overlayShowMediaForCard(cardItem) {
     var img   = document.getElementById('overlay-media-img');
     if (!layer || !img) return;
     var mediaId = cardItem ? cardItem.dataset.mediaId : null;
-    if (!mediaId) {
-        // mediaIdなしでも mediaUrl（受信シナリオ）があれば表示
-        var remoteUrl = cardItem ? cardItem.dataset.mediaUrl : null;
-        if (remoteUrl) { img.src = remoteUrl; layer.classList.add('show'); }
-        else           { layer.classList.remove('show'); img.src = ''; }
-        return;
-    }
+    if (!mediaId) { layer.classList.remove('show'); img.src = ''; return; }
     mediaDB.get(mediaId).then(function(record) {
         if (record && record.blob) {
-            // ローカルIndexedDBに画像あり → 通常パス
             img.src = URL.createObjectURL(record.blob);
-            layer.classList.add('show');
-        } else if (cardItem && cardItem.dataset.mediaUrl) {
-            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            img.src = cardItem.dataset.mediaUrl;
             layer.classList.add('show');
         } else {
             layer.classList.remove('show');
@@ -7624,31 +7387,12 @@ async function exportJSON() {
     showToast(t('toast_qcp_export')); closeDataModal();
 }
 
-// CSV公開仕様 8列: scenario, uri, title, content, tags, source, url, note
-// url ↔ card.sourceUrl（明示的マッピング）
-// tags はカンマ区切り文字列として1セルに格納
-var CSV_HEADER = ['scenario', 'uri', 'title', 'content', 'tags', 'source', 'url', 'note'];
-
-function cardToCSVRow(scenarioName, card) {
-    var tagsStr = Array.isArray(card.tags) ? card.tags.join(',') : (card.tags || '');
-    return [
-        csvEscape(scenarioName),
-        csvEscape(card.uri        || ''),
-        csvEscape(card.title      || ''),
-        csvEscape(card.content    || ''),
-        csvEscape(tagsStr),
-        csvEscape(card.source     || ''),
-        csvEscape(card.sourceUrl  || ''),   // CSV列名 url ↔ card.sourceUrl
-        csvEscape(card.note       || '')
-    ];
-}
-
 function exportCSV() {
     var CRLF = '\r\n';
-    var rows = [CSV_HEADER];
+    var rows = [['scenario', 'uri', 'title', 'content']];
     scenarios.forEach(function(s) {
         (s.data || []).forEach(function(card) {
-            rows.push(cardToCSVRow(displayScenarioName(s, scenarios.indexOf(s)), card));
+            rows.push([csvEscape(s.name), csvEscape(card.uri || ''), csvEscape(card.title || ''), csvEscape(card.content || '')]);
         });
     });
     var csv  = rows.map(function(r){ return r.join(','); }).join(CRLF);
@@ -7675,10 +7419,9 @@ function activeFilename(ext) {
 function exportActiveCSV() {
     var a = getActive(); if (!a) return;
     var CRLF = '\r\n';
-    var rows = [CSV_HEADER];
-    var sName = displayScenarioName(a, scenarios.indexOf(a));
+    var rows = [['scenario', 'uri', 'title', 'content']];
     (a.data || []).forEach(function(card) {
-        rows.push(cardToCSVRow(sName, card));
+        rows.push([csvEscape(a.name), csvEscape(card.uri || ''), csvEscape(card.title || ''), csvEscape(card.content || '')]);
     });
     var csv  = rows.map(function(r){ return r.join(','); }).join(CRLF);
     var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -8350,153 +8093,31 @@ function importCSV(e) {
         try {
             var rows = parseCSV(text);
             if (rows.length < 2) { showToast(t('toast_csv_no_data')); return; }
-
-            // ── ヘッダー解析 ──────────────────────────────────────────
             var header = rows[0].map(function(h){ return h.toLowerCase().trim(); });
-            var col = {
-                scenario: header.indexOf('scenario'),
-                uri:      header.indexOf('uri'),
-                title:    header.indexOf('title'),
-                content:  header.indexOf('content'),
-                tags:     header.indexOf('tags'),
-                source:   header.indexOf('source'),
-                url:      header.indexOf('url'),    // ↔ card.sourceUrl
-                note:     header.indexOf('note')
-            };
-            if (col.scenario < 0 || col.title < 0 || col.content < 0) {
-                showToast(t('toast_csv_bad_hdr')); return;
-            }
-
-            var dataRows = rows.slice(1);
-
-            // ── Phase 2: 事前検証（元データへの変更なし）─────────────────
-
-            // ① 既存シナリオ名 → シナリオオブジェクトのマップ（displayScenarioName ベース）
-            var scenarioByName = {};
-            scenarios.forEach(function(s, idx) {
-                scenarioByName[displayScenarioName(s, idx)] = s;
+            var si = header.indexOf('scenario'), ti = header.indexOf('title'), ci = header.indexOf('content');
+            if (si < 0 || ti < 0 || ci < 0) { showToast(t('toast_csv_bad_hdr')); return; }
+            var map = {};
+            rows.slice(1).forEach(function(row) {
+                var name = (row[si] || '').trim(), title = (row[ti] || '').trim(), content = (row[ci] || '').trim();
+                if (!name) return;
+                if (!map[name]) map[name] = [];
+                map[name].push({ title: title, content: content });
             });
-
-            // ② 全カードの uri → {scenarioId, cardIndex} マップ
-            var uriMap = {};
-            scenarios.forEach(function(s) {
-                (s.data || []).forEach(function(card, ci) {
-                    if (card.uri) uriMap[card.uri] = { scenarioId: s.id, cardIndex: ci };
-                });
-            });
-
-            // ③ 検証実行
-            var errors = [];
-            var uriSeenInCSV = {};
-            dataRows.forEach(function(row, ri) {
-                var lineNum = ri + 2; // ヘッダー行を1行目とした行番号
-                var csvUri      = col.uri >= 0 ? (row[col.uri] || '').trim() : '';
-                var csvScenario = (row[col.scenario] || '').trim();
-
-                // シナリオ名が空はスキップ（空行扱い）
-                if (!csvScenario) return;
-
-                // 移動先シナリオが存在するか（新規カード行は除外）
-                if (!scenarioByName[csvScenario]) {
-                    errors.push('行' + lineNum + ': シナリオ「' + csvScenario + '」が存在しません。移動先シナリオを先に作成してください。');
-                }
-
-                // uri の重複チェック
-                if (csvUri) {
-                    if (uriSeenInCSV[csvUri]) {
-                        errors.push('行' + lineNum + ': URI「' + csvUri + '」がCSV内で重複しています。');
-                    }
-                    uriSeenInCSV[csvUri] = lineNum;
+            Object.keys(map).forEach(function(name) {
+                var existing = scenarios.find(function(s){ return s.name === name; });
+                if (existing) {
+                    existing.data = map[name];
+                    // データ数に合わせて列数を保持（既存の cols はそのまま）
+                } else if (scenarios.length < 8) {
+                    scenarios.push({ id: uid(), name: name, cols: 4, data: map[name] });
                 }
             });
-
-            if (errors.length > 0) {
-                // 検証失敗 → エラー表示して停止（元データへの変更なし）
-                var msg = '【CSVインポートエラー】\n' + errors.slice(0, 5).join('\n');
-                if (errors.length > 5) msg += '\n…他 ' + (errors.length - 5) + ' 件';
-                alert(msg);
-                e.target.value = '';
-                return;
-            }
-
-            // ── Phase 3 & 4: 変更計画をメモリ上に構築 ────────────────────
-            // scenarios のディープコピーに対して変更を加え、最後に一括反映する
-            var draft = JSON.parse(JSON.stringify(scenarios)); // ディープコピー
-
-            // draft 上のルックアップを再構築
-            var draftByName = {};
-            draft.forEach(function(s, idx) {
-                draftByName[displayScenarioName(s, idx)] = s;
-            });
-
-            var draftUriMap = {}; // uri → {scenario, cardIndex}
-            draft.forEach(function(s) {
-                (s.data || []).forEach(function(card, ci) {
-                    if (card.uri) draftUriMap[card.uri] = { scenario: s, cardIndex: ci };
-                });
-            });
-
-            // 行ごとに計画を適用
-            dataRows.forEach(function(row) {
-                var csvScenario  = (row[col.scenario] || '').trim(); if (!csvScenario) return;
-                var csvUri       = col.uri     >= 0 ? (row[col.uri]     || '').trim() : '';
-                var csvTitle     = col.title   >= 0 ? (row[col.title]   || '').trim() : '';
-                var csvContent   = col.content >= 0 ? (row[col.content] || '').trim() : '';
-                var csvTags      = col.tags    >= 0 ? (row[col.tags]    || '').trim() : '';
-                var csvSource    = col.source  >= 0 ? (row[col.source]  || '').trim() : '';
-                var csvUrl       = col.url     >= 0 ? (row[col.url]     || '').trim() : '';
-                var csvNote      = col.note    >= 0 ? (row[col.note]    || '').trim() : '';
-
-                var targetScenario = draftByName[csvScenario];
-
-                var applyFields = function(card) {
-                    card.title     = csvTitle;
-                    card.content   = csvContent;
-                    card.tags      = csvTags ? csvTags.split(',').map(function(t){ return t.trim(); }).filter(Boolean) : [];
-                    card.source    = csvSource;
-                    card.sourceUrl = csvUrl;   // CSV url ↔ card.sourceUrl
-                    card.note      = csvNote;
-                    card.updatedAt = Date.now();
-                };
-
-                if (csvUri && draftUriMap[csvUri]) {
-                    // URI一致 → 既存カードを更新 or 別シナリオへ移動
-                    var match = draftUriMap[csvUri];
-                    var currentScenario = match.scenario;
-
-                    if (currentScenario.id === targetScenario.id) {
-                        // 同一シナリオ内 → フィールド更新のみ
-                        applyFields(currentScenario.data[match.cardIndex]);
-                    } else {
-                        // 別シナリオ → 元から削除して移動先に追加（移動）
-                        var card = currentScenario.data.splice(match.cardIndex, 1)[0];
-                        applyFields(card);
-                        targetScenario.data.push(card);
-                        // draftUriMap を更新（同一URIの後続行に備える）
-                        draftUriMap[csvUri] = { scenario: targetScenario, cardIndex: targetScenario.data.length - 1 };
-                    }
-                } else {
-                    // URI空欄 or 一致なし → 新規カード作成
-                    var newCard = newCardMeta(csvTitle, csvContent);
-                    applyFields(newCard); // title/content も applyFields で上書きして統一
-                    targetScenario.data.push(newCard);
-                    if (newCard.uri) draftUriMap[newCard.uri] = { scenario: targetScenario, cardIndex: targetScenario.data.length - 1 };
-                }
-            });
-
-            // ── 一括反映 ─────────────────────────────────────────────────
-            scenarios = draft;
-            saveScenarios();
-            renderScenarioTabs();
+            activeScenarioId = scenarios[0] ? scenarios[0].id : null;
+            saveScenarios(); renderScenarioTabs();
             document.getElementById('colsInput').value = getActiveCols();
             updateGrid();
-            showToast(t('toast_csv_import'));
-            closeDataModal();
-
-        } catch(err) {
-            showToast(t('toast_csv_fail'));
-            console.error('[importCSV]', err);
-        }
+            showToast(t('toast_csv_import')); closeDataModal();
+        } catch(err) { showToast(t('toast_csv_fail')); }
     });
     e.target.value = '';
 }
@@ -8955,20 +8576,23 @@ function overlayPlayRecordedAudio() {
     if (!editCardItem) return;
     var cardId = itvGetCardId(editCardItem);
     itvDB.getByCardId(cardId).then(function(records) {
-        if (records && records.length > 0) {
-            // ローカルIndexedDBに録音あり → 通常パス
-            var latest = records.slice().sort(function(a,b){ return b.createdAt.localeCompare(a.createdAt); })[0];
-            var url = URL.createObjectURL(latest.blob);
-            var audio = new Audio(url);
-            audio.play();
-            audio.onended = function() { URL.revokeObjectURL(url); };
-        } else if (editCardItem.dataset.audioUrl) {
-            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            var audio = new Audio(editCardItem.dataset.audioUrl);
-            audio.play();
-        } else {
+        if (!records || records.length === 0) {
+            // ローカルDBになければ audioUrl（CDN）を使う
+            var active = getActive();
+            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
+            if (card && card.audioUrl) {
+                var audio = new Audio(card.audioUrl);
+                audio.play();
+                return;
+            }
             showToast(t('toast_no_rec_audio'));
+            return;
         }
+        var latest = records.slice().sort(function(a,b){ return b.createdAt.localeCompare(a.createdAt); })[0];
+        var url = URL.createObjectURL(latest.blob);
+        var audio = new Audio(url);
+        audio.play();
+        audio.onended = function() { URL.revokeObjectURL(url); };
     });
 }
 
@@ -8977,19 +8601,22 @@ function overlayPlayUploadedAudio() {
     if (!editCardItem) return;
     var cardId = itvGetCardId(editCardItem);
     uploadDB.get(cardId).then(function(record) {
-        if (record && record.blob) {
-            // ローカルIndexedDBにアップロード音声あり → 通常パス
-            var url = URL.createObjectURL(record.blob);
-            var audio = new Audio(url);
-            audio.play();
-            audio.onended = function() { URL.revokeObjectURL(url); };
-        } else if (editCardItem.dataset.audioUrl) {
-            // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            var audio = new Audio(editCardItem.dataset.audioUrl);
-            audio.play();
-        } else {
+        if (!record || !record.blob) {
+            // ローカルDBになければ audioUrl（CDN）を使う
+            var active = getActive();
+            var card = active && (active.data || []).find(function(c){ return c.itvId === cardId || c.mediaId === cardId; });
+            if (card && card.audioUrl) {
+                var audio = new Audio(card.audioUrl);
+                audio.play();
+                return;
+            }
             showToast(t('toast_no_upl_audio'));
+            return;
         }
+        var url = URL.createObjectURL(record.blob);
+        var audio = new Audio(url);
+        audio.play();
+        audio.onended = function() { URL.revokeObjectURL(url); };
     });
 }
 
@@ -9586,19 +9213,6 @@ function rdSaveRate(v) {
     function createCardDOM() {
         var inner = document.createElement('div');
         inner.className = 'mob-card-inner';
-
-        // [FIX] 非表示カード用バッジ（タップで表示/非表示をトグル）
-        var hb = document.createElement('button');
-        hb.type = 'button';
-        hb.className = 'mob-hidden-flip-badge';
-        hb.innerHTML = '🙈 <span>非表示中（タップで表示に戻す）</span>';
-        hb.addEventListener('click', function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            var idx = parseInt(hb.dataset.idx, 10);
-            if (!isNaN(idx)) mobToggleHidden(idx);
-        });
-
         var t = document.createElement('div');
         t.className = 'mob-card-title';
         t.dataset.field = 'title';
@@ -9607,30 +9221,12 @@ function rdSaveRate(v) {
         c.dataset.field = 'content';
         var s = document.createElement('div');
         s.className = 'mob-card-sentences';
-        inner.appendChild(hb);
         inner.appendChild(t);
         inner.appendChild(c);
         inner.appendChild(s);
         return inner;
     }
     slides.forEach(function(sl) { sl.appendChild(createCardDOM()); });
-
-    // [FIX] カードの表示/非表示をトグルして保存し、grid側・再描画に反映する
-    function mobToggleHidden(idx) {
-        var data = getData();
-        var d = data[idx];
-        if (!d) return;
-        d.hidden = !d.hidden;
-        d.updatedAt = (typeof nowMs === 'function') ? nowMs() : Date.now();
-        var active = (typeof getActive === 'function') ? getActive() : null;
-        if (active) active.updatedAt = d.updatedAt;
-        if (typeof saveScenarios === 'function') saveScenarios();
-        // 対応する grid-item にも反映（1列・2列表示や再度スワイプへ戻った際に同期させる）
-        var gridItem = getGridItem(data, idx);
-        if (gridItem && typeof applyHiddenClass === 'function') applyHiddenClass(gridItem, d.hidden);
-        if (typeof showToast === 'function') showToast(d.hidden ? '🙈 非表示にしました' : '👁 表示に戻しました');
-        mRenderAll();
-    }
 
     // ── 状態 ──
     var mIdx = 0;
@@ -9691,14 +9287,6 @@ function rdSaveRate(v) {
         var isEdit  = (appMode === 'edit');
         var isStudy = (appMode === 'study');
 
-        // [FIX] 非表示カード：バッジを表示し、タップで解除できるようにする
-        var hiddenBadge = inner.querySelector('.mob-hidden-flip-badge');
-        if (hiddenBadge) {
-            var showHiddenBadge = !!(d && d.hidden && (appMode === 'view' || appMode === 'edit'));
-            hiddenBadge.style.display = showHiddenBadge ? 'flex' : 'none';
-            hiddenBadge.dataset.idx = idx;
-        }
-
         // テキスト（反転モード時はタイトルと本文を入れ替えて表示・正規化で旧デフォルト値を空扱い）
         var rawTitle   = d ? normalizeTitle(d.title)     : '';
         var rawContent = d ? normalizeContent(d.content) : '';
@@ -9706,12 +9294,8 @@ function rdSaveRate(v) {
         var dispContent = isLearningReversed ? rawTitle   : rawContent;
         if (titleEl) {
             // 編集モード: textContent（プレーン編集）/ 表示モード: renderMdLine（**太字**レンダリング）
-            // フォーカス中（ユーザーが入力中）は textContent を更新しない
-            // → 更新するとカーソルが先頭にリセットされ文字が逆順に入力される
             if (isEdit) {
-                if (document.activeElement !== titleEl) {
-                    titleEl.textContent = dispTitle;
-                }
+                titleEl.textContent     = dispTitle;
                 titleEl.contentEditable = 'true';
                 titleEl.classList.add('mob-editable');
             } else {
@@ -9724,11 +9308,8 @@ function rdSaveRate(v) {
         }
         if (contentEl) {
             // 編集モード: textContent + pre-wrap / 表示モード: renderMdBlock（blockquote・strong）
-            // フォーカス中は textContent を更新しない（同上）
             if (isEdit) {
-                if (document.activeElement !== contentEl) {
-                    contentEl.textContent = dispContent;
-                }
+                contentEl.textContent     = dispContent;
                 contentEl.contentEditable = 'true';
                 contentEl.classList.add('mob-editable');
                 contentEl.style.whiteSpace = 'pre-wrap';
