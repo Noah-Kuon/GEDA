@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.25                                          ║
+  ║  Qcard PRO  v2.8.26                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1797,16 +1797,27 @@
         .app-logo::after { content: 'QPRO'; font-size: 0.88rem; font-weight: 700; letter-spacing: 0.03em; }
 
         /* モード切替：アイコンのみ */
+        /* [FIX] PC用スタイルの flex-shrink:0 のせいで5ボタン分の幅(約308px)を
+           必ず確保しようとし、狭い画面ではハンバーガーメニューを画面外へ
+           押し出してしまっていた。ここで縮小・横スクロールを許可して解消する。 */
         .mode-toggle {
             gap: 2px;
             background: transparent;
             border: none;
             padding: 0;
+            flex-shrink: 1;   /* [FIX] 縮小を許可（元は 0 で固定幅だった） */
+            min-width: 0;     /* [FIX] flexアイテムの自動最小幅を無効化し、実際に縮められるようにする */
+            overflow-x: auto; /* [FIX] 縮めても収まりきらない場合は横スクロールで全モードにアクセス可能に */
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;      /* Firefox: スクロールバーを隠す */
+            -ms-overflow-style: none;   /* IE/旧Edge */
         }
+        .mode-toggle::-webkit-scrollbar { display: none; } /* Chrome/Safari: スクロールバーを隠す */
         .mode-btn {
-            padding: 6px 8px;
+            padding: 6px 7px;
             font-size: 0.75rem;
             border-radius: 6px;
+            flex-shrink: 0; /* [FIX] 個々のボタンは潰さず、必要なら親要素をスクロールさせる */
         }
         /* テキストラベル非表示・絵文字のみ */
         .mode-btn span { display: none; }
