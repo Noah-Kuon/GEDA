@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.42                                          ║
+  ║  Qcard PRO  v2.8.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -363,6 +363,7 @@
             padding: 6px 14px;
             display: flex; align-items: center; gap: 10px;
             flex-shrink: 0;
+            position: relative; /* [FIX] ポップオーバーの基準位置 */
         }
         .scenario-bar-label {
             font-size: 0.62rem; color: var(--text-dim);
@@ -370,13 +371,71 @@
             letter-spacing: 0.08em; text-transform: uppercase;
             font-family: 'DM Mono', monospace;
         }
-        #scenario-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+
+        /* [FIX] 常時表示は「現在選択中のシナリオ」トリガーのみ。
+           一覧は下のポップオーバー（.scenario-popover）に格納し、
+           シナリオ数が増えてもヘッダー高さ・カード表示領域を圧迫しないようにする。 */
+        .scenario-selector-btn {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 12px;
+            font-size: 0.78rem; color: var(--text); cursor: pointer;
+            max-width: 280px; font-family: inherit;
+        }
+        .scenario-selector-btn:hover { border-color: var(--accent); }
+        .scenario-selector-btn.open { border-color: var(--accent); background: rgba(61,139,255,0.08); }
+        .scenario-selector-btn .ssb-name {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;
+        }
+        .scenario-selector-btn .ssb-caret { color: var(--text-dim); font-size: 0.65rem; transition: transform 0.15s; }
+        .scenario-selector-btn.open .ssb-caret { transform: rotate(180deg); }
+
+        .scenario-popover {
+            display: none;
+            position: absolute; top: 100%; left: 14px; margin-top: 6px;
+            width: 300px; max-height: 70vh; overflow-y: auto;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+            padding: 10px; z-index: 300;
+        }
+        .scenario-popover.open { display: block; }
+        .sp-search-input {
+            width: 100%; box-sizing: border-box;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 6px; padding: 6px 8px; font-size: 0.78rem;
+            color: var(--text); margin-bottom: 8px;
+        }
+        .sp-search-input:focus { outline: none; border-color: var(--accent); }
+        .sp-section { margin-bottom: 8px; }
+        .sp-section-label {
+            font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 0.06em; font-weight: 600; margin-bottom: 4px;
+            font-family: 'DM Mono', monospace;
+        }
+        .sp-recent-item {
+            padding: 5px 8px; border-radius: 6px; font-size: 0.76rem;
+            cursor: pointer; color: var(--text);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .sp-recent-item:hover { background: var(--surface3); }
+        .sp-recent-item.active { background: rgba(61,139,255,0.12); color: var(--accent); }
+        .sp-empty-hint { font-size: 0.7rem; color: var(--text-dim); padding: 4px 8px; }
+        .sp-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 6px; }
+        .sp-manage-btn {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-dim); border-radius: 7px; padding: 4px 10px;
+            font-size: 0.72rem; cursor: pointer;
+        }
+        .sp-manage-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* #scenario-tabs：ポップオーバー内で縦積みリストとして表示（内部ロジックは無変更） */
+        #scenario-tabs { display: flex; flex-direction: column; gap: 4px; }
 
         .scenario-tab {
             position: relative; display: flex; align-items: center; gap: 5px;
             background: var(--surface2); border: 1px solid var(--border);
             border-radius: 7px; padding: 4px 10px 4px 8px;
-            cursor: pointer; transition: all 0.15s; flex-shrink: 0; min-width: 90px;
+            cursor: pointer; transition: all 0.15s; width: 100%; box-sizing: border-box;
         }
         .scenario-tab.active { border-color: var(--accent); background: rgba(61,139,255,0.1); }
         .scenario-tab:hover:not(.active) { border-color: var(--border2); background: var(--surface3); }
@@ -2798,7 +2857,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.7.2</span>
+    <span class="version-badge">v2.8.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3031,9 +3090,27 @@ min-height: 0;
 
 <!-- SCENARIO BAR -->
 <div class="scenario-bar">
-    <span class="scenario-bar-label" data-i18n="scenario_label">シナリオ</span>
-    <div id="scenario-tabs"></div>
-    <button class="scenario-add-btn" id="scenario-add-btn" onclick="addScenario()" data-i18n="scenario_add">＋ 追加</button>
+    <button type="button" class="scenario-selector-btn" id="scenario-selector-btn" onclick="toggleScenarioPopover()">
+        <span class="ssb-name" id="scenario-selector-name">シナリオ</span>
+        <span class="ssb-caret">▾</span>
+    </button>
+    <div class="scenario-popover" id="scenario-popover">
+        <input type="text" id="scenario-search-input" class="sp-search-input"
+               placeholder="シナリオを検索…" oninput="filterScenarioPopover(this.value)"
+               onkeydown="if(event.key==='Escape'){closeScenarioPopover();}">
+        <div class="sp-section" id="sp-recent-section">
+            <div class="sp-section-label">最近使ったシナリオ</div>
+            <div id="scenario-recent-list"></div>
+        </div>
+        <div class="sp-section">
+            <div class="sp-section-label">すべてのシナリオ</div>
+            <div id="scenario-tabs"></div>
+        </div>
+        <div class="sp-footer">
+            <button class="sp-manage-btn" type="button" title="名前クリックで変更・×で削除・ドラッグで並べ替え" onclick="scenarioManageClick()">⚙ 管理</button>
+            <button class="scenario-add-btn" id="scenario-add-btn" onclick="addScenario()" data-i18n="scenario_add">＋ 追加</button>
+        </div>
+    </div>
 </div>
 
 <!-- 学習モード専用ツールバー -->
@@ -8396,10 +8473,8 @@ function importCSV(e) {
                 // シナリオ名が空はスキップ（空行扱い）
                 if (!csvScenario) return;
 
-                // 移動先シナリオが存在するか（新規カード行は除外）
-                if (!scenarioByName[csvScenario]) {
-                    errors.push('行' + lineNum + ': シナリオ「' + csvScenario + '」が存在しません。移動先シナリオを先に作成してください。');
-                }
+                // [FIX] 移動先シナリオが存在しない場合は自動作成の対象であり、エラーではない
+                //       （newScenarioMeta() を使って draft 構築フェーズで作成する）
 
                 // uri の重複チェック
                 if (csvUri) {
@@ -8448,6 +8523,14 @@ function importCSV(e) {
                 var csvNote      = col.note    >= 0 ? (row[col.note]    || '').trim() : '';
 
                 var targetScenario = draftByName[csvScenario];
+                if (!targetScenario) {
+                    // [FIX] CSVで指定されたシナリオが存在しない場合、既存の newScenarioMeta() を使って自動作成する。
+                    //       独自の簡易オブジェクトは作らない。以降の同名シナリオ行は draftByName 経由で同じ
+                    //       シナリオを参照するため、重複作成はされない。
+                    targetScenario = newScenarioMeta(csvScenario);
+                    draft.push(targetScenario);
+                    draftByName[csvScenario] = targetScenario;
+                }
 
                 var applyFields = function(card) {
                     card.title     = csvTitle;
@@ -10792,6 +10875,147 @@ window.renderScenarioTabs = function() {
 window.addEventListener('load', function() {
     mobRenderScenarioSelect();
 });
+
+// ===== SCENARIO SELECTOR POPOVER (PC) =====
+// [FIX] シナリオ数が増えても常時表示バーが折り返して高さを圧迫しないよう、
+//       「現在選択中のシナリオ＋▼」トリガー＋ポップオーバー方式に変更。
+//       renderScenarioTabs() / switchScenario() / addScenario() / deleteScenario() /
+//       reorderScenarios() の中身は一切変更せず、既存のモバイル同期と同じ
+//       「window.renderScenarioTabs をラップする」パターンで表示だけ同期させる。
+(function() {
+    var RECENT_KEY = 'kp_recent_scenarios';
+    var RECENT_MAX = 5;
+
+    function getRecentIds() {
+        try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch(e) { return []; }
+    }
+    function trackRecent(id) {
+        if (!id) return;
+        var list = getRecentIds().filter(function(x){ return x !== id; });
+        list.unshift(id);
+        list = list.slice(0, RECENT_MAX);
+        try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch(e) {}
+    }
+
+    function updateTrigger() {
+        var label = document.getElementById('scenario-selector-name');
+        if (!label) return;
+        var active = getActive();
+        var idx = scenarios.indexOf(active);
+        label.textContent = active ? displayScenarioName(active, idx) : 'シナリオ';
+    }
+
+    function renderRecentList() {
+        var container = document.getElementById('scenario-recent-list');
+        var section   = document.getElementById('sp-recent-section');
+        if (!container || !section) return;
+        container.innerHTML = '';
+        var ids = getRecentIds().filter(function(id) {
+            return scenarios.some(function(s){ return s.id === id; });
+        });
+        if (ids.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = '';
+        ids.forEach(function(id) {
+            var idx = scenarios.findIndex(function(s){ return s.id === id; });
+            if (idx === -1) return;
+            var s = scenarios[idx];
+            var item = document.createElement('div');
+            item.className = 'sp-recent-item' + (id === activeScenarioId ? ' active' : '');
+            item.textContent = displayScenarioName(s, idx);
+            item.title = item.textContent;
+            item.addEventListener('click', function() {
+                switchScenario(id);
+                window.closeScenarioPopover();
+            });
+            container.appendChild(item);
+        });
+    }
+
+    window.filterScenarioPopover = function(query) {
+        var q = (query || '').trim().toLowerCase();
+        document.querySelectorAll('#scenario-tabs .scenario-tab').forEach(function(tab) {
+            var nameInput = tab.querySelector('.tab-name');
+            var name = nameInput ? nameInput.value.toLowerCase() : '';
+            tab.style.display = (!q || name.indexOf(q) !== -1) ? '' : 'none';
+        });
+        // 検索中は「最近使った」を隠し、全件検索結果に集中させる
+        var recentSection = document.getElementById('sp-recent-section');
+        if (recentSection) recentSection.style.display = q ? 'none' : (getRecentIds().length ? '' : 'none');
+    };
+
+    window.toggleScenarioPopover = function() {
+        var pop = document.getElementById('scenario-popover');
+        var btn = document.getElementById('scenario-selector-btn');
+        if (!pop) return;
+        var willOpen = !pop.classList.contains('open');
+        pop.classList.toggle('open', willOpen);
+        if (btn) btn.classList.toggle('open', willOpen);
+        if (willOpen) {
+            renderRecentList();
+            var input = document.getElementById('scenario-search-input');
+            if (input) {
+                input.value = '';
+                window.filterScenarioPopover('');
+                setTimeout(function(){ input.focus(); }, 30);
+            }
+        }
+    };
+    window.closeScenarioPopover = function() {
+        var pop = document.getElementById('scenario-popover');
+        var btn = document.getElementById('scenario-selector-btn');
+        if (pop) pop.classList.remove('open');
+        if (btn) btn.classList.remove('open');
+    };
+    // 「⚙ 管理」：一覧（既存の名前変更／削除／ドラッグ並べ替え導線）にフォーカスを移すだけの入口
+    window.scenarioManageClick = function() {
+        var input = document.getElementById('scenario-search-input');
+        if (input) input.value = '';
+        window.filterScenarioPopover('');
+        var tabs = document.getElementById('scenario-tabs');
+        if (tabs) tabs.scrollIntoView({ block: 'nearest' });
+    };
+
+    // ポップオーバー外クリック・Escape で閉じる
+    document.addEventListener('click', function(e) {
+        var pop = document.getElementById('scenario-popover');
+        var btn = document.getElementById('scenario-selector-btn');
+        if (!pop || !pop.classList.contains('open')) return;
+        if (btn && (e.target === btn || btn.contains(e.target))) return;
+        if (!pop.contains(e.target)) window.closeScenarioPopover();
+    });
+    document.addEventListener('keydown', function(e) {
+        var pop = document.getElementById('scenario-popover');
+        if (pop && pop.classList.contains('open') && e.key === 'Escape') window.closeScenarioPopover();
+    });
+
+    // 最近使ったシナリオの記録：switchScenario()/addScenario() が既に発火している
+    // 'scenarioChanged' イベントを購読するだけで実現（既存関数は無改変）
+    document.addEventListener('scenarioChanged', function() {
+        trackRecent(activeScenarioId);
+    });
+
+    // renderScenarioTabs にセレクタートリガー表示も同期させる（既存モバイル同期と同じパターン）
+    var _origRenderScenarioTabsForSelector = window.renderScenarioTabs;
+    window.renderScenarioTabs = function() {
+        if (typeof _origRenderScenarioTabsForSelector === 'function') _origRenderScenarioTabsForSelector();
+        updateTrigger();
+        // ポップオーバーが開いたまま一覧が再描画された場合、検索フィルタを再適用
+        var searchInput = document.getElementById('scenario-search-input');
+        var pop = document.getElementById('scenario-popover');
+        if (searchInput && pop && pop.classList.contains('open')) {
+            window.filterScenarioPopover(searchInput.value);
+        }
+    };
+
+    window.addEventListener('load', function() {
+        updateTrigger();
+        trackRecent(activeScenarioId);
+    });
+})();
+
 //   const formData = new FormData();
 //   formData.append('file', blob, 'audio.webm');
 //   formData.append('model', 'whisper-1');
