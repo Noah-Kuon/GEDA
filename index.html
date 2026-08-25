@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.42                                          ║
+  ║  Qcard PRO  v2.8.43                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -815,6 +815,20 @@
             border-bottom: 1px solid var(--border);
         }
         .meta-row:last-of-type { border-bottom: none; }
+
+        /* カードクリップボード（コピー＆ペースト）v0.1 */
+        #meta-row-clipboard { gap: 8px; padding-bottom: 10px; }
+        .meta-clip-btn {
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 7px; padding: 5px 10px; font-size: 0.72rem;
+            color: var(--text); cursor: pointer; white-space: nowrap;
+        }
+        .meta-clip-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .meta-clip-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .meta-clip-status {
+            font-size: 0.62rem; color: var(--text-dim);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .meta-icon {
             font-size: 0.9rem;
             width: 20px;
@@ -2871,7 +2885,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.8.4</span>
+    <span class="version-badge">v2.9.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3414,6 +3428,20 @@ min-height: 0;
 
         <!-- ▼ 編集可能フィールド -->
         <div id="meta-editable-rows">
+            <!-- カードクリップボード（コピー＆ペースト）v0.1
+                 不変条件: URIはコピーしない。URIはCardの同一性を表す。
+                 PASTEは常に newCardMeta() で新しいuri/idを発行した「複製」を作成する。 -->
+            <div class="meta-row" id="meta-row-clipboard">
+                <button type="button" class="meta-clip-btn" id="meta-copy-btn"
+                        onclick="cardClipboardCopy()" title="このカードの内容をコピー（title/content/tags/出典/URL/メモ）">
+                    📋 コピー
+                </button>
+                <button type="button" class="meta-clip-btn" id="meta-paste-btn"
+                        onclick="cardClipboardPaste()" title="コピーした内容を、新しいカードとしてこのシナリオに貼り付け" disabled>
+                    📥 貼り付け
+                </button>
+                <span id="meta-clip-status" class="meta-clip-status"></span>
+            </div>
             <!-- タグ -->
             <div class="meta-row" id="meta-row-tags">
                 <span class="meta-icon">🏷</span>
@@ -6698,6 +6726,73 @@ function overlayMetaSync(cardItem) {
     // URI（永続識別子）を表示専用で表示
     var uriEl = document.getElementById('meta-card-uri-val');
     if (uriEl)     uriEl.textContent      = (meta && meta.uri) ? meta.uri : '—';
+
+    // ── カードクリップボード：貼り付けボタンの有効状態を同期 ──
+    if (typeof updateCardClipboardUI === 'function') updateCardClipboardUI();
+}
+
+// ===== CARD CLIPBOARD v0.1 =====
+// 目的: 特定カードの内容を丸ごとコピーし、別カード（同一/別シナリオ）へ
+//       「新規カード」として貼り付ける。
+//
+// 【重要な不変条件】
+//   URIはコピーしない。URIはCardの同一性を表す。
+//   → PASTE は必ず newCardMeta() で新しい uri/id を発行した「複製」を作る。
+//      同じ uri を持つカードが2枚以上存在する状態は、CSVインポート等の
+//      同一性判定（uri一致で更新/移動）を破壊するため、絶対に作らない。
+//
+// 将来的に「同じKnowledge Unitを参照するReference」機能を追加する場合も、
+// 本クリップボードの「Copy=複製」とは別概念として実装すること
+// （URIを共有する参照は、このv0.1の対象外）。
+var cardClipboard = null; // { title, content, tags, source, sourceUrl, note }
+
+function cardClipboardCopy() {
+    if (!editCardItem) return;
+    var meta = getCardMeta(editCardItem);
+    if (!meta) return;
+    cardClipboard = {
+        title:     meta.title     || '',
+        content:   meta.content   || '',
+        tags:      (meta.tags || []).slice(),
+        source:    meta.source    || '',
+        sourceUrl: meta.sourceUrl || '',
+        note:      meta.note      || '',
+        // [NEW] コピー元カードの uri（永続識別子）だけは「派生元の記録」として保持する。
+        // 新カードの uri としては絶対に使わない（= originCardId に書き込むのみ）。
+        // 既存スキーマの originCardId（「派生カードの追跡用」）をそのまま活用する。
+        originUri: meta.uri || ''
+        // uri / id 自体は意図的にコピーしない（Cardの同一性を表すため）
+    };
+    updateCardClipboardUI();
+    showToast('📋 「' + (cardClipboard.title || '無題のカード') + '」をコピーしました');
+}
+
+function cardClipboardPaste() {
+    if (!cardClipboard) return;
+    var active = getActive();
+    if (!active) return;
+    // newCardMeta() が新しい id / uri を発行する（既存関数をそのまま利用、独自実装しない）
+    var card = newCardMeta(cardClipboard.title, cardClipboard.content);
+    card.tags      = cardClipboard.tags.slice();
+    card.source    = cardClipboard.source;
+    card.sourceUrl = cardClipboard.sourceUrl;
+    card.note      = cardClipboard.note;
+    // [NEW] 既存スキーマの originCardId に「複製元カードのuri」を記録する（派生カードの追跡用）
+    card.originCardId = cardClipboard.originUri || '';
+    active.data.push(card);
+    active.updatedAt = nowMs();
+    saveScenarios();
+    updateGrid();
+    showToast('📥 新しいカードとして貼り付けました');
+}
+
+function updateCardClipboardUI() {
+    var pasteBtn = document.getElementById('meta-paste-btn');
+    var statusEl = document.getElementById('meta-clip-status');
+    if (pasteBtn) pasteBtn.disabled = !cardClipboard;
+    if (statusEl) statusEl.textContent = cardClipboard
+        ? ('コピー中: 「' + (cardClipboard.title || '無題のカード') + '」')
+        : '';
 }
 
 // gridItem から対応する card データを取得
