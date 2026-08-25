@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.41                                          ║
+  ║  Qcard PRO  v2.8.42                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2025,6 +2025,10 @@
 
         .scenario-bar { display: none !important; }
 
+        /* [FIX] PC向けキーボードショートカット案内（F1〜F8, Ctrl+F 等）はスマホでは
+           操作不可能なキーの説明かつ画面領域も圧迫するため非表示にする */
+        .hint-bar { display: none !important; }
+
         /* シナリオセレクト（モバイル専用） */
         /* ── 行×列 インライン表示（PCの検索バー内） ── */
         #grid-size-bar {
@@ -2867,7 +2871,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.8.3</span>
+    <span class="version-badge">v2.8.4</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
