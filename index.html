@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.4                                          ║
+  ║  Qcard PRO  v2.8.41                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2366,7 +2366,17 @@ min-height: 0;
             transition: background 0.1s, transform 0.1s;
         }
         .mob-nav-btn:active { background: var(--surface3); transform: scale(0.92); }
+        /* [FIX] 先頭/末尾では矢印を無効化表示し、「これ以上カードが無い」ことを常時視覚的に示す */
+        .mob-nav-btn.disabled { opacity: 0.28; pointer-events: none; }
         #mobile-counter { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-dim); }
+
+        /* [FIX] 端（1枚目より前 / 最後より後）へスワイプした際の「これ以上進めない」フィードバック */
+        @keyframes mobEdgeBounce {
+            0%   { transform: translateX(-33.3333%); }
+            35%  { transform: translateX(var(--mob-edge-bounce-x, -30%)); }
+            100% { transform: translateX(-33.3333%); }
+        }
+        #mob-stage.mob-edge-bounce { animation: mobEdgeBounce 0.28s ease-out; }
 
         /* ── グリッド1列 ── */
         body.mob-grid1 .grid-container {
@@ -2857,7 +2867,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.8.0</span>
+    <span class="version-badge">v2.8.3</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3405,9 +3415,10 @@ min-height: 0;
                 <span class="meta-icon">🏷</span>
                 <span class="meta-label">Tags</span>
                 <input class="meta-input" id="meta-tags-input"
-                       placeholder="#タグ"
+                       placeholder="#タグ（Enter/カンマで確定）"
                        autocomplete="off" spellcheck="false"
-                       onkeydown="metaTagKeydown(event)">
+                       onkeydown="metaTagKeydown(event)"
+                       onblur="metaTagCommitPending()">
             </div>
             <div id="meta-tags-display"></div>
 
@@ -6721,20 +6732,33 @@ function metaRenderTagChips(tags) {
     });
 }
 
-// タグ追加（Enterキー）
+// タグ追加（Enter / カンマ / 読点で確定。IME変換中の確定キーは無視して誤登録を防ぐ）
 function metaTagKeydown(e) {
-    if (e.key !== 'Enter') return;
+    if (e.isComposing || e.keyCode === 229) return; // 日本語IME変換中はここで確定しない
+    if (e.key !== 'Enter' && e.key !== ',' && e.key !== '、') return;
     e.preventDefault();
+    metaTagCommitPending();
+}
+
+// [FIX] 入力欄からフォーカスが外れた時（カード切替・仮想キーボードを閉じた等）にも
+// 未確定の入力を確定保存する。他のメタ項目（出典/URL/メモ）と同じ blur 保存に揃え、
+// スマホでEnterキーが安定して発火しない場合でも入力内容が消えないようにする。
+function metaTagCommitPending() {
     var input = document.getElementById('meta-tags-input');
-    var val   = input.value.trim().replace(/^#+/, '');
-    if (!val || !editCardItem) return;
+    if (!input || !editCardItem) return;
+    var raw = input.value;
+    if (!raw || !raw.trim()) { input.value = ''; return; }
+    // カンマ／読点区切りでまとめて複数タグを確定できるようにする（例: "面接,英語,敬語"）
+    var parts = raw.split(/[,、]/).map(function(s){ return s.trim().replace(/^#+/, ''); }).filter(Boolean);
+    if (!parts.length) { input.value = ''; return; }
     var meta = getCardMeta(editCardItem);
-    var tags = meta ? (meta.tags || []) : [];
-    if (!tags.includes(val)) {
-        tags = tags.concat(val);
-        setCardMeta(editCardItem, { tags: tags });
-        metaRenderTagChips(tags);
-    }
+    var tags = meta ? (meta.tags || []).slice() : [];
+    var added = false;
+    parts.forEach(function(val) {
+        if (tags.indexOf(val) === -1) { tags.push(val); added = true; }
+    });
+    if (added) setCardMeta(editCardItem, { tags: tags });
+    metaRenderTagChips(tags);
     input.value = '';
 }
 
@@ -6893,6 +6917,8 @@ window.rdStartFromOverlaySentence = function(contentSentIdx) {
 };
 
 function hideOverlay() {
+    // [FIX] タグ欄に未確定の入力が残ったままオーバーレイを閉じると消えてしまうため、先に確定保存する
+    if (typeof metaTagCommitPending === 'function') metaTagCommitPending();
     exitEditMode();
     closeSizePanel();
     // 朗読モード中は連続朗読のspeechSynthesisを止めない
@@ -9189,6 +9215,11 @@ function toggleTimerWidget() {
     var visible = widget.style.display !== 'none' && widget.style.display !== '';
     widget.style.display = visible ? 'none' : 'block';
     if (btn) btn.classList.toggle('active', !visible);
+    // [FIX] 以前ドラッグして画面外に出たままの位置が残っていた場合、
+    // 再表示のたびに必ず画面内へ収まるよう補正する。
+    if (!visible && typeof clampTimerWidgetPosition === 'function') {
+        clampTimerWidgetPosition();
+    }
 }
 
 function toggleTimerMinimize() {
@@ -9202,22 +9233,83 @@ function toggleTimerMinimize() {
     var widget = document.getElementById('timer-widget');
     var header = document.getElementById('timer-header');
     var ox = 0, oy = 0, startX = 0, startY = 0, dragging = false;
-    header.addEventListener('mousedown', function(e) {
-        if (e.target.id === 'timer-minimize-btn') return;
+    var MARGIN = 8; // [FIX] 画面端からの最小余白（この内側に必ず収める）
+
+    // [FIX] タイマーの位置を常に画面内に収まるよう補正する共通関数。
+    // ・ドラッグ中／ドラッグ終了時の暴走防止
+    // ・再表示（toggleTimerWidget）時に、以前画面外へ出た位置が残っていても復帰させる
+    // ・画面回転やウィンドウリサイズで位置が画面外になった場合の復帰
+    function clampTimerWidgetPosition() {
+        if (!widget || (widget.style.display === 'none' || widget.style.display === '')) return;
+        // 一度も手動移動しておらず、CSS初期位置（bottom/right基準）のままなら何もしない
+        if (!widget.style.left && !widget.style.top) return;
+        var rect = widget.getBoundingClientRect();
+        var maxLeft = Math.max(MARGIN, window.innerWidth  - rect.width  - MARGIN);
+        var maxTop  = Math.max(MARGIN, window.innerHeight - rect.height - MARGIN);
+        var newLeft = Math.min(Math.max(rect.left, MARGIN), maxLeft);
+        var newTop  = Math.min(Math.max(rect.top,  MARGIN), maxTop);
+        if (Math.abs(newLeft - rect.left) > 0.5 || Math.abs(newTop - rect.top) > 0.5) {
+            widget.style.left = newLeft + 'px';
+            widget.style.top  = newTop + 'px';
+        }
+    }
+    window.clampTimerWidgetPosition = clampTimerWidgetPosition;
+
+    function dragStart(clientX, clientY, target) {
+        if (target && target.id === 'timer-minimize-btn') return false;
         dragging = true;
         var rect = widget.getBoundingClientRect();
-        startX = e.clientX; startY = e.clientY;
+        startX = clientX; startY = clientY;
         ox = rect.left; oy = rect.top;
         widget.style.right = 'auto'; widget.style.bottom = 'auto';
         widget.style.left = ox + 'px'; widget.style.top = oy + 'px';
+        return true;
+    }
+    function dragMove(clientX, clientY) {
+        if (!dragging) return;
+        var rect = widget.getBoundingClientRect();
+        var rawLeft = ox + clientX - startX;
+        var rawTop  = oy + clientY - startY;
+        // [FIX] ドラッグ中も常に画面内（余白MARGIN）にクランプし、
+        // そもそも画面外へ出せない・掴めなくなる状態を起こさせない
+        var maxLeft = Math.max(MARGIN, window.innerWidth  - rect.width  - MARGIN);
+        var maxTop  = Math.max(MARGIN, window.innerHeight - rect.height - MARGIN);
+        widget.style.left = Math.min(Math.max(rawLeft, MARGIN), maxLeft) + 'px';
+        widget.style.top  = Math.min(Math.max(rawTop,  MARGIN), maxTop)  + 'px';
+    }
+    function dragEnd() {
+        if (!dragging) return;
+        dragging = false;
+        clampTimerWidgetPosition();
+    }
+
+    // ── マウス（PC） ──
+    header.addEventListener('mousedown', function(e) {
+        if (!dragStart(e.clientX, e.clientY, e.target)) return;
         e.preventDefault();
     });
-    document.addEventListener('mousemove', function(e) {
+    document.addEventListener('mousemove', function(e) { dragMove(e.clientX, e.clientY); });
+    document.addEventListener('mouseup', dragEnd);
+
+    // ── タッチ（モバイル）── [FIX] 従来はマウスイベントのみで、スマホでは掴んで動かす操作自体ができなかった
+    header.addEventListener('touchstart', function(e) {
+        var t = e.touches[0];
+        if (!dragStart(t.clientX, t.clientY, e.target)) return;
+    }, { passive: true });
+    header.addEventListener('touchmove', function(e) {
         if (!dragging) return;
-        widget.style.left = (ox + e.clientX - startX) + 'px';
-        widget.style.top  = (oy + e.clientY - startY) + 'px';
+        var t = e.touches[0];
+        dragMove(t.clientX, t.clientY);
+        e.preventDefault();
+    }, { passive: false });
+    header.addEventListener('touchend', dragEnd);
+    header.addEventListener('touchcancel', dragEnd);
+
+    // ── 画面回転・ウィンドウリサイズで画面外になった場合の復帰 ──
+    window.addEventListener('resize', function() { clampTimerWidgetPosition(); });
+    window.addEventListener('orientationchange', function() {
+        setTimeout(clampTimerWidgetPosition, 200);
     });
-    document.addEventListener('mouseup', function() { dragging = false; });
 })();
 
 
@@ -9883,6 +9975,7 @@ function rdSaveRate(v) {
         var data = getData();
         var len  = data.length;
         if (mIdx >= len) mIdx = Math.max(0, len - 1);
+        if (mIdx < 0)    mIdx = 0; // [FIX] 下限クランプ（防御的）
 
         var prevIdx = mIdx - 1;
         var nextIdx = mIdx + 1;
@@ -9893,6 +9986,13 @@ function rdSaveRate(v) {
 
         // カウンタ
         if (mCounter) mCounter.textContent = (len ? mIdx + 1 : 0) + ' / ' + len;
+
+        // [FIX] 端（1枚目/最後）では矢印ボタンを無効化表示し、
+        // 「これ以上カードが無い」ことを常に視覚的にわかるようにする
+        var prevBtnEl = document.getElementById('mob-prev');
+        var nextBtnEl = document.getElementById('mob-next');
+        if (prevBtnEl) prevBtnEl.classList.toggle('disabled', mIdx <= 0);
+        if (nextBtnEl) nextBtnEl.classList.toggle('disabled', !len || mIdx >= len - 1);
 
         // 現在表示中のgrid-item記憶
         window._mobCurrentEl = getGridItem(data, mIdx);
@@ -9927,7 +10027,12 @@ function rdSaveRate(v) {
 
     // 外部からインデックス指定
     window.mSetIdx = function(idx) {
-        mIdx = idx;
+        // [FIX] 範囲外（特に負の値）が渡されても mIdx が不正な値にならないようクランプする。
+        // 表示上の「-1」等はこの未クランプが原因になり得るため防御的に修正。
+        var data = getData();
+        var maxIdx = Math.max(0, data.length - 1);
+        idx = isNaN(idx) ? 0 : idx;
+        mIdx = Math.min(Math.max(idx, 0), maxIdx);
         mRenderAll();
     };
 
@@ -10033,24 +10138,58 @@ function rdSaveRate(v) {
             swipeAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
         }
         if (swipeAxis !== 'x') return;
-        touchDeltaX = dx;
         isSwiping = true;
-        // 追従（ステージを指に合わせて移動）
-        var pct = -33.3333 + (dx / stage.parentElement.offsetWidth) * 100;
+
+        // [FIX] 端（1枚目より前へ右スワイプ／最後より後へ左スワイプ）では
+        // 指の移動量をそのまま反映せず抵抗をかける（ラバーバンド）。
+        // これにより「これ以上カードが無い」ことを指の感触で自然に伝える。
+        var data = getData();
+        var atFirstEdge = (mIdx <= 0 && dx > 0);
+        var atLastEdge  = (mIdx >= data.length - 1 && dx < 0);
+        var damped = dx;
+        if (atFirstEdge || atLastEdge) {
+            damped = dx * 0.32; // 抵抗係数：指の移動量の約3割しか動かない
+        }
+        touchDeltaX = damped;
+        var pct = -33.3333 + (damped / stage.parentElement.offsetWidth) * 100;
         stage.style.transform = 'translateX(' + pct + '%)';
     }, { passive: true });
 
     stage.addEventListener('touchend', function(e) {
-        if (!isSwiping || swipeAxis !== 'x') return;
+        if (!isSwiping || swipeAxis !== 'x') { isSwiping = false; return; }
+        var data = getData();
         var threshold = 50; // px
-        if (touchDeltaX < -threshold) {
+        var movedNext = (touchDeltaX < -threshold && mIdx < data.length - 1);
+        var movedPrev = (touchDeltaX >  threshold && mIdx > 0);
+
+        if (movedNext) {
             goNext();
-        } else if (touchDeltaX > threshold) {
+        } else if (movedPrev) {
             goPrev();
         } else {
-            // スナップバック
-            stage.classList.add('mob-animating');
-            stage.style.transform = 'translateX(-33.3333%)';
+            // [FIX] 端に到達している場合を含め、実際にカードが動かない時は必ず中央へスナップバックする。
+            // （従来はここが「閾値未満の時」しか通らず、端で goNext/goPrev が無視された際に
+            //   ドラッグした位置のまま固定され、空白のカードが表示され続けてしまっていた）
+            var pulledToEdge = (mIdx <= 0 && touchDeltaX > 8) || (mIdx >= data.length - 1 && touchDeltaX < -8);
+            if (pulledToEdge) {
+                // 端まで引っ張ってから離した場合は、軽いバウンスで「行き止まり」を明示する。
+                // バウンス用の@keyframesアニメーションと通常のtransition（mob-animating）が
+                // 同時に同じtransformを奪い合うと着地位置がズレるため、
+                // バウンス完了後に改めてtransitionで中央へ確定させる。
+                var bounceX = touchDeltaX > 0 ? '-28%' : '-38.6667%';
+                stage.classList.remove('mob-animating');
+                stage.style.setProperty('--mob-edge-bounce-x', bounceX);
+                stage.classList.add('mob-edge-bounce');
+                if (navigator.vibrate) { try { navigator.vibrate(8); } catch(err) {} }
+                setTimeout(function() {
+                    stage.classList.remove('mob-edge-bounce');
+                    stage.classList.add('mob-animating');
+                    stage.style.transform = 'translateX(-33.3333%)';
+                }, 280);
+            } else {
+                stage.classList.add('mob-animating');
+                stage.style.transform = 'translateX(-33.3333%)';
+            }
         }
         isSwiping = false;
     }, { passive: true });
