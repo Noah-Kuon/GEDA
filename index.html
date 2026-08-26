@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.44                                          ║
+  ║  Qcard PRO  v2.8.55                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -829,6 +829,13 @@
             font-size: 0.62rem; color: var(--text-dim);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        .meta-clip-clear-btn {
+            background: transparent; border: 1px solid var(--border);
+            border-radius: 50%; width: 20px; height: 20px; line-height: 1;
+            font-size: 0.68rem; color: var(--text-dim); cursor: pointer;
+            flex-shrink: 0; padding: 0;
+        }
+        .meta-clip-clear-btn:hover { border-color: #f2526a; color: #f2526a; }
         .meta-icon {
             font-size: 0.9rem;
             width: 20px;
@@ -2355,6 +2362,7 @@ min-height: 0;
             padding-top: 8px; margin-top: auto;
             flex-shrink: 0;
             position: relative;
+            justify-content: space-between; /* [FIX] コピー(左)と「⋯」(右端)を分離し誤タップを防止 */
         }
         .mob-clip-copy-btn {
             background: var(--surface3); border: 1px solid var(--border);
@@ -2364,12 +2372,13 @@ min-height: 0;
         .mob-clip-copy-btn:active { background: var(--surface2); }
         .mob-clip-more-btn {
             background: var(--surface3); border: 1px solid var(--border);
-            border-radius: 20px; width: 34px; height: 30px; font-size: 1rem;
+            border-radius: 50%; width: 44px; height: 44px; font-size: 1.1rem;
             color: var(--text-dim); cursor: pointer; line-height: 1;
+            flex-shrink: 0; /* [FIX] タッチ領域を44px確保し、他要素に押し潰されないようにする */
         }
         .mob-clip-menu {
             display: none;
-            position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;
+            position: absolute; bottom: 100%; right: 0; margin-bottom: 6px;
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,0.4);
             padding: 6px; z-index: 20; min-width: 220px;
@@ -2952,7 +2961,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.9.1</span>
+    <span class="version-badge">v2.9.4</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3493,25 +3502,29 @@ min-height: 0;
     <div id="overlay-meta">
         <div class="meta-section-label">Card Info</div>
 
-        <!-- カードクリップボード（コピー＆ペースト）v0.1
+        <!-- カードクリップボード（コピー＆ペースト）v0.2
              不変条件: URIはコピーしない。URIはCardの同一性を表す。
              ①新規カード＝newCardMeta()で新しいuri/idを発行した「複製」。
              ②このカードに貼り付け＝uri/id/originCardIdは維持し、内容のみ置き換え。
-             コピーは閲覧モードでも可能。貼り付け（①②とも）は編集モードのみ。 -->
+             コピーは閲覧モードでも可能。貼り付け（①②とも）は編集モードのみ。
+             [v0.2] Clipboardは保持型：PASTEでは消費されず、複数カードへ繰り返し貼り付け可能。
+             解除は「×」ボタンによる明示的操作のみ（自動消去しない）。ページリロードでは解除される。 -->
         <div class="meta-row" id="meta-row-clipboard">
             <button type="button" class="meta-clip-btn" id="meta-copy-btn"
                     onclick="cardClipboardCopy()" title="このカードの内容をコピー（title/content/tags/出典/URL/メモ）">
                 📋 コピー
             </button>
             <button type="button" class="meta-clip-btn" id="meta-paste-btn"
-                    onclick="cardClipboardPaste()" title="コピーした内容を、新しいカードとしてこのシナリオに貼り付け" disabled>
-                📥 新規カードへ貼り付け
+                    onclick="cardClipboardPaste()" title="コピーした内容を元に、新しいカードを複製してこのシナリオに追加（空き枠があれば再利用、無ければ自動で行を追加／クリップボードは保持されます）" disabled>
+                📋 複製して追加
             </button>
             <button type="button" class="meta-clip-btn" id="meta-paste-overwrite-btn"
-                    onclick="cardClipboardPasteInto(editCardItem)" title="コピーした内容で、このカードを上書きする（URI/IDは維持）" disabled>
+                    onclick="cardClipboardPasteInto(editCardItem)" title="コピーした内容で、このカードを上書きする（URI/IDは維持、クリップボードは保持されます）" disabled>
                 🔄 このカードに貼り付け
             </button>
             <span id="meta-clip-status" class="meta-clip-status"></span>
+            <button type="button" class="meta-clip-clear-btn" id="meta-clip-clear-btn"
+                    onclick="cardClipboardClear()" title="クリップボードを解除する" style="display:none;">✕</button>
         </div>
 
         <!-- ▼ 編集可能フィールド -->
@@ -6848,7 +6861,16 @@ function cardClipboardCopyFromData(meta) {
         // uri / id 自体は意図的にコピーしない（Cardの同一性を表すため）
     };
     updateCardClipboardUI();
-    showToast('📋 「' + (cardClipboard.title || '無題のカード') + '」をコピーしました');
+    showToast('📋 「' + (cardClipboard.title || '無題のカード') + '」をコピーしました。複数のカードに貼り付けできます。');
+}
+
+// [NEW] v0.2: クリップボードの明示的な解除。
+// PASTE操作ではクリップボードは消費しない（保持型）。「解除」を押した時だけ空にする。
+function cardClipboardClear() {
+    if (!cardClipboard) return;
+    cardClipboard = null;
+    updateCardClipboardUI();
+    showToast('📋 クリップボードを解除しました');
 }
 
 // ② このカードに貼り付け：uri / id / originCardId は一切変更しない。
@@ -6875,7 +6897,15 @@ function cardClipboardPaste() {
     if (!cardClipboard) return;
     var active = getActive();
     if (!active) return;
-    // ① 新規カードとして貼り付け：newCardMeta() が新しい id / uri を発行する（既存関数をそのまま利用）
+
+    // [FIX] 貼り付け前にグリッドの現在状態をactive.dataへ確定同期する（空き枠判定を正確にするため）
+    saveCurrentGridData();
+
+    var rows  = getActiveRows();
+    var cols  = getActiveCols();
+    var total = rows * cols;
+
+    // ① 複製して追加：newCardMeta() が新しい id / uri を発行する（既存関数をそのまま利用）
     var card = newCardMeta(cardClipboard.title, cardClipboard.content);
     card.tags      = cardClipboard.tags.slice();
     card.source    = cardClipboard.source;
@@ -6883,11 +6913,39 @@ function cardClipboardPaste() {
     card.note      = cardClipboard.note;
     // 既存スキーマの originCardId に「複製元カードのuri」を記録する（派生カードの追跡＝lineage）
     card.originCardId = cardClipboard.originUri || '';
-    active.data.push(card);
+
+    // [NEW] 配置先の決定：
+    //   1) 現在の表示領域内（rows×cols）に title/content ともに空の枠があれば、そこへ配置
+    //   2) データ配列が表示領域よりまだ短ければ（暗黙の空き枠）、末尾に追加
+    //   3) どちらも無ければ（グリッドが満杯）、行を1つ自動追加してから新しい枠へ配置
+    //   ※ ユーザーが事前に空カードを用意しておく必要がないようにするための挙動。
+    var emptyIdx = -1;
+    for (var pi = 0; pi < Math.min(active.data.length, total); pi++) {
+        var existing = active.data[pi];
+        if (existing && !(existing.title || '').trim() && !(existing.content || '').trim()) {
+            emptyIdx = pi;
+            break;
+        }
+    }
+
+    if (emptyIdx !== -1) {
+        active.data[emptyIdx] = card; // 既存の空き枠を新カードで置き換え
+    } else if (active.data.length < total) {
+        active.data.push(card); // まだ表示領域に余裕がある（暗黙の空き枠）
+    } else {
+        // 空き枠が無い（グリッド満杯）→ 行を1つ自動追加してカード領域を確保する（addRow()と同じ方式）
+        active.rows = rows + 1;
+        var rowsEl  = document.getElementById('rowsInput');
+        if (rowsEl)  rowsEl.value  = active.rows;
+        var rowsMob = document.getElementById('rowsInputMob');
+        if (rowsMob) rowsMob.value = active.rows;
+        active.data.push(card);
+    }
+
     active.updatedAt = nowMs();
     saveScenarios();
     updateGrid();
-    showToast('📥 新しいカードとして貼り付けました');
+    showToast('📋 複製して追加しました');
 }
 
 // [NEW] 既存カードへの「上書き貼り付け」。uri/id/originCardIdは維持し、内容だけをクリップボードで置き換える。
@@ -6922,13 +6980,16 @@ function updateCardClipboardUI() {
     var pasteBtn      = document.getElementById('meta-paste-btn');
     var overwriteBtn  = document.getElementById('meta-paste-overwrite-btn');
     var statusEl      = document.getElementById('meta-clip-status');
+    var clearBtn      = document.getElementById('meta-clip-clear-btn');
     // 📋コピーは閲覧モードでも可能。📥/🔄の貼り付けは編集モードのみ許可。
+    // [v0.2] PASTEはクリップボードを消費しない（保持型）。解除は明示的な×ボタンのみ。
     var pasteAllowed = (appMode === 'edit');
     if (pasteBtn)     pasteBtn.disabled     = !cardClipboard || !pasteAllowed;
     if (overwriteBtn) overwriteBtn.disabled = !cardClipboard || !editCardItem || !pasteAllowed;
     if (statusEl) statusEl.textContent = cardClipboard
-        ? ('コピー中: 「' + (cardClipboard.title || '無題のカード') + '」')
+        ? ('📋 保持中：「' + (cardClipboard.title || '無題のカード') + '」')
         : '';
+    if (clearBtn) clearBtn.style.display = cardClipboard ? '' : 'none';
 
     // [NEW] 空カード上の「ここに貼り付け」ヒントの表示切替
     // （タイトル・本文どちらも空のカードのみ対象。編集モード以外では表示しない）
@@ -6941,18 +7002,20 @@ function updateCardClipboardUI() {
         hint.style.display = (cardClipboard && isEmpty && appMode === 'edit') ? 'flex' : 'none';
     });
 
-    // [NEW] スワイプ画面のクリップバー（📋コピー中ステータス・📥/🔄の有効状態）も同期
+    // [NEW] スワイプ画面のクリップバー（📋保持中ステータス・📥/🔄の有効状態）も同期
     document.querySelectorAll('.mob-clip-bar').forEach(function(bar) {
         var statusSpan = bar.querySelector('.mob-clip-status');
         if (statusSpan) {
             statusSpan.textContent = cardClipboard
-                ? ('📋 コピー中: 「' + (cardClipboard.title || '無題のカード') + '」')
+                ? ('📋 保持中：「' + (cardClipboard.title || '無題のカード') + '」')
                 : '';
         }
         var pasteNew  = bar.querySelector('.mob-clip-paste-new');
         var pasteOver = bar.querySelector('.mob-clip-paste-over');
+        var clearItem = bar.querySelector('.mob-clip-clear');
         if (pasteNew)  pasteNew.disabled  = !cardClipboard;
         if (pasteOver) pasteOver.disabled = !cardClipboard;
+        if (clearItem) clearItem.style.display = cardClipboard ? '' : 'none';
     });
 }
 
@@ -10066,19 +10129,24 @@ function rdSaveRate(v) {
         var clipPasteNewBtn = document.createElement('button');
         clipPasteNewBtn.type = 'button';
         clipPasteNewBtn.className = 'mob-clip-menu-item mob-clip-paste-new';
-        clipPasteNewBtn.textContent = '📥 新規カードとして貼り付け';
+        clipPasteNewBtn.textContent = '📋 複製して追加';
         var clipPasteOverBtn = document.createElement('button');
         clipPasteOverBtn.type = 'button';
         clipPasteOverBtn.className = 'mob-clip-menu-item mob-clip-paste-over';
         clipPasteOverBtn.textContent = '🔄 このカードに貼り付け';
+        var clipClearBtn = document.createElement('button');
+        clipClearBtn.type = 'button';
+        clipClearBtn.className = 'mob-clip-menu-item mob-clip-clear';
+        clipClearBtn.textContent = '✕ クリップボードを解除';
         clipMenu.appendChild(clipPasteNewBtn);
         clipMenu.appendChild(clipPasteOverBtn);
+        clipMenu.appendChild(clipClearBtn);
         var clipStatus = document.createElement('span');
         clipStatus.className = 'mob-clip-status';
         clipBar.appendChild(clipCopyBtn);
+        clipBar.appendChild(clipStatus);
         clipBar.appendChild(clipMoreBtn);
         clipBar.appendChild(clipMenu);
-        clipBar.appendChild(clipStatus);
 
         clipCopyBtn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -10099,6 +10167,11 @@ function rdSaveRate(v) {
             clipMenu.classList.remove('open');
             var idx = parseInt(clipBar.dataset.idx, 10);
             if (!isNaN(idx) && typeof mobClipboardPasteInto === 'function') mobClipboardPasteInto(idx);
+        });
+        clipClearBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            clipMenu.classList.remove('open');
+            if (typeof cardClipboardClear === 'function') cardClipboardClear();
         });
         // バー外をタップしたらメニューを閉じる
         document.addEventListener('click', function(e) {
@@ -10252,9 +10325,12 @@ function rdSaveRate(v) {
             var clipStatus = clipBar.querySelector('.mob-clip-status');
             if (clipStatus) {
                 clipStatus.textContent = cardClipboard
-                    ? ('📋 コピー中: 「' + (cardClipboard.title || '無題のカード') + '」')
+                    ? ('📋 保持中：「' + (cardClipboard.title || '無題のカード') + '」')
                     : '';
             }
+            // [NEW] 解除メニューはクリップボードがある時だけ表示（権限に関わらず、閲覧モードでも解除は可能）
+            var clearBtn = clipBar.querySelector('.mob-clip-clear');
+            if (clearBtn) clearBtn.style.display = cardClipboard ? '' : 'none';
         }
 
         // テキスト（反転モード時はタイトルと本文を入れ替えて表示・正規化で旧デフォルト値を空扱い）
