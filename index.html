@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.56                                          ║
+  ║  Qcard PRO  v2.8.57                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -693,6 +693,10 @@
         body.edit-mode-active .grid-item.is-blank-card:not(.has-media):hover .card-media-add-btn { display: flex; }
         /* 一度クリックしてテキスト入力にフォーカスしている間は、隠す（force-editing） */
         .grid-item.force-editing .card-media-add-btn { display: none !important; }
+        /* [FIX] クリップボード保持中（「ここに貼り付け」表示中）の空カードでは、
+           画像追加オーバーレイを背面化し、貼り付け操作を最優先にする。 */
+        .grid-item.clipboard-paste-active .card-media-add-btn { display: none !important; }
+        .grid-item.clipboard-paste-active .grid-paste-hint { z-index: 5; }
 
         /* [FIX] 入力済みカード（画像だけ未設定）：全面を塞がず、左上に小さな丸アイコンのみ表示 */
         body.edit-mode-active .grid-item:not(.is-blank-card):not(.has-media):hover .card-media-add-btn {
@@ -7071,7 +7075,11 @@ function updateCardClipboardUI() {
         var titleEl   = item.querySelector('.title-input');
         var contentEl = item.querySelector('.content-textarea');
         var isEmpty   = titleEl && contentEl && !titleEl.value.trim() && !contentEl.value.trim();
-        hint.style.display = (cardClipboard && isEmpty && appMode === 'edit') ? 'flex' : 'none';
+        var showHint  = !!(cardClipboard && isEmpty && appMode === 'edit');
+        hint.style.display = showHint ? 'flex' : 'none';
+        // [FIX] クリップボード保持中は「ここに貼り付け」を最優先UIにするため、
+        // 同じ空カード上の「カードを編集／画像を追加」オーバーレイを背面化する。
+        item.classList.toggle('clipboard-paste-active', showHint);
     });
 
     // [NEW] スワイプ画面のクリップバー（📋保持中ステータス・📥/🔄の有効状態）も同期
