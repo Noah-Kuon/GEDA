@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.57                                          ║
+  ║  Qcard PRO  v2.8.58                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -588,7 +588,7 @@
         /* [NEW] オーバーレイ内：画像の差し替え・削除ボタン */
         #overlay-media-controls {
             position: absolute;
-            bottom: 8px; right: 8px;
+            bottom: 8px; left: 8px;
             display: flex;
             gap: 6px;
             z-index: 20;
@@ -1316,9 +1316,13 @@
             padding: 10px 12px;
             display: none;
             flex-direction: column; gap: 8px;
-            z-index: 20;
+            z-index: 30;
             box-shadow: 0 8px 32px rgba(0,0,0,0.45);
-            min-width: 200px;
+            /* [FIX] min-widthで固定していたため、カード幅が狭いと右端(right:14px)から
+               はみ出し、overflow-y:auto の影響でoverflow-xも自動的にautoとなり
+               見えない場所へクリップされてしまっていた。カード幅に収まるよう可変化する。 */
+            width: max-content;
+            max-width: calc(100% - 28px);
             /* 開閉アニメーション */
             transform-origin: top right;
             animation: panelOpen 0.15s ease-out;
@@ -1331,6 +1335,7 @@
 
         .sp-row {
             display: flex; align-items: center; gap: 6px;
+            flex-wrap: wrap;
         }
         .sp-label {
             font-family: 'DM Mono', monospace;
@@ -3083,6 +3088,14 @@ min-height: 0;
             </button>
         </div>
     </div>
+    <!-- [FIX] 画像ON/OFF（PC版 #mediaToggleBtn は .top-btn によりモバイルで非表示になるため、
+         同機能をドロワー内に複製配置。既存の toggleMediaDisplay() をそのまま流用。 -->
+    <div class="mob-drawer-section">
+        <div class="mob-drawer-label" data-i18n="drawer_media">画像表示</div>
+        <div class="mob-drawer-row">
+            <button class="mob-drawer-btn" id="mobMediaToggleBtn" onclick="toggleMediaDisplay(); mobDrawerClose()">🖼 画像: OFF</button>
+        </div>
+    </div>
     <div class="mob-drawer-section">
         <div class="mob-drawer-label" data-i18n="drawer_timer">タイマー</div>
         <div class="mob-drawer-row">
@@ -4355,6 +4368,8 @@ function toggleMediaDisplay() {
     document.body.classList.toggle('media-hidden', !mediaDisplayOn);
     var btn = document.getElementById('mediaToggleBtn');
     if (btn) btn.textContent = '🖼 画像: ' + (mediaDisplayOn ? 'ON' : 'OFF');
+    var btnMob = document.getElementById('mobMediaToggleBtn');
+    if (btnMob) btnMob.textContent = '🖼 画像: ' + (mediaDisplayOn ? 'ON' : 'OFF');
 }
 
 // ===== i18n — 多言語対応 =====
@@ -4448,6 +4463,7 @@ const I18N = {
         drawer_font:        '文字サイズ',
         drawer_theme:       'テーマ',
         drawer_theme_btn:   'テーマ切替',
+        drawer_media:       '画像表示',
         drawer_timer:       'タイマー',
         drawer_timer_btn:   '⏱ タイマーを表示',
         drawer_data:        'データ',
@@ -4657,6 +4673,7 @@ const I18N = {
         drawer_font:        'Font size',
         drawer_theme:       'Theme',
         drawer_theme_btn:   'Toggle theme',
+        drawer_media:       'Image display',
         drawer_timer:       'Timer',
         drawer_timer_btn:   '⏱ Show timer',
         drawer_data:        'Data',
@@ -5856,6 +5873,8 @@ function toggleTheme() {
     document.body.classList.toggle('media-hidden', !mediaDisplayOn);
     var mediaBtn = document.getElementById('mediaToggleBtn');
     if (mediaBtn) mediaBtn.textContent = '🖼 画像: ' + (mediaDisplayOn ? 'ON' : 'OFF');
+    var mediaBtnMob = document.getElementById('mobMediaToggleBtn');
+    if (mediaBtnMob) mediaBtnMob.textContent = '🖼 画像: ' + (mediaDisplayOn ? 'ON' : 'OFF');
 
     // [NEW] カード縦横比の初期状態を反映
     applyCardRatio();
