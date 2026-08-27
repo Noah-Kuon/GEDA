@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.55                                          ║
+  ║  Qcard PRO  v2.8.56                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -28,7 +28,7 @@
             --accent-glow: rgba(61,139,255,0.18);
             --text: #d8e4f8;
             --text-muted: #5a7299;
-            --text-dim: #3d5278;
+            --text-dim: #6a7fa5;
             --success: #2dd4a4;
             --warning: #f5a623;
             --danger: #f2526a;
@@ -46,9 +46,9 @@
             --accent-glow: rgba(37,99,235,0.1);
             --text: #1a2640;
             --text-muted: #5a6e90;
-            --text-dim: #8fa0c0;
+            --text-dim: #5f7090;
             --success: #0d9f78;
-            --warning: #d97706;
+            --warning: #b55300;
             --danger: #dc2626;
             --save-color: #0d9f78;
         }
@@ -658,7 +658,10 @@
         body.view-mode .card-media-remove,
         body.reading-mode .card-media-remove,
         body.interview-mode .card-media-remove { display: none !important; }
-        /* 画像追加ボタン（編集モードのみ・画像未登録時にホバーで表示） */
+        /* 画像追加ボタン（編集モードのみ・画像未登録時にホバーで表示）
+           [FIX] 空カード（未入力）とテキスト入力済みカードで見せ方を分ける。
+           空カード: 全面オーバーレイで「＋ カードを編集」を主役にし、画像追加は副次的な選択肢にする。
+           入力済みカード: 全面を塞がず、隅の小さなアイコンのみ表示してテキスト編集を妨げない。 */
         .card-media-add-btn {
             display: none;
             position: absolute;
@@ -675,7 +678,39 @@
             gap: 4px;
             transition: all 0.15s;
         }
-        body.edit-mode-active .grid-item:not(.has-media):hover .card-media-add-btn { display: flex; }
+        .card-media-add-btn .cmab-edit-hint { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .card-media-add-btn .cmab-edit-hint .icon { font-size: 1.5rem; color: var(--text-dim); }
+        .card-media-add-btn .cmab-img-btn {
+            margin-top: 6px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 20px; padding: 5px 12px; font-size: 0.66rem;
+            color: var(--text-dim); cursor: pointer;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .card-media-add-btn .cmab-img-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* 空カード：全面オーバーレイ（クリックで直接編集開始、画像追加は副次ボタン） */
+        body.edit-mode-active .grid-item.is-blank-card:not(.has-media):hover .card-media-add-btn { display: flex; }
+        /* 一度クリックしてテキスト入力にフォーカスしている間は、隠す（force-editing） */
+        .grid-item.force-editing .card-media-add-btn { display: none !important; }
+
+        /* [FIX] 入力済みカード（画像だけ未設定）：全面を塞がず、左上に小さな丸アイコンのみ表示 */
+        body.edit-mode-active .grid-item:not(.is-blank-card):not(.has-media):hover .card-media-add-btn {
+            display: flex;
+            inset: auto; top: 6px; left: 6px;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: rgba(8,12,20,0.75);
+            border: 1px solid rgba(255,255,255,0.25);
+            padding: 0;
+        }
+        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-edit-hint { display: none; }
+        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-img-btn {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            border-radius: 50%; border: none; background: transparent;
+            color: #fff; display: flex; align-items: center; justify-content: center;
+        }
+        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-img-btn .label { display: none; }
         .card-media-add-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(61,139,255,0.1); }
         .card-media-add-btn .icon { font-size: 1.1rem; }
         /* ドラッグオーバー時のフィードバック */
@@ -2961,7 +2996,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.9.4</span>
+    <span class="version-badge">v2.9.5</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -6354,6 +6389,8 @@ function createItem(index, d) {
     // [NEW] 朗読音声ソース設定を復元（デフォルトはspeech = Web Speech）
     item.dataset.audioSource = d.audioSource || 'speech';
     if (d.hidden) item.classList.add('is-hidden'); // 非表示フラグ反映
+    // [NEW] 空カード（タイトル・本文とも未入力）判定。画像追加UIの見せ方切替に使う
+    if (!(d.title || '').trim() && !(d.content || '').trim()) item.classList.add('is-blank-card');
 
     var handle = document.createElement('div');
     handle.className = 'drag-handle';
@@ -6460,6 +6497,8 @@ function createItem(index, d) {
         el.addEventListener('input', function() {
             saveCurrentGridDataWithIndicator();
             if (currentQuery) applySearch(currentQuery);
+            // [NEW] 入力状況に応じて空カード状態を更新（画像追加UIの見せ方切替のため）
+            item.classList.toggle('is-blank-card', !titleInput.value.trim() && !contentTextarea.value.trim());
         });
     });
 
@@ -6478,6 +6517,7 @@ function createItem(index, d) {
             t.value = '';
             saveCurrentGridDataWithIndicator();
             if (currentQuery) applySearch(currentQuery);
+            item.classList.toggle('is-blank-card', !titleInput.value.trim() && !contentTextarea.value.trim());
         };
     })(titleInput));
     titleRow.appendChild(titleInput);
@@ -6498,6 +6538,7 @@ function createItem(index, d) {
             c.value = '';
             saveCurrentGridDataWithIndicator();
             if (currentQuery) applySearch(currentQuery);
+            item.classList.toggle('is-blank-card', !titleInput.value.trim() && !contentTextarea.value.trim());
         };
     })(contentTextarea));
     contentRow.appendChild(contentTextarea);
@@ -6543,13 +6584,42 @@ function createItem(index, d) {
     mediaLayer.appendChild(mediaRemoveBtn);
 
     // [NEW] 画像追加ボタン（画像未登録時にホバー表示）
+    // [FIX] 空カードでは「＋ カードを編集」を主役にし、画像追加は副次的な選択肢にする
+    //       （画像表示モードON＝画像しか入れられない、という誤解を避けるため）
     var mediaAddBtn = document.createElement('div');
     mediaAddBtn.className = 'card-media-add-btn';
-    mediaAddBtn.innerHTML = '<span class="icon">🖼</span><span>画像を追加</span>';
+    var mediaEditHint = document.createElement('div');
+    mediaEditHint.className = 'cmab-edit-hint';
+    mediaEditHint.innerHTML = '<span class="icon">＋</span><span>カードを編集</span>';
+    var mediaImgAddBtn = document.createElement('button');
+    mediaImgAddBtn.type = 'button';
+    mediaImgAddBtn.className = 'cmab-img-btn';
+    mediaImgAddBtn.innerHTML = '<span class="icon">🖼</span><span class="label">画像を追加</span>';
+    mediaAddBtn.appendChild(mediaEditHint);
+    mediaAddBtn.appendChild(mediaImgAddBtn);
+
     mediaAddBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-    mediaAddBtn.addEventListener('click', function(e) {
+    // カード全体（空カードのヒント部分）をクリック＝直接テキスト編集を開始する
+    mediaEditHint.addEventListener('click', function(e) {
+        e.stopPropagation();
+        item.classList.add('force-editing'); // ホバー中でもオーバーレイを隠し、入力を邪魔しない
+        titleInput.focus();
+    });
+    // 小さな画像追加ボタンだけが、明示的に画像ファイル選択を開く
+    mediaImgAddBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    mediaImgAddBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         mediaOpenFilePicker(cardId, item);
+    });
+    [titleInput, contentTextarea].forEach(function(el) {
+        el.addEventListener('blur', function() {
+            // フォーカスが別要素（同カード内の別入力欄含む）へ移った場合のみ解除
+            setTimeout(function() {
+                if (document.activeElement !== titleInput && document.activeElement !== contentTextarea) {
+                    item.classList.remove('force-editing');
+                }
+            }, 50);
+        });
     });
 
     // [NEW] ドラッグ&ドロップで画像登録（カードの並び替えドラッグと競合しないよう、ファイルドラッグのみ処理）
@@ -6968,6 +7038,8 @@ function cardClipboardPasteInto(cardItem) {
     var contentEl = cardItem.querySelector('.content-textarea');
     if (titleEl)   titleEl.value   = meta.title;
     if (contentEl) contentEl.value = meta.content;
+    // [NEW] 空カード状態を更新（画像追加UIの見せ方切替のため）
+    cardItem.classList.toggle('is-blank-card', !meta.title.trim() && !meta.content.trim());
     if (currentQuery) applySearch(currentQuery);
     // 内容が入ったのでオーバーレイを開いて結果を確認できるようにする
     isLocked = true;
