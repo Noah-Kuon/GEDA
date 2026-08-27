@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.8.58                                          ║
+  ║  Qcard PRO  v2.8.59                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -586,10 +586,14 @@
             margin: 0 auto;
         }
         /* [NEW] オーバーレイ内：画像の差し替え・削除ボタン */
+        /* [FIX] left:8pxのみで幅の制約が無く、親(#overlay-media-layer, overflow:hidden)の
+           右端からボタン列がはみ出し、狭い画面（特にモバイル）で「削除」が見切れて押せなくなっていた。
+           right:8pxも指定して幅を親要素に収まる形で自動計算させ、それでも収まらない場合は折り返す。 */
         #overlay-media-controls {
             position: absolute;
-            bottom: 8px; left: 8px;
+            bottom: 8px; left: 8px; right: 8px;
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             z-index: 20;
         }
@@ -603,6 +607,7 @@
             cursor: pointer;
             transition: background 0.15s;
             white-space: nowrap;
+            min-height: 32px; /* [FIX] 折り返し時も含め、タップしやすい最低限の高さを確保 */
         }
         #overlay-media-controls button:hover { background: rgba(8,12,20,0.92); }
         /* 閲覧・朗読・録音モードでは編集系ボタンを隠す（画像を見るだけのモードのため） */
@@ -3005,7 +3010,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v2.9.5</span>
+    <span class="version-badge">v2.9.6</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
