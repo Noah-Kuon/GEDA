@@ -6387,7 +6387,13 @@ function renderScenarioTabs() {
             return function() {
                 // 空にした場合は '' として保存し、表示は displayScenarioName が担う
                 scenario.name = input.value.trim();
-                input.value   = displayScenarioName(scenario, index);
+                // [FIX] このinput自身の値を直接書き換えるだけでは、
+                // モバイルのシナリオselect／PCポップオーバーのトリガー表示／
+                // 「最近使った」一覧など、同じ名前を表示している他のUIが
+                // 次回の renderScenarioTabs() 呼び出し（シナリオ切替やリロード）まで
+                // 古い名前のまま残ってしまう。renderScenarioTabs() を呼び、
+                // それらを同期させている既存のラップ処理に乗せて即時反映する。
+                renderScenarioTabs();
                 triggerSave(saveScenarios);
             };
         })(s, idx, name));
@@ -6499,10 +6505,17 @@ function getCurrentGridData() {
         var prevTitle   = prev ? (prev.title   || '') : '';
         var prevContent = prev ? (prev.content || '') : '';
         var changed = (curTitle !== prevTitle || curContent !== prevContent);
+        // [FIX] 位置（index）で active.data から逆引きするのではなく、
+        // まずDOM要素自体が保持しているuri/idを優先する。
+        // active.data[index] は「今このDOM順序と一致している保証」がない
+        // （例：ドラッグ&ドロップ直後、renderGrid→保存の間はまだ更新されていない）ため、
+        // それを直接の真実源にすると別カードのURIを引き継いでしまう。
+        var domUri = item.dataset.uri    || '';
+        var domId  = item.dataset.cardId || '';
         var entry = {
             // ── 必須 ──
-            id:           (prev && prev.id)           || cardUid(),
-            uri:          (prev && prev.uri)          || cardUri(), // 永続URI: 既存を必ず継承
+            id:           domId  || (prev && prev.id)  || cardUid(),
+            uri:          domUri || (prev && prev.uri) || cardUri(), // 永続URI: 既存を必ず継承
             title:        curTitle,
             content:      curContent,
             // ── タイムスタンプ ──
@@ -6787,6 +6800,14 @@ function createItem(index, d) {
     item.className     = 'grid-item';
     item.draggable     = true;
     item.dataset.index = index;
+
+    // [FIX] URI/id はカード単位の永続識別子。DOM要素自体に保持し、
+    // getCurrentGridData() がここから直接読めるようにする。
+    // （旧実装は active.data[index] という「位置」から逆引きしていたため、
+    //   ドラッグ&ドロップ等でDOM順序とactive.dataの順序が一時的にズレた瞬間に
+    //   別カードのuriを引き継いでしまうことがあった）
+    if (d.uri) item.dataset.uri    = d.uri;
+    if (d.id)  item.dataset.cardId = d.id;
 
     // [NEW] itvId（録音・アップロード音声のキー）をカードデータから復元（永続化）
     if (d.itvId) item.dataset.itvId = d.itvId;
