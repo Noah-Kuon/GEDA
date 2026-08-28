@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.0.0                                          ║
+  ║  Qcard PRO  v3.0.1                                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2305,8 +2305,12 @@
             padding: 0 10px 6px;
             flex-shrink: 0;
         }
-        #mob-scenario-select {
+        #mob-scenario-trigger {
             flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -2314,31 +2318,149 @@
             font-size: 0.78rem;
             padding: 6px 10px;
             font-family: 'Noto Sans JP', sans-serif;
+            min-width: 0;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
-        #mob-scenario-add {
-            background: var(--surface2);
-            border: 1px solid var(--border);
+        #mob-scenario-trigger .mstn {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        #mob-scenario-trigger .mstn-caret { color: var(--text-dim); font-size: 0.65rem; flex-shrink: 0; }
+
+        /* [NEW] カード追加FAB：画面右下に固定し、モバイルUI中は常に片手の親指で届く位置に置く */
+        #mob-fab-add-card {
+            display: flex;
+            align-items: center; justify-content: center;
+            position: fixed;
+            right: 16px;
+            bottom: 84px;
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            box-shadow: 0 6px 20px rgba(61,139,255,0.45), 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 760;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #mob-fab-add-card:active { transform: scale(0.94); }
+
+        /* [NEW] シナリオ管理ボトムシート */
+        #mob-scenario-sheet-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 900;
+        }
+        #mob-scenario-sheet {
+            display: none;
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            max-height: 72vh;
+            background: var(--surface);
+            border-top: 1px solid var(--border2);
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+            z-index: 901;
+            padding: 8px 0 max(10px, env(safe-area-inset-bottom)) 0;
+            flex-direction: column;
+        }
+        body.mob-scenario-sheet-open #mob-scenario-sheet-overlay,
+        body.mob-scenario-sheet-open #mob-scenario-sheet { display: flex; }
+        body.mob-scenario-sheet-open { overflow: hidden; }
+        #mob-scenario-sheet .mss-handle {
+            width: 36px; height: 4px; border-radius: 2px;
+            background: var(--border2); margin: 4px auto 10px;
+            flex-shrink: 0;
+        }
+        #mob-scenario-sheet .mss-header {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+            padding: 0 16px 8px; flex-shrink: 0;
+            font-size: 0.85rem; font-weight: 600; color: var(--text);
+        }
+        #mob-scenario-sheet .mss-hint {
+            font-size: 0.65rem; font-weight: 400; color: var(--text-dim); white-space: nowrap;
+        }
+        #mob-scenario-sheet-list {
+            overflow-y: auto;
+            padding: 0 12px;
+        }
+        #mob-scenario-sheet-add {
+            margin: 10px 16px 0;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px dashed var(--border2);
+            background: transparent;
             color: var(--accent);
-            border-radius: 8px;
-            padding: 6px 10px;
             font-size: 0.82rem;
             cursor: pointer;
             flex-shrink: 0;
             -webkit-tap-highlight-color: transparent;
         }
-        #mob-card-add {
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            border-radius: 8px;
-            padding: 6px 8px;
-            font-size: 0.72rem;
-            cursor: pointer;
-            flex-shrink: 0;
-            white-space: nowrap;
+        .mss-row-wrap {
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            margin-bottom: 6px;
+        }
+        .mss-row-del {
+            position: absolute; top: 0; right: 0; bottom: 0;
+            width: 72px;
+            background: var(--danger, #e5484d);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.78rem;
+            border: none;
             -webkit-tap-highlight-color: transparent;
         }
-        #mob-card-add:active { background: var(--surface3); }
+        .mss-row {
+            position: relative;
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--text);
+            touch-action: pan-y;
+            transition: transform 0.18s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mss-row.active { border-color: var(--accent); background: rgba(61,139,255,0.08); }
+        .mss-row.dragging-swipe { transition: none; }
+        .mss-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mss-row-count { font-size: 0.68rem; color: var(--text-dim); flex-shrink: 0; }
+
+        /* [NEW] シナリオ削除のUndoトースト（画像削除等の通常トーストとは別枠。ボタン付きのため） */
+        #undo-toast {
+            display: none;
+            position: fixed;
+            left: 50%; bottom: 84px;
+            transform: translateX(-50%);
+            background: var(--surface); border: 1px solid var(--border2);
+            border-radius: 12px;
+            padding: 10px 10px 10px 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 950;
+            align-items: center; gap: 14px;
+            font-size: 0.78rem;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        #undo-toast.show { display: flex; }
+        #undo-toast-btn {
+            background: transparent;
+            border: none;
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 0.78rem;
+            cursor: pointer;
+            padding: 4px 6px;
+            -webkit-tap-highlight-color: transparent;
+        }
 
         /* 表示モード切替トグル */
         #mob-view-toggle {
@@ -2691,6 +2813,10 @@ min-height: 0;
         #mob-menu-btn       { display: none !important; }
         #mob-drawer         { display: none !important; }
         #mob-drawer-overlay { display: none !important; }
+        #mob-fab-add-card          { display: none !important; }
+        #mob-scenario-sheet        { display: none !important; }
+        #mob-scenario-sheet-overlay{ display: none !important; }
+        #undo-toast                { display: none !important; }
     }
 
     /* ─── READING MODE ─── */
@@ -3334,15 +3460,38 @@ min-height: 0;
 
 <!-- モバイル シナリオセレクト -->
 <div id="mob-scenario-wrap">
-    <select id="mob-scenario-select" onchange="mobScenarioChange(this.value)"></select>
-    <button id="mob-scenario-add" onclick="addScenario()" data-i18n-title="mob_add_scenario" title="シナリオ追加">＋</button>
-    <button id="mob-card-add" onclick="addRow()" data-i18n-title="mob_add_row" title="行追加">＋行</button>
+    <button type="button" id="mob-scenario-trigger" onclick="mobOpenScenarioSheet()" data-i18n-title="mob_scenario_manage" title="シナリオを管理">
+        <span id="mob-scenario-trigger-name" class="mstn"></span>
+        <span class="mstn-caret">▾</span>
+    </button>
     <button id="mob-flip-btn" onclick="toggleLearningDirection()" data-i18n-title="mob_flip_title" title="タイトルと本文を反転して練習">⇄</button>
     <div id="mob-view-toggle">
         <button class="mob-view-btn active" data-view="swipe" onclick="mobSetView('swipe')" data-i18n-title="mob_swipe_title" title="スワイプ">⬜</button>
         <button class="mob-view-btn"        data-view="grid1" onclick="mobSetView('grid1')" data-i18n-title="mob_grid1_title" title="1列">▤</button>
         <button class="mob-view-btn"        data-view="grid2" onclick="mobSetView('grid2')" data-i18n-title="mob_grid2_title" title="2列">▦</button>
     </div>
+</div>
+
+<!-- [NEW] モバイル: カード追加FAB（最頻出操作なので専用ボタンとして常時1タップで届く位置に配置。
+     シナリオ追加はここには置かず、下のシナリオ管理シートに格納して発生頻度に合わせている） -->
+<button type="button" id="mob-fab-add-card" onclick="mobFabAddCard()" data-i18n-title="mob_fab_add_card" title="カードを追加">＋</button>
+
+<!-- [NEW] モバイル シナリオ管理シート（ボトムシート）：一覧・切替・スワイプ／長押しで削除・新規追加 -->
+<div id="mob-scenario-sheet-overlay" onclick="mobCloseScenarioSheet()"></div>
+<div id="mob-scenario-sheet">
+    <div class="mss-handle"></div>
+    <div class="mss-header">
+        <span data-i18n="mob_scenario_manage">シナリオを管理</span>
+        <span class="mss-hint" data-i18n="mob_scenario_del_hint">長押しでも削除できます</span>
+    </div>
+    <div id="mob-scenario-sheet-list"></div>
+    <button type="button" id="mob-scenario-sheet-add" onclick="addScenario(); mobCloseScenarioSheet();" data-i18n="mob_scenario_add_new">＋ 新規シナリオ</button>
+</div>
+
+<!-- [NEW] シナリオ削除のUndoトースト -->
+<div id="undo-toast">
+    <span id="undo-toast-msg"></span>
+    <button type="button" id="undo-toast-btn" onclick="mobUndoDeleteScenario()" data-i18n="undo_label">元に戻す</button>
 </div>
 
 <!-- SCENARIO BAR -->
@@ -4613,6 +4762,12 @@ const I18N = {
         mob_grid2_title:    '2列',
         mob_add_scenario:   'シナリオ追加',
         mob_add_row:        '行追加',
+        mob_scenario_manage:   'シナリオを管理',
+        mob_scenario_del_hint: '長押しでも削除できます',
+        mob_scenario_add_new:  '＋ 新規シナリオ',
+        mob_fab_add_card:      'カードを追加',
+        toast_scenario_deleted:' を削除しました',
+        undo_label:             '元に戻す',
         // TOASTS / CONFIRMS
         toast_img_added:    '🖼 画像を追加しました',
         toast_img_removed:  '画像を削除しました',
@@ -4823,6 +4978,12 @@ const I18N = {
         mob_grid2_title:    '2 col',
         mob_add_scenario:   'Add scenario',
         mob_add_row:        'Add row',
+        mob_scenario_manage:   'Manage scenarios',
+        mob_scenario_del_hint: 'You can also hold to delete',
+        mob_scenario_add_new:  '+ New scenario',
+        mob_fab_add_card:      'Add card',
+        toast_scenario_deleted:' deleted',
+        undo_label:             'Undo',
         // TOASTS / CONFIRMS
         toast_img_added:    '🖼 Image added',
         toast_img_removed:  'Image removed',
@@ -12010,33 +12171,202 @@ function mobRenameScenario() {
     });
 })();
 
-// ===== MOBILE SCENARIO SELECT =====
-function mobRenderScenarioSelect() {
-    var sel = document.getElementById('mob-scenario-select');
-    if (!sel) return;
-    sel.innerHTML = '';
+// ===== MOBILE シナリオ管理シート =====
+// native <select> は装飾・スワイプ操作ができないため、ボトムシート＋カスタム行に置き換え。
+// スワイプ左／長押しのどちらでも削除ボタンが出せるようにし、削除は即時確定ではなく
+// Undoトーストで数秒間だけ取り消せるようにすることで、誤タップでのシナリオ全消しを防ぐ。
+
+var MSS_SWIPE_OPEN = -72; // 削除ボタンの幅ぶん開く
+var mssActiveOpenRow = null; // 現在スワイプ／長押しで開いている行（同時に1つだけ開く）
+
+function mobRenderScenarioTrigger() {
+    var label = document.getElementById('mob-scenario-trigger-name');
+    if (!label) return;
+    var active = getActive();
+    var idx = scenarios.indexOf(active);
+    label.textContent = active ? displayScenarioName(active, idx) : t('default_scenario') + '1';
+}
+
+function mssCloseRow(row) {
+    if (!row) return;
+    row.style.transform = 'translateX(0)';
+    row.classList.remove('open');
+    if (mssActiveOpenRow === row) mssActiveOpenRow = null;
+}
+
+function mobRenderScenarioSheetList() {
+    var list = document.getElementById('mob-scenario-sheet-list');
+    if (!list) return;
+    list.innerHTML = '';
+    mssActiveOpenRow = null;
+
     scenarios.forEach(function(s, idx) {
-        var opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = displayScenarioName(s, idx);
-        if (s.id === activeScenarioId) opt.selected = true;
-        sel.appendChild(opt);
+        var wrap = document.createElement('div');
+        wrap.className = 'mss-row-wrap';
+
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'mss-row-del';
+        delBtn.textContent = '🗑 削除';
+        delBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            mobRequestDeleteScenario(s.id);
+        });
+
+        var row = document.createElement('div');
+        row.className = 'mss-row' + (s.id === activeScenarioId ? ' active' : '');
+
+        var name = document.createElement('span');
+        name.className = 'mss-row-name';
+        name.textContent = displayScenarioName(s, idx);
+
+        var count = document.createElement('span');
+        count.className = 'mss-row-count';
+        count.textContent = ((s.data || []).filter(function(c){ return (c.title||'').trim() || (c.content||'').trim(); }).length) + '枚';
+
+        row.appendChild(name);
+        row.appendChild(count);
+
+        // ── スワイプ（ポインタドラッグ）で削除ボタンを表出 ──
+        var startX = 0, startY = 0, curX = 0, dragging = false, axisLocked = null;
+        var longPressTimer = null;
+
+        function openThisRow() {
+            if (mssActiveOpenRow && mssActiveOpenRow !== row) mssCloseRow(mssActiveOpenRow);
+            row.style.transform = 'translateX(' + MSS_SWIPE_OPEN + 'px)';
+            row.classList.add('open');
+            mssActiveOpenRow = row;
+        }
+
+        row.addEventListener('pointerdown', function(e) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            startX = e.clientX; startY = e.clientY; curX = 0; dragging = false; axisLocked = null;
+            row.classList.add('dragging-swipe');
+            clearTimeout(longPressTimer);
+            // [NEW] 長押し：スワイプに気づかないユーザーのための発見しやすい代替導線
+            longPressTimer = setTimeout(function() {
+                if (!dragging) { openThisRow(); if (navigator.vibrate) navigator.vibrate(15); }
+            }, 550);
+        });
+        row.addEventListener('pointermove', function(e) {
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            if (axisLocked === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+                axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+            }
+            if (axisLocked !== 'x') return;
+            dragging = true;
+            clearTimeout(longPressTimer);
+            var base = row.classList.contains('open') ? MSS_SWIPE_OPEN : 0;
+            curX = Math.min(0, Math.max(MSS_SWIPE_OPEN, base + dx));
+            row.style.transform = 'translateX(' + curX + 'px)';
+        });
+        function endDrag() {
+            clearTimeout(longPressTimer);
+            row.classList.remove('dragging-swipe');
+            if (dragging) {
+                if (curX < MSS_SWIPE_OPEN / 2) openThisRow(); else mssCloseRow(row);
+            }
+            setTimeout(function(){ dragging = false; }, 0);
+        }
+        row.addEventListener('pointerup', endDrag);
+        row.addEventListener('pointercancel', endDrag);
+
+        row.addEventListener('click', function() {
+            if (dragging || row.classList.contains('open')) return; // スワイプ操作の誤タップ切替を防止
+            switchScenario(s.id);
+            mobCloseScenarioSheet();
+        });
+
+        wrap.appendChild(delBtn);
+        wrap.appendChild(row);
+        list.appendChild(wrap);
     });
 }
 
-function mobScenarioChange(id) {
-    switchScenario(id);
+function mobOpenScenarioSheet() {
+    mobRenderScenarioSheetList();
+    document.body.classList.add('mob-scenario-sheet-open');
+}
+function mobCloseScenarioSheet() {
+    if (mssActiveOpenRow) mssCloseRow(mssActiveOpenRow);
+    document.body.classList.remove('mob-scenario-sheet-open');
 }
 
-// renderScenarioTabs にモバイルセレクトも同期させる
+// ── 削除（ソフトデリート＋Undo） ──
+var pendingScenarioDelete = null; // { scenario, index, wasActive, timer }
+
+function mobFinalizeDeleteScenario() {
+    // Undo期限切れ／次の削除開始時に呼ばれる。削除は既に確定済みなのでUIを閉じるだけ。
+    if (pendingScenarioDelete) clearTimeout(pendingScenarioDelete.timer);
+    pendingScenarioDelete = null;
+    var toast = document.getElementById('undo-toast');
+    if (toast) toast.classList.remove('show');
+}
+
+function mobRequestDeleteScenario(id) {
+    if (scenarios.length <= 1) { showToast(t('toast_no_del_last')); return; }
+    var idx = scenarios.findIndex(function(s){ return s.id === id; });
+    if (idx < 0) return;
+
+    // 直前の削除がUndo待ちなら、新しい削除を始める前に確定させる（Undoは常に「直近1件」のみ）
+    mobFinalizeDeleteScenario();
+
+    var target = scenarios[idx];
+    var snapshot = JSON.parse(JSON.stringify(target));
+    var wasActive = (activeScenarioId === id);
+
+    scenarios = scenarios.filter(function(s){ return s.id !== id; });
+    if (wasActive) activeScenarioId = scenarios[0].id;
+    saveScenarios();
+    renderScenarioTabs();
+    if (wasActive) updateGrid();
+    if (document.body.classList.contains('mob-scenario-sheet-open')) mobRenderScenarioSheetList();
+
+    var msg = document.getElementById('undo-toast-msg');
+    if (msg) msg.textContent = '「' + displayScenarioName(snapshot, idx) + '」' + t('toast_scenario_deleted');
+    var toast = document.getElementById('undo-toast');
+    if (toast) toast.classList.add('show');
+
+    pendingScenarioDelete = {
+        scenario: snapshot,
+        index: idx,
+        wasActive: wasActive,
+        timer: setTimeout(mobFinalizeDeleteScenario, 4000)
+    };
+}
+
+function mobUndoDeleteScenario() {
+    if (!pendingScenarioDelete) return;
+    clearTimeout(pendingScenarioDelete.timer);
+    var insertAt = Math.min(pendingScenarioDelete.index, scenarios.length);
+    scenarios.splice(insertAt, 0, pendingScenarioDelete.scenario);
+    if (pendingScenarioDelete.wasActive) activeScenarioId = pendingScenarioDelete.scenario.id;
+    saveScenarios();
+    renderScenarioTabs();
+    updateGrid();
+    if (document.body.classList.contains('mob-scenario-sheet-open')) mobRenderScenarioSheetList();
+
+    var toast = document.getElementById('undo-toast');
+    if (toast) toast.classList.remove('show');
+    pendingScenarioDelete = null;
+}
+
+// [NEW] カード追加FAB：既存の「行を追加」をそのまま呼ぶ（スワイプ表示中は新しい行の先頭へ自動ジャンプする挙動も既存のまま活きる）
+function mobFabAddCard() {
+    addRow();
+}
+
+// renderScenarioTabs にモバイルのトリガー表示／シート一覧も同期させる
 var _origRenderScenarioTabs = window.renderScenarioTabs;
 window.renderScenarioTabs = function() {
     if (typeof _origRenderScenarioTabs === 'function') _origRenderScenarioTabs();
-    mobRenderScenarioSelect();
+    mobRenderScenarioTrigger();
+    if (document.body.classList.contains('mob-scenario-sheet-open')) mobRenderScenarioSheetList();
 };
 
 window.addEventListener('load', function() {
-    mobRenderScenarioSelect();
+    mobRenderScenarioTrigger();
 });
 
 // ===== SCENARIO SELECTOR POPOVER (PC) =====
