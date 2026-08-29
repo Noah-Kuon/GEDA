@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.0.5                                          ║
+  ║  Qcard PRO  v3.1.0                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8721,7 +8721,7 @@ function sortCardsByContent() {
     active.updatedAt = nowMs();
     saveScenarios();
 
-    renderGrid(active.data);
+    updateGrid(); // [FIX] renderGrid直呼びだとモバイルビュー(mSync)が同期されないため updateGrid に変更
     closeDataModal();
     showToast('入力済みのカードを前に整列しました');
 }
