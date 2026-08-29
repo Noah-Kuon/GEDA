@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.0.1                                         ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2402,7 +2402,7 @@
         }
         .mss-row-wrap {
             position: relative;
-            overflow: hidden;
+            overflow: visible;
             border-radius: 10px;
             margin-bottom: 6px;
         }
@@ -2414,6 +2414,7 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 0.78rem;
             border: none;
+            border-radius: 10px;
             -webkit-tap-highlight-color: transparent;
         }
         .mss-row {
@@ -2428,11 +2429,38 @@
             touch-action: pan-y;
             transition: transform 0.18s ease;
             -webkit-tap-highlight-color: transparent;
+            overflow: hidden;
         }
         .mss-row.active { border-color: var(--accent); background: rgba(61,139,255,0.08); }
         .mss-row.dragging-swipe { transition: none; }
+        .mss-row-grip { color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; letter-spacing: -1px; }
         .mss-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .mss-row-count { font-size: 0.68rem; color: var(--text-dim); flex-shrink: 0; }
+
+        /* [NEW] 長押し→ドラッグでの並べ替え */
+        .mss-row-wrap.mss-armed .mss-row {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(61,139,255,0.15);
+        }
+        .mss-row-wrap.mss-dragging {
+            transition: none;
+        }
+        .mss-row-wrap.mss-dragging .mss-row {
+            transition: none;
+            border-color: var(--accent);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+            background: var(--surface3, var(--surface2));
+        }
+        .mss-row-wrap.drop-insert-before::before,
+        .mss-row-wrap.drop-insert-after::after {
+            content: '';
+            position: absolute; left: 4px; right: 4px;
+            height: 3px; border-radius: 2px;
+            background: var(--accent);
+            z-index: 40;
+        }
+        .mss-row-wrap.drop-insert-before::before { top: -4px; }
+        .mss-row-wrap.drop-insert-after::after   { bottom: -4px; }
 
         /* [NEW] シナリオ削除のUndoトースト（画像削除等の通常トーストとは別枠。ボタン付きのため） */
         #undo-toast {
@@ -12216,6 +12244,10 @@ function mobRenderScenarioSheetList() {
         var row = document.createElement('div');
         row.className = 'mss-row' + (s.id === activeScenarioId ? ' active' : '');
 
+        var grip = document.createElement('span');
+        grip.className = 'mss-row-grip';
+        grip.textContent = '⠿';
+
         var name = document.createElement('span');
         name.className = 'mss-row-name';
         name.textContent = displayScenarioName(s, idx);
@@ -12224,12 +12256,11 @@ function mobRenderScenarioSheetList() {
         count.className = 'mss-row-count';
         count.textContent = ((s.data || []).filter(function(c){ return (c.title||'').trim() || (c.content||'').trim(); }).length) + '枚';
 
+        row.appendChild(grip);
         row.appendChild(name);
         row.appendChild(count);
 
-        // ── スワイプ（ポインタドラッグ）で削除ボタンを表出 ──
-        var startX = 0, startY = 0, curX = 0, dragging = false, axisLocked = null;
-        var longPressTimer = null;
+        wrap.dataset.sid = s.id;
 
         function openThisRow() {
             if (mssActiveOpenRow && mssActiveOpenRow !== row) mssCloseRow(mssActiveOpenRow);
@@ -12238,42 +12269,115 @@ function mobRenderScenarioSheetList() {
             mssActiveOpenRow = row;
         }
 
+        // ── ジェスチャー状態機械 ──
+        // idle → (横に動く)swiping → 離した位置に応じて削除ボタンを開閉（既存ロジック）
+        //      → (動かず550ms保持)armed → そのまま離す = 削除ボタンを開く（既存の「長押しで削除」を維持）
+        //                              → 縦にドラッグ = reordering（今回追加：掴んで並べ替え）
+        var phase = 'idle';
+        var startX = 0, startY = 0, curX = 0;
+        var longPressTimer = null;
+        var dropTargetSid = null, dropZone = null;
+
+        function clearDropIndicators() {
+            list.querySelectorAll('.mss-row-wrap.drop-insert-before, .mss-row-wrap.drop-insert-after')
+                .forEach(function(w){ w.classList.remove('drop-insert-before', 'drop-insert-after'); });
+        }
+
         row.addEventListener('pointerdown', function(e) {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
-            startX = e.clientX; startY = e.clientY; curX = 0; dragging = false; axisLocked = null;
-            row.classList.add('dragging-swipe');
+            phase = 'idle';
+            startX = e.clientX; startY = e.clientY; curX = 0;
+            dropTargetSid = null; dropZone = null;
+            try { row.setPointerCapture(e.pointerId); } catch (err) {}
             clearTimeout(longPressTimer);
-            // [NEW] 長押し：スワイプに気づかないユーザーのための発見しやすい代替導線
             longPressTimer = setTimeout(function() {
-                if (!dragging) { openThisRow(); if (navigator.vibrate) navigator.vibrate(15); }
-            }, 550);
+                if (phase === 'idle') {
+                    phase = 'armed';
+                    wrap.classList.add('mss-armed');
+                    if (navigator.vibrate) navigator.vibrate(15);
+                }
+            }, 500);
         });
+
         row.addEventListener('pointermove', function(e) {
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
-            if (axisLocked === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-                axisLocked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+
+            if (phase === 'idle') {
+                if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+                    clearTimeout(longPressTimer);
+                    phase = (Math.abs(dx) > Math.abs(dy)) ? 'swiping' : 'scrolling';
+                    if (phase === 'swiping') row.classList.add('dragging-swipe');
+                }
+                return;
             }
-            if (axisLocked !== 'x') return;
-            dragging = true;
-            clearTimeout(longPressTimer);
-            var base = row.classList.contains('open') ? MSS_SWIPE_OPEN : 0;
-            curX = Math.min(0, Math.max(MSS_SWIPE_OPEN, base + dx));
-            row.style.transform = 'translateX(' + curX + 'px)';
+            if (phase === 'swiping') {
+                var base = row.classList.contains('open') ? MSS_SWIPE_OPEN : 0;
+                curX = Math.min(0, Math.max(MSS_SWIPE_OPEN, base + dx));
+                row.style.transform = 'translateX(' + curX + 'px)';
+                return;
+            }
+            if (phase === 'armed') {
+                // [NEW] 長押し後にそのまま縦へ引っ張ったら「掴んで並べ替え」を開始
+                if (Math.abs(dy) > 8) {
+                    phase = 'reordering';
+                    wrap.classList.remove('mss-armed');
+                    wrap.classList.add('mss-dragging');
+                    wrap.style.zIndex = 50;
+                }
+                return;
+            }
+            if (phase === 'reordering') {
+                e.preventDefault();
+                wrap.style.transform = 'translateY(' + dy + 'px)';
+
+                clearDropIndicators();
+                dropTargetSid = null; dropZone = null;
+                var wraps = list.querySelectorAll('.mss-row-wrap');
+                for (var i = 0; i < wraps.length; i++) {
+                    var w = wraps[i];
+                    if (w === wrap) continue;
+                    var r = w.getBoundingClientRect();
+                    if (e.clientY >= r.top && e.clientY <= r.bottom) {
+                        dropZone = (e.clientY < r.top + r.height / 2) ? 'insert-before' : 'insert-after';
+                        w.classList.add(dropZone === 'insert-before' ? 'drop-insert-before' : 'drop-insert-after');
+                        dropTargetSid = w.dataset.sid;
+                        break;
+                    }
+                }
+            }
         });
-        function endDrag() {
+
+        function endGesture() {
             clearTimeout(longPressTimer);
-            row.classList.remove('dragging-swipe');
-            if (dragging) {
+            if (phase === 'swiping') {
+                row.classList.remove('dragging-swipe');
                 if (curX < MSS_SWIPE_OPEN / 2) openThisRow(); else mssCloseRow(row);
+            } else if (phase === 'armed') {
+                // [既存の挙動を維持] 動かさずに離した = 長押しで削除ボタンを開く
+                openThisRow();
+                if (navigator.vibrate) navigator.vibrate(15);
+            } else if (phase === 'reordering') {
+                wrap.classList.remove('mss-dragging');
+                wrap.style.transform = '';
+                wrap.style.zIndex = '';
+                clearDropIndicators();
+                if (dropTargetSid && dropTargetSid !== s.id) {
+                    reorderScenarios(s.id, dropTargetSid, dropZone);
+                    if (navigator.vibrate) navigator.vibrate(10);
+                }
             }
-            setTimeout(function(){ dragging = false; }, 0);
+            wrap.classList.remove('mss-armed');
+            var wasReordering = (phase === 'reordering');
+            phase = 'idle';
+            return wasReordering;
         }
-        row.addEventListener('pointerup', endDrag);
-        row.addEventListener('pointercancel', endDrag);
+        row.addEventListener('pointerup', endGesture);
+        row.addEventListener('pointercancel', endGesture);
 
         row.addEventListener('click', function() {
-            if (dragging || row.classList.contains('open')) return; // スワイプ操作の誤タップ切替を防止
+            // スワイプ操作・並べ替え操作の直後の誤タップ切替を防止
+            if (row.classList.contains('open') || phase !== 'idle') return;
             switchScenario(s.id);
             mobCloseScenarioSheet();
         });
