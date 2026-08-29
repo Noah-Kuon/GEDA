@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.0.2                                         ║
+  ║  Qcard PRO  v3.0.3                                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3519,7 +3519,7 @@ min-height: 0;
     <div class="mss-handle"></div>
     <div class="mss-header">
         <span data-i18n="mob_scenario_manage">シナリオを管理</span>
-        <span class="mss-hint" data-i18n="mob_scenario_del_hint">長押しでも削除できます</span>
+        <span class="mss-hint" data-i18n="mob_scenario_del_hint">スワイプで削除／長押しで並べ替え</span>
     </div>
     <div id="mob-scenario-sheet-list"></div>
     <button type="button" id="mob-scenario-sheet-add" onclick="addScenario(); mobCloseScenarioSheet();" data-i18n="mob_scenario_add_new">＋ 新規シナリオ</button>
@@ -4800,7 +4800,7 @@ const I18N = {
         mob_add_scenario:   'シナリオ追加',
         mob_add_row:        '行追加',
         mob_scenario_manage:   'シナリオを管理',
-        mob_scenario_del_hint: '長押しでも削除できます',
+        mob_scenario_del_hint: 'スワイプで削除／長押しで並べ替え',
         mob_scenario_add_new:  '＋ 新規シナリオ',
         mob_fab_add_card:      'カードを追加',
         toast_scenario_deleted:' を削除しました',
@@ -5016,7 +5016,7 @@ const I18N = {
         mob_add_scenario:   'Add scenario',
         mob_add_row:        'Add row',
         mob_scenario_manage:   'Manage scenarios',
-        mob_scenario_del_hint: 'You can also hold to delete',
+        mob_scenario_del_hint: 'Swipe to delete, hold to reorder',
         mob_scenario_add_new:  '+ New scenario',
         mob_fab_add_card:      'Add card',
         toast_scenario_deleted:' deleted',
@@ -12265,8 +12265,12 @@ function mobRenderScenarioSheetList() {
         nameInput.value = displayScenarioName(s, idx);
         nameInput.placeholder = t('default_scenario') + (idx + 1);
         // 入力欄の操作がスワイプ／並べ替えのジェスチャーやシナリオ切替と衝突しないようにする
-        ['pointerdown', 'mousedown', 'click'].forEach(function(evt) {
+        ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function(evt) {
             nameInput.addEventListener(evt, function(e) { e.stopPropagation(); });
+        });
+        // [NEW] シングルタップでそのまま書き換えられるよう、フォーカス時に全選択状態にする
+        nameInput.addEventListener('focus', function() {
+            nameInput.select();
         });
         nameInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') nameInput.blur();
@@ -12338,7 +12342,7 @@ function mobRenderScenarioSheetList() {
             if (phase === 'idle') {
                 // [FIX] 明確な横方向フリックだけをスワイプ削除として即座に確定させる。
                 // それ以外の小さなブレでは長押しタイマーを止めない（安定した掴み判定のため）。
-                if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                if (Math.abs(dx) > 5 && Math.abs(dx) > Math.abs(dy) * 1.1) {
                     clearTimeout(longPressTimer);
                     phase = 'swiping';
                     row.classList.add('dragging-swipe');
