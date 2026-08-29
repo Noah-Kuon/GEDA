@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v3.0.3                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2426,7 +2426,9 @@
             border-radius: 10px;
             font-size: 0.85rem;
             color: var(--text);
-            touch-action: pan-y;
+            touch-action: none; /* [FIX] pan-y だと純粋な縦ドラッグをブラウザがスクロールとして奪ってしまい、
+                                    reordering中に pointercancel が飛んで掴みが解除されていた。
+                                    スクロールはJS側で自前に再現する（上の pointermove 参照） */
             transition: transform 0.18s ease;
             -webkit-tap-highlight-color: transparent;
             -webkit-user-select: none; user-select: none; /* [FIX] 長押し時にネイティブのテキスト選択が割り込まないように */
@@ -12327,7 +12329,7 @@ function mobRenderScenarioSheetList() {
         // 保持中の指のわずかなブレが横/縦どちらかに誤判定され、並べ替えが始まらないことがあった。
         // 長押しは時間だけで確定させ、方向判定に依存しないようにする。
         var phase = 'idle';
-        var startX = 0, startY = 0, curX = 0;
+        var startX = 0, startY = 0, curX = 0, lastY = 0;
         var longPressTimer = null;
         var dropTargetSid = null, dropZone = null;
 
@@ -12346,7 +12348,7 @@ function mobRenderScenarioSheetList() {
         row.addEventListener('pointerdown', function(e) {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             phase = 'idle';
-            startX = e.clientX; startY = e.clientY; curX = 0;
+            startX = e.clientX; startY = e.clientY; curX = 0; lastY = e.clientY;
             dropTargetSid = null; dropZone = null;
             try { row.setPointerCapture(e.pointerId); } catch (err) {}
             clearTimeout(longPressTimer);
@@ -12358,6 +12360,8 @@ function mobRenderScenarioSheetList() {
         row.addEventListener('pointermove', function(e) {
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
+            var stepY = e.clientY - lastY;
+            lastY = e.clientY;
 
             if (phase === 'idle') {
                 // [FIX] さらに感度を上げる：横移動が縦移動を上回った時点で即スワイプ確定
@@ -12366,7 +12370,8 @@ function mobRenderScenarioSheetList() {
                     phase = 'swiping';
                     row.classList.add('dragging-swipe');
                 } else if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) {
-                    // 明確な縦フリック＝リストのスクロール。長押しは諦めてブラウザに任せる。
+                    // [FIX] 明確な縦フリック＝リストのスクロール。
+                    // touch-action は none にしたため（下記理由）ここは自前でスクロールさせる。
                     clearTimeout(longPressTimer);
                     phase = 'scrolling';
                 }
@@ -12376,6 +12381,11 @@ function mobRenderScenarioSheetList() {
                 var base = row.classList.contains('open') ? MSS_SWIPE_OPEN : 0;
                 curX = Math.min(0, Math.max(MSS_SWIPE_OPEN, base + dx));
                 row.style.transform = 'translateX(' + curX + 'px)';
+                return;
+            }
+            if (phase === 'scrolling') {
+                // [NEW] touch-action:pan-y をやめた代わりに、純粋な縦スクロールは自前で再現する
+                list.scrollTop -= stepY;
                 return;
             }
             if (phase === 'reordering') {
