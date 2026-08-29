@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v3.0.5                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3285,7 +3285,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.0.0</span>
+    <span class="version-badge">v3.1.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4057,6 +4057,11 @@ min-height: 0;
             <button class="dm-action" onclick="copyToClipboard('all')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">全シナリオをコピー</div></div>
+            </button>
+            <hr class="dm-divider">
+            <button class="dm-action" onclick="confirmSortCards()">
+                <span class="dm-icon">⇅</span>
+                <div><div class="dm-label">入力済みを前に整列</div><div class="dm-desc">空のカードを後ろへまとめる</div></div>
             </button>
             <hr class="dm-divider">
             <div class="dm-section-label">録音データ</div>
@@ -8685,6 +8690,48 @@ function closeDataModal() {
     document.getElementById('data-modal-backdrop').style.display = 'none';
     document.getElementById('data-modal').style.display          = 'none';
 }
+
+// ================================================================
+// Qcard: 入力済みカードを前に整列
+// 既存の getCurrentGridData() / renderGrid() のDOM順序⇔配列変換を
+// 利用するだけで、rows*cols の総数やURIリンクには一切触れない
+// ================================================================
+
+function sortCardsByContent() {
+    var active = getActive();
+    if (!active) return;
+
+    // 未保存の編集内容を確定してから並べ替える
+    saveCurrentGridData();
+
+    var data = active.data || [];
+    if (data.length === 0) return;
+
+    var hasContent = function(card) {
+        return !!((card.title && card.title.trim()) ||
+                   (card.content && card.content.trim()) ||
+                   card.hasMedia || card.mediaId);
+    };
+
+    var filled = data.filter(hasContent);
+    var empty  = data.filter(function(c) { return !hasContent(c); });
+
+    // 総数は変えない。入力ありを前に、空を後ろに詰めるだけ
+    active.data = filled.concat(empty);
+    active.updatedAt = nowMs();
+    saveScenarios();
+
+    renderGrid(active.data);
+    closeDataModal();
+    showToast('入力済みのカードを前に整列しました');
+}
+
+function confirmSortCards() {
+    if (confirm('入力済みのカードを前に詰めて並び替えます。\n（空のカードは後ろに移動します）\n\nよろしいですか？')) {
+        sortCardsByContent();
+    }
+}
+
 
 // ===== QCF v1.0 エクスポート =====
 
