@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.0.3                                         ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2429,6 +2429,7 @@
             touch-action: pan-y;
             transition: transform 0.18s ease;
             -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none; user-select: none; /* [FIX] 長押し時にネイティブのテキスト選択が割り込まないように */
             overflow: hidden;
         }
         .mss-row.active {
@@ -2438,6 +2439,12 @@
         }
         .mss-row.dragging-swipe { transition: none; }
         .mss-row-grip { color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; letter-spacing: -1px; }
+        .mss-row-name-label {
+            flex: 1; min-width: 0;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            padding: 4px 2px;
+            cursor: text;
+        }
         .mss-row-name-input {
             flex: 1; min-width: 0;
             overflow: hidden; text-overflow: ellipsis;
@@ -2446,16 +2453,21 @@
             font-family: 'Noto Sans JP', sans-serif;
             padding: 4px 2px;
             border-radius: 4px;
+            -webkit-user-select: text; user-select: text;
         }
         .mss-row-name-input:focus { background: var(--surface3, rgba(255,255,255,0.06)); }
         .mss-row-count { font-size: 0.68rem; color: var(--text-dim); flex-shrink: 0; }
 
-        /* [NEW] 長押しで掴んで並べ替え */
+        /* [NEW] 長押しで掴んで並べ替え：グリッド1列表示のカードドラッグ（.grid-item.dragging）と
+           同じ「浮く＋枠線が破線になる」見た目に揃える */
         .mss-row-wrap.mss-dragging {
             transition: none;
         }
         .mss-row-wrap.mss-dragging .mss-row {
             transition: none;
+            opacity: 0.85;
+            transform: scale(0.97);
+            border-style: dashed;
             border-color: var(--accent);
             box-shadow: 0 10px 24px rgba(0,0,0,0.35);
             background: var(--surface3, var(--surface2));
@@ -12257,37 +12269,45 @@ function mobRenderScenarioSheetList() {
         grip.className = 'mss-row-grip';
         grip.textContent = '⠿';
 
-        // [NEW] シナリオ名をこの場でリネームできるよう、テキストではなく入力欄にする
-        var nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.className = 'mss-row-name-input';
-        nameInput.maxLength = 12;
-        nameInput.value = displayScenarioName(s, idx);
-        nameInput.placeholder = t('default_scenario') + (idx + 1);
-        // 入力欄の操作がスワイプ／並べ替えのジェスチャーやシナリオ切替と衝突しないようにする
-        ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function(evt) {
-            nameInput.addEventListener(evt, function(e) { e.stopPropagation(); });
-        });
-        // [NEW] シングルタップでそのまま書き換えられるよう、フォーカス時に全選択状態にする
-        nameInput.addEventListener('focus', function() {
-            nameInput.select();
-        });
-        nameInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') nameInput.blur();
-            e.stopPropagation();
-        });
-        nameInput.addEventListener('change', function() {
-            s.name = nameInput.value.trim();
-            renderScenarioTabs(); // PCタブ／トリガー表示／このシート自体を含め全UIを即時同期
-            triggerSave(saveScenarios);
-        });
+        // [FIX] 常時<input>だと、モバイルブラウザが長押しをネイティブのテキスト選択／
+        // キーボード起動として奪ってしまい、長押し＝並べ替えが発火しなかった。
+        // 通常時はただの<span>（グリッド1列表示のカードラベルと同じ扱い）にしておき、
+        // タップした瞬間だけ<input>に差し替えて即編集できるようにする。
+        var nameLabel = document.createElement('span');
+        nameLabel.className = 'mss-row-name-label';
+        nameLabel.textContent = displayScenarioName(s, idx);
+
+        function swapToInput() {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'mss-row-name-input';
+            input.maxLength = 12;
+            input.value = displayScenarioName(s, idx);
+            input.placeholder = t('default_scenario') + (idx + 1);
+            // 入力欄の操作がスワイプ／並べ替えのジェスチャーと衝突しないようにする
+            ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function(evt) {
+                input.addEventListener(evt, function(e) { e.stopPropagation(); });
+            });
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') input.blur();
+                e.stopPropagation();
+            });
+            input.addEventListener('blur', function() {
+                s.name = input.value.trim();
+                renderScenarioTabs(); // PCタブ／トリガー表示／このシート自体を含め全UIを即時同期（labelに戻る）
+                triggerSave(saveScenarios);
+            });
+            row.replaceChild(input, nameLabel);
+            input.focus();
+            input.select(); // シングルタップ後そのまま打ち直せるよう全選択
+        }
 
         var count = document.createElement('span');
         count.className = 'mss-row-count';
         count.textContent = ((s.data || []).filter(function(c){ return (c.title||'').trim() || (c.content||'').trim(); }).length) + '枚';
 
         row.appendChild(grip);
-        row.appendChild(nameInput);
+        row.appendChild(nameLabel);
         row.appendChild(count);
 
         wrap.dataset.sid = s.id;
@@ -12340,9 +12360,8 @@ function mobRenderScenarioSheetList() {
             var dy = e.clientY - startY;
 
             if (phase === 'idle') {
-                // [FIX] 明確な横方向フリックだけをスワイプ削除として即座に確定させる。
-                // それ以外の小さなブレでは長押しタイマーを止めない（安定した掴み判定のため）。
-                if (Math.abs(dx) > 5 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+                // [FIX] さらに感度を上げる：横移動が縦移動を上回った時点で即スワイプ確定
+                if (Math.abs(dx) > 4 && Math.abs(dx) >= Math.abs(dy)) {
                     clearTimeout(longPressTimer);
                     phase = 'swiping';
                     row.classList.add('dragging-swipe');
@@ -12400,9 +12419,10 @@ function mobRenderScenarioSheetList() {
         row.addEventListener('pointerup', endGesture);
         row.addEventListener('pointercancel', endGesture);
 
-        row.addEventListener('click', function() {
+        row.addEventListener('click', function(e) {
             // スワイプ操作・並べ替え操作の直後の誤タップ切替を防止
             if (row.classList.contains('open') || phase !== 'idle') return;
+            if (e.target === nameLabel) { swapToInput(); return; }
             switchScenario(s.id);
             mobCloseScenarioSheet();
         });
