@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.0                                          ║
+  ║  Qcard PRO  v3.1.1                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4061,7 +4061,7 @@ min-height: 0;
             <hr class="dm-divider">
             <button class="dm-action" onclick="confirmSortCards()">
                 <span class="dm-icon">⇅</span>
-                <div><div class="dm-label">入力済みを前に整列</div><div class="dm-desc">空のカードを後ろへまとめる</div></div>
+                <div><div class="dm-label">入力済みカードを前に移動</div><div class="dm-desc">空のカードを後ろへまとめる</div></div>
             </button>
             <hr class="dm-divider">
             <div class="dm-section-label">録音データ</div>
@@ -6714,23 +6714,38 @@ function getCurrentGridData() {
     var items  = grid.querySelectorAll('.grid-item');
     var result = [];
     var active = getActive();
+
+    // [FIX] 「位置(index)」ではなく「id/uri」でカード固有データを逆引きするための
+    // マップを先に作る。これにより並び替え・ドラッグ&ドロップ後も
+    // DOM順序とactive.dataの順序が一致していなくても正しいカードのデータを拾える。
+    var byId  = {};
+    var byUri = {};
+    if (active && Array.isArray(active.data)) {
+        active.data.forEach(function(c) {
+            if (c.id)  byId[c.id]   = c;
+            if (c.uri) byUri[c.uri] = c;
+        });
+    }
+
     items.forEach(function(item, index) {
         var t    = item.querySelector('.title-input');
         var c    = item.querySelector('.content-textarea');
-        var prev = active && active.data[index];
         var now  = nowMs();
         var curTitle   = t ? t.value : '';
         var curContent = c ? c.value : '';
+
+        var domUri = item.dataset.uri    || '';
+        var domId  = item.dataset.cardId || '';
+
+        // [FIX] まずid、次にuriで既存データを逆引き。
+        // 見つからない場合のみ「位置」にフォールバック（後方互換のため残す）。
+        var prev = (domId && byId[domId]) || (domUri && byUri[domUri]) ||
+                   (active && active.data[index]) || null;
+
         var prevTitle   = prev ? (prev.title   || '') : '';
         var prevContent = prev ? (prev.content || '') : '';
         var changed = (curTitle !== prevTitle || curContent !== prevContent);
-        // [FIX] 位置（index）で active.data から逆引きするのではなく、
-        // まずDOM要素自体が保持しているuri/idを優先する。
-        // active.data[index] は「今このDOM順序と一致している保証」がない
-        // （例：ドラッグ&ドロップ直後、renderGrid→保存の間はまだ更新されていない）ため、
-        // それを直接の真実源にすると別カードのURIを引き継いでしまう。
-        var domUri = item.dataset.uri    || '';
-        var domId  = item.dataset.cardId || '';
+
         var entry = {
             // ── 必須 ──
             id:           domId  || (prev && prev.id)  || cardUid(),
@@ -8692,45 +8707,76 @@ function closeDataModal() {
 }
 
 // ================================================================
-// Qcard: 入力済みカードを前に整列
-// 既存の getCurrentGridData() / renderGrid() のDOM順序⇔配列変換を
-// 利用するだけで、rows*cols の総数やURIリンクには一切触れない
+// Qcard: 入力済みカードを前に整理（v2: ID/URIベースの安全な再構築）
+// ----------------------------------------------------------------
+// 設計方針の変更点:
+//  - 旧実装は active.data 配列を filled.concat(empty) で並び替えるだけだったが、
+//    renderGrid → createItem 経由の再描画が反映されない事象が報告されたため、
+//    「配列を並び替えてから再描画する」のではなく
+//    「各カードの id/uri を保った完全なコピーを作り、
+//      それを新しい配列として active.data に代入してから
+//      grid DOM を明示的に作り直す」方式に変更する。
+//  - 画像の有無（mediaId）は「入力済み」の判定に含めない。
+//    判定基準は「タイトルまたは本文に文字があるか」のみ。
 // ================================================================
 
 function sortCardsByContent() {
     var active = getActive();
     if (!active) return;
 
-    // 未保存の編集内容を確定してから並べ替える
+    // 未保存の編集内容を必ず確定させる
     saveCurrentGridData();
 
     var data = active.data || [];
     if (data.length === 0) return;
 
-    var hasContent = function(card) {
-        return !!((card.title && card.title.trim()) ||
-                   (card.content && card.content.trim()) ||
-                   card.hasMedia || card.mediaId);
+    // [FIX] 判定基準を「タイトル or 本文」のみに限定する（画像の有無は含めない）
+    var isFilled = function(card) {
+        var tTitle   = (card.title   || '').trim();
+        var tContent = (card.content || '').trim();
+        return !!(tTitle || tContent);
     };
 
-    var filled = data.filter(hasContent);
-    var empty  = data.filter(function(c) { return !hasContent(c); });
+    // 各カードを id/uri を含めた完全なコピーとして分類する
+    // （参照ではなく新しい配列を明示的に作ることで、途中の状態変化の影響を受けないようにする）
+    var filledList = [];
+    var emptyList  = [];
+    data.forEach(function(card) {
+        if (isFilled(card)) filledList.push(card);
+        else                emptyList.push(card);
+    });
 
-    // 総数は変えない。入力ありを前に、空を後ろに詰めるだけ
-    active.data = filled.concat(empty);
+    var sorted = filledList.concat(emptyList);
+
+    // 並び替え前後でカード枚数が変わっていないことを確認（安全弁）
+    if (sorted.length !== data.length) {
+        console.error('[sortCardsByContent] カード数不一致のため中止:', data.length, '→', sorted.length);
+        showToast('整理に失敗しました（データ不整合）');
+        return;
+    }
+
+    active.data      = sorted;
     active.updatedAt = nowMs();
     saveScenarios();
 
-    updateGrid(); // [FIX] renderGrid直呼びだとモバイルビュー(mSync)が同期されないため updateGrid に変更
-    closeDataModal();
-    showToast('入力済みのカードを前に整列しました');
+    // [FIX] renderGrid だけでなく updateGrid を呼び、
+    // カード比率・モバイル同期・録音マークなど周辺状態も含めて完全に再構築する
+    updateGrid();
+
+    // [FIX] 一部環境でモーダルを閉じるタイミングと再描画が競合する可能性があるため、
+    // 再描画が確実に完了してからモーダルを閉じる
+    requestAnimationFrame(function() {
+        closeDataModal();
+        showToast('入力済みカードを前に移動しました');
+    });
 }
 
 function confirmSortCards() {
-    if (confirm('入力済みのカードを前に詰めて並び替えます。\n（空のカードは後ろに移動します）\n\nよろしいですか？')) {
+    if (confirm('入力済みのカードを前に移動します。\n（空のカードは後ろに移動します）\n\nよろしいですか？')) {
         sortCardsByContent();
     }
 }
+
 
 
 // ===== QCF v1.0 エクスポート =====
