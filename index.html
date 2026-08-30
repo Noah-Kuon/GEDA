@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v3.1.0                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -59,7 +59,9 @@
             background: var(--bg);
             color: var(--text);
             font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
-            height: 100vh;
+            height: 100vh; /* フォールバック（dvh非対応ブラウザ用） */
+            height: 100dvh; /* [FIX] モバイルブラウザのアドレスバー分を除いた実高さを使用し、
+                                下部のナビゲーション（‹ N/N ›）が画面外に見切れる問題を解消 */
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -2346,10 +2348,8 @@
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
         }
+        body.mob-swipe #mob-fab-add-card { display: none !important; } /* [FIX] フリップ(スワイプ)表示中は編集に集中させるため非表示 */
         #mob-fab-add-card:active { transform: scale(0.94); }
-        /* [FIX] スワイプ表示では「⋯」の複製/貼り付けポップアップが右下から上に開くため、
-           そこに重ならないようFABをこの画面だけ左下へ移す（グリッド表示は従来通り右下） */
-        body.mob-swipe #mob-fab-add-card { left: 16px; right: auto; }
 
         /* [NEW] シナリオ管理ボトムシート */
         #mob-scenario-sheet-overlay {
@@ -2614,27 +2614,9 @@ min-height: 0;
             gap: 12px;
             overflow-y: auto;
             min-height: 0;
-            position: relative; /* [NEW] カウンタバッジの基準位置 */
             
             /* 💡 追加：中身の要素を横いっぱいに強制引き伸ばし */
             align-items: stretch !important; 
-        }
-        /* [NEW] カード右上：現在位置／総数バッジ。下部ナビの小さい文字だけでは
-           気づきにくいという指摘への対応で、視界に入りやすいカード面に重ねて表示する */
-        .mob-card-counter-badge {
-            display: none;
-            position: absolute;
-            top: 10px; right: 12px;
-            background: var(--surface3);
-            border: 1px solid var(--border2);
-            border-radius: 20px;
-            padding: 3px 10px;
-            font-family: 'DM Mono', monospace;
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: var(--text-dim);
-            z-index: 5;
-            pointer-events: none;
         }
         .mob-card-title {
             font-size: 1.1rem;
@@ -2693,6 +2675,14 @@ min-height: 0;
             color: var(--text-dim); cursor: pointer; line-height: 1;
             flex-shrink: 0; /* [FIX] タッチ領域を44px確保し、他要素に押し潰されないようにする */
         }
+        /* [NEW] 🔗カードをリンク：独立行だったものをコピー行に統合し縦スペースを削減 */
+        .mob-clip-link-btn {
+            background: var(--surface3); border: 1px solid var(--border);
+            border-radius: 50%; width: 44px; height: 44px; font-size: 1rem;
+            color: var(--text-dim); cursor: pointer; line-height: 1;
+            flex-shrink: 0;
+        }
+        .mob-clip-link-btn:active { background: var(--surface2); }
         .mob-clip-menu {
             display: none;
             position: absolute; bottom: 100%; right: 0; margin-bottom: 6px;
@@ -2789,7 +2779,8 @@ min-height: 0;
         /* ── ナビゲーション ── */
         #mobile-nav {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 6px 16px 10px; flex-shrink: 0;
+            padding: 6px 16px 10px;
+            flex-shrink: 0; /* [FIX] 上の要素が伸びても潰れず、常に表示領域を確保する */
         }
         .mob-nav-btn {
             background: var(--surface2); border: 1px solid var(--border); color: var(--text);
@@ -2829,9 +2820,6 @@ min-height: 0;
         body.mob-grid1 .drag-handle { display: none !important; }
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
-        /* [NEW] 1列表示限定：カードのスワイプ削除。PC/2列/スワイプ表示には一切影響しない */
-        body.mob-grid1 .grid-item { touch-action: none; }
-        .grid-item.card-swiping { transition: none !important; }
 
 /* ── グリッド2列 ── */
         body.mob-grid2 .grid-container {
@@ -3309,7 +3297,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.0.0</span>
+    <span class="version-badge">v3.1.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3568,7 +3556,7 @@ min-height: 0;
 <!-- [NEW] シナリオ削除のUndoトースト -->
 <div id="undo-toast">
     <span id="undo-toast-msg"></span>
-    <button type="button" id="undo-toast-btn" onclick="mobUndoLastAction()" data-i18n="undo_label">元に戻す</button>
+    <button type="button" id="undo-toast-btn" onclick="mobUndoDeleteScenario()" data-i18n="undo_label">元に戻す</button>
 </div>
 
 <!-- SCENARIO BAR -->
@@ -4081,6 +4069,11 @@ min-height: 0;
             <button class="dm-action" onclick="copyToClipboard('all')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">全シナリオをコピー</div></div>
+            </button>
+            <hr class="dm-divider">
+            <button class="dm-action" onclick="confirmSortCards()">
+                <span class="dm-icon">⇅</span>
+                <div><div class="dm-label">入力済みカードを前に移動</div><div class="dm-desc">空のカードを後ろへまとめる</div></div>
             </button>
             <hr class="dm-divider">
             <div class="dm-section-label">録音データ</div>
@@ -4844,7 +4837,6 @@ const I18N = {
         mob_scenario_add_new:  '＋ 新規シナリオ',
         mob_fab_add_card:      'カードを追加',
         toast_scenario_deleted:' を削除しました',
-        toast_card_cleared:     ' を消去しました',
         undo_label:             '元に戻す',
         // TOASTS / CONFIRMS
         toast_img_added:    '🖼 画像を追加しました',
@@ -5061,7 +5053,6 @@ const I18N = {
         mob_scenario_add_new:  '+ New scenario',
         mob_fab_add_card:      'Add card',
         toast_scenario_deleted:' deleted',
-        toast_card_cleared:     ' cleared',
         undo_label:             'Undo',
         // TOASTS / CONFIRMS
         toast_img_added:    '🖼 Image added',
@@ -6735,23 +6726,38 @@ function getCurrentGridData() {
     var items  = grid.querySelectorAll('.grid-item');
     var result = [];
     var active = getActive();
+
+    // [FIX] 「位置(index)」ではなく「id/uri」でカード固有データを逆引きするための
+    // マップを先に作る。これにより並び替え・ドラッグ&ドロップ後も
+    // DOM順序とactive.dataの順序が一致していなくても正しいカードのデータを拾える。
+    var byId  = {};
+    var byUri = {};
+    if (active && Array.isArray(active.data)) {
+        active.data.forEach(function(c) {
+            if (c.id)  byId[c.id]   = c;
+            if (c.uri) byUri[c.uri] = c;
+        });
+    }
+
     items.forEach(function(item, index) {
         var t    = item.querySelector('.title-input');
         var c    = item.querySelector('.content-textarea');
-        var prev = active && active.data[index];
         var now  = nowMs();
         var curTitle   = t ? t.value : '';
         var curContent = c ? c.value : '';
+
+        var domUri = item.dataset.uri    || '';
+        var domId  = item.dataset.cardId || '';
+
+        // [FIX] まずid、次にuriで既存データを逆引き。
+        // 見つからない場合のみ「位置」にフォールバック（後方互換のため残す）。
+        var prev = (domId && byId[domId]) || (domUri && byUri[domUri]) ||
+                   (active && active.data[index]) || null;
+
         var prevTitle   = prev ? (prev.title   || '') : '';
         var prevContent = prev ? (prev.content || '') : '';
         var changed = (curTitle !== prevTitle || curContent !== prevContent);
-        // [FIX] 位置（index）で active.data から逆引きするのではなく、
-        // まずDOM要素自体が保持しているuri/idを優先する。
-        // active.data[index] は「今このDOM順序と一致している保証」がない
-        // （例：ドラッグ&ドロップ直後、renderGrid→保存の間はまだ更新されていない）ため、
-        // それを直接の真実源にすると別カードのURIを引き継いでしまう。
-        var domUri = item.dataset.uri    || '';
-        var domId  = item.dataset.cardId || '';
+
         var entry = {
             // ── 必須 ──
             id:           domId  || (prev && prev.id)  || cardUid(),
@@ -7349,71 +7355,6 @@ function createItem(index, d) {
 
     // [NEW] 既存の画像データを読み込んで表示（あれば）
     mediaLoadForCard(cardId, item, mediaImg);
-
-    // [NEW] モバイル1列表示限定：カードを横スワイプでクリア（消去）できるようにする。
-    // グリッドの行数・列数（rows×cols）は一切変更せず、このカードの中身だけを空にする方式にしている。
-    // 理由：PC版は rows×cols の固定グリッドでカード位置を管理しており、1枚だけ配列から取り除いて
-    // 詰め直すと行数の計算が崩れ、PC表示や既存のURI/位置対応と食い違うおそれがあるため。
-    // 実質的には「非表示にする(is-hidden)」のさらに強い版＝内容を空にする、という安全な形にした。
-    (function() {
-        var csPhase = 'idle';
-        var csStartX = 0, csStartY = 0, csLastY = 0, csDx = 0;
-        var csWrapperEl = null;
-        var CS_THRESHOLD = 90;
-
-        item.addEventListener('pointerdown', function(e) {
-            if (!document.body.classList.contains('mob-grid1')) return;
-            if (e.pointerType !== 'touch') return; // PC操作／既存のHTML5ドラッグ(mousedown系)とは完全に分離
-            csPhase = 'idle';
-            csStartX = e.clientX; csStartY = e.clientY; csLastY = e.clientY; csDx = 0;
-            csWrapperEl = item.closest('.grid-wrapper');
-            try { item.setPointerCapture(e.pointerId); } catch (err) {}
-        });
-
-        item.addEventListener('pointermove', function(e) {
-            if (!document.body.classList.contains('mob-grid1')) return;
-            if (csPhase === 'idle') {
-                var dx0 = e.clientX - csStartX, dy0 = e.clientY - csStartY;
-                if (Math.abs(dx0) > 6 && Math.abs(dx0) >= Math.abs(dy0)) {
-                    csPhase = 'swiping';
-                    item.classList.add('card-swiping');
-                } else if (Math.abs(dy0) > 10 && Math.abs(dy0) > Math.abs(dx0)) {
-                    csPhase = 'scrolling';
-                }
-                return;
-            }
-            if (csPhase === 'swiping') {
-                e.preventDefault();
-                csDx = e.clientX - csStartX;
-                item.style.transform = 'translateX(' + csDx + 'px)';
-                item.style.opacity = Math.max(0.2, 1 - Math.abs(csDx) / 220);
-                return;
-            }
-            if (csPhase === 'scrolling') {
-                // touch-action:none にしている代わりに、縦方向は自前でスクロールを再現する
-                var stepY = e.clientY - csLastY;
-                csLastY = e.clientY;
-                if (csWrapperEl) csWrapperEl.scrollTop -= stepY;
-            }
-        });
-
-        function csEnd() {
-            if (csPhase === 'swiping') {
-                item.classList.remove('card-swiping');
-                if (Math.abs(csDx) > CS_THRESHOLD) {
-                    mobRequestClearCard(item);
-                } else {
-                    item.style.transition = 'transform 0.18s ease, opacity 0.18s ease';
-                    item.style.transform = '';
-                    item.style.opacity = '';
-                    setTimeout(function() { item.style.transition = ''; }, 200);
-                }
-            }
-            csPhase = 'idle';
-        }
-        item.addEventListener('pointerup', csEnd);
-        item.addEventListener('pointercancel', csEnd);
-    })();
 
     return item;
 }
@@ -8776,6 +8717,79 @@ function closeDataModal() {
     document.getElementById('data-modal-backdrop').style.display = 'none';
     document.getElementById('data-modal').style.display          = 'none';
 }
+
+// ================================================================
+// Qcard: 入力済みカードを前に整理（v2: ID/URIベースの安全な再構築）
+// ----------------------------------------------------------------
+// 設計方針の変更点:
+//  - 旧実装は active.data 配列を filled.concat(empty) で並び替えるだけだったが、
+//    renderGrid → createItem 経由の再描画が反映されない事象が報告されたため、
+//    「配列を並び替えてから再描画する」のではなく
+//    「各カードの id/uri を保った完全なコピーを作り、
+//      それを新しい配列として active.data に代入してから
+//      grid DOM を明示的に作り直す」方式に変更する。
+//  - 画像の有無（mediaId）は「入力済み」の判定に含めない。
+//    判定基準は「タイトルまたは本文に文字があるか」のみ。
+// ================================================================
+
+function sortCardsByContent() {
+    var active = getActive();
+    if (!active) return;
+
+    // 未保存の編集内容を必ず確定させる
+    saveCurrentGridData();
+
+    var data = active.data || [];
+    if (data.length === 0) return;
+
+    // [FIX] 判定基準を「タイトル or 本文」のみに限定する（画像の有無は含めない）
+    var isFilled = function(card) {
+        var tTitle   = (card.title   || '').trim();
+        var tContent = (card.content || '').trim();
+        return !!(tTitle || tContent);
+    };
+
+    // 各カードを id/uri を含めた完全なコピーとして分類する
+    // （参照ではなく新しい配列を明示的に作ることで、途中の状態変化の影響を受けないようにする）
+    var filledList = [];
+    var emptyList  = [];
+    data.forEach(function(card) {
+        if (isFilled(card)) filledList.push(card);
+        else                emptyList.push(card);
+    });
+
+    var sorted = filledList.concat(emptyList);
+
+    // 並び替え前後でカード枚数が変わっていないことを確認（安全弁）
+    if (sorted.length !== data.length) {
+        console.error('[sortCardsByContent] カード数不一致のため中止:', data.length, '→', sorted.length);
+        showToast('整理に失敗しました（データ不整合）');
+        return;
+    }
+
+    active.data      = sorted;
+    active.updatedAt = nowMs();
+    saveScenarios();
+
+    // [FIX] renderGrid だけでなく updateGrid を呼び、
+    // カード比率・モバイル同期・録音マークなど周辺状態も含めて完全に再構築する
+    updateGrid();
+
+    // [FIX] 一部環境でモーダルを閉じるタイミングと再描画が競合する可能性があるため、
+    // 再描画が確実に完了してからモーダルを閉じる
+    requestAnimationFrame(function() {
+        closeDataModal();
+        showToast('入力済みカードを前に移動しました');
+    });
+}
+
+function confirmSortCards() {
+    if (confirm('入力済みのカードを前に移動します。\n（空のカードは後ろに移動します）\n\nよろしいですか？')) {
+        sortCardsByContent();
+    }
+}
+
+
 
 // ===== QCF v1.0 エクスポート =====
 
@@ -10952,8 +10966,16 @@ function rdSaveRate(v) {
         clipMenu.appendChild(clipClearBtn);
         var clipStatus = document.createElement('span');
         clipStatus.className = 'mob-clip-status';
+        // [FIX] 「🔗 カードをリンク」を独立行から、コピー行右側のアイコンボタンに統合し
+        //       縦スペースを1行分削減する（左右カード送りボタンの見切れ対策）
+        var clipLinkBtn = document.createElement('button');
+        clipLinkBtn.type = 'button';
+        clipLinkBtn.className = 'mob-clip-link-btn';
+        clipLinkBtn.innerHTML = '\uD83D\uDD17';
+        clipLinkBtn.title = 'カードをリンク';
         clipBar.appendChild(clipCopyBtn);
         clipBar.appendChild(clipStatus);
+        clipBar.appendChild(clipLinkBtn);
         clipBar.appendChild(clipMoreBtn);
         clipBar.appendChild(clipMenu);
 
@@ -10961,6 +10983,13 @@ function rdSaveRate(v) {
             e.stopPropagation();
             var idx = parseInt(clipBar.dataset.idx, 10);
             if (!isNaN(idx) && typeof mobClipboardCopy === 'function') mobClipboardCopy(idx);
+            // [FIX] 「保持中」テキストで行を増やす代わりに、ボタン自体を一時的に変化させて結果を伝える
+            clipCopyBtn.textContent = '✓ コピー済み';
+            clipCopyBtn.disabled = true;
+            setTimeout(function() {
+                clipCopyBtn.innerHTML = '📋 コピー';
+                clipCopyBtn.disabled = false;
+            }, 1200);
         });
         clipMoreBtn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -10989,42 +11018,32 @@ function rdSaveRate(v) {
             clipMenu.classList.remove('open');
         });
 
-        // [NEW] Card Link v0.1：Clipboardとは独立した操作領域（別行）として配置し、
-        // タップ領域・スワイプ操作との競合を避ける。
+        // [FIX] Card Link: リンクチップの表示専用バーに縮小（追加ボタンはclipBarに統合済み）
+        //       リンクが1件も無い場合はrenderSlide側で非表示にし、縦スペースを取らない
         var linkBar = document.createElement('div');
         linkBar.className = 'mob-link-bar';
         var linkList = document.createElement('div');
         linkList.className = 'mob-link-list';
-        var linkAddBtn = document.createElement('button');
-        linkAddBtn.type = 'button';
-        linkAddBtn.className = 'mob-link-add-btn';
-        linkAddBtn.innerHTML = '🔗 カードをリンク';
-        linkAddBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-        linkAddBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
-        linkAddBtn.addEventListener('click', function(e) {
+        linkBar.appendChild(linkList);
+
+        // [FIX] 🔗ボタン（clipBar内に統合）のクリックで、現在表示中のカードにリンクを追加する
+        clipLinkBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        clipLinkBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
+        clipLinkBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            var idx = parseInt(linkBar.dataset.idx, 10);
+            var idx = parseInt(clipBar.dataset.idx, 10);
             if (isNaN(idx)) return;
             var data = getData();
             var d = data[idx];
             if (!d) return;
-            // PC用オーバーレイのピッカーを、モバイルSwipeの現在カードに紐づけて開く
             var gridItem = getGridItem(data, idx);
             if (gridItem) {
                 editCardItem = gridItem;
                 if (typeof cardLinkOpenPicker === 'function') cardLinkOpenPicker();
             }
         });
-        linkBar.appendChild(linkList);
-        linkBar.appendChild(linkAddBtn);
-
-        // [NEW] カード右上：現在位置／総数バッジ（下部ナビの小さいカウンタだけでは
-        // 気づきにくいという指摘への対応。現在表示中のスライドでのみ内容を入れる）
-        var counterBadge = document.createElement('div');
-        counterBadge.className = 'mob-card-counter-badge';
 
         inner.appendChild(hb);
-        inner.appendChild(counterBadge);
         inner.appendChild(t);
         inner.appendChild(c);
         inner.appendChild(s);
@@ -11141,18 +11160,6 @@ function rdSaveRate(v) {
         var isEdit  = (appMode === 'edit');
         var isStudy = (appMode === 'study');
 
-        // [NEW] カード右上のカウンタバッジ（現在のスライドのみ表示）
-        var counterBadgeEl = inner.querySelector('.mob-card-counter-badge');
-        if (counterBadgeEl) {
-            if (slide === slides[1]) {
-                var totalLen = (dataArr ? dataArr.length : 0);
-                counterBadgeEl.textContent = totalLen ? ((mIdx + 1) + ' / ' + totalLen) : '';
-                counterBadgeEl.style.display = totalLen ? 'block' : 'none';
-            } else {
-                counterBadgeEl.style.display = 'none';
-            }
-        }
-
         // [FIX] 非表示カード：バッジを表示し、タップで解除できるようにする
         var hiddenBadge = inner.querySelector('.mob-hidden-flip-badge');
         if (hiddenBadge) {
@@ -11190,18 +11197,18 @@ function rdSaveRate(v) {
             if (clearBtn) clearBtn.style.display = cardClipboard ? '' : 'none';
         }
 
-        // [NEW] Card Link v0.1：リンク一覧・追加ボタン（Clipboardバーとは別の独立した操作領域）
+        // [FIX] Card Link v0.1：リンクチップの表示専用（追加ボタンはclipBar内の🔗に統合済み）。
+        //       リンクが1件も無い場合は表示せず、縦スペースを取らない。
         var linkBar = inner.querySelector('.mob-link-bar');
         if (linkBar) {
             linkBar.dataset.idx = idx;
-            var showLinkBar = !!(d && (appMode === 'view' || appMode === 'edit'));
+            var linkArrForVisibility = (d && Array.isArray(d.links)) ? d.links : [];
+            var showLinkBar = !!(d && linkArrForVisibility.length > 0 && (appMode === 'view' || appMode === 'edit'));
             linkBar.style.display = showLinkBar ? 'flex' : 'none';
-            var linkAddBtnEl = linkBar.querySelector('.mob-link-add-btn');
-            if (linkAddBtnEl) linkAddBtnEl.style.display = (appMode === 'edit') ? '' : 'none';
             var linkListEl = linkBar.querySelector('.mob-link-list');
             if (linkListEl) {
                 linkListEl.innerHTML = '';
-                var linkArr = (d && Array.isArray(d.links)) ? d.links : [];
+                var linkArr = linkArrForVisibility;
                 linkArr.forEach(function(link) {
                     var chip = document.createElement('span');
                     chip.className = 'mob-link-chip';
@@ -11476,11 +11483,6 @@ function rdSaveRate(v) {
         isSwiping   = false;
         swipeAxis   = null;
         stage.classList.remove('mob-animating');
-        // [FIX] 端でのラバーバンド時に隣接スライドが古い内容のまま覗いてしまうことがあったため、
-        // ドラッグを始める直前に prev/next の内容を必ず最新状態へ揃えておく
-        var _data = getData();
-        renderSlide(slides[0], _data, mIdx - 1);
-        renderSlide(slides[2], _data, mIdx + 1);
     }, { passive: true });
 
     stage.addEventListener('touchmove', function(e) {
@@ -12586,7 +12588,6 @@ function mobRequestDeleteScenario(id) {
 
     // 直前の削除がUndo待ちなら、新しい削除を始める前に確定させる（Undoは常に「直近1件」のみ）
     mobFinalizeDeleteScenario();
-    mobFinalizeCardClear();
 
     var target = scenarios[idx];
     var snapshot = JSON.parse(JSON.stringify(target));
@@ -12626,95 +12627,6 @@ function mobUndoDeleteScenario() {
     var toast = document.getElementById('undo-toast');
     if (toast) toast.classList.remove('show');
     pendingScenarioDelete = null;
-}
-
-// ── カードのスワイプクリア（ソフトデリート＋Undo）──
-// [NEW] グリッドの行数・列数は変えず、カードの中身（タイトル／本文／画像／非表示フラグ）だけを空にする。
-// Undo期限が切れるまでは画像の実データ（mediaDB）も消さず保持しておき、完全に復元できるようにしている。
-var pendingCardClear = null; // { item, snapshot, timer }
-
-function mobFinalizeCardClear() {
-    if (pendingCardClear) {
-        clearTimeout(pendingCardClear.timer);
-        if (pendingCardClear.snapshot.hadMedia && pendingCardClear.snapshot.mediaId) {
-            mediaDB.remove(pendingCardClear.snapshot.mediaId).catch(function(){});
-        }
-    }
-    pendingCardClear = null;
-}
-
-function mobRequestClearCard(item) {
-    // Undoは常に「直近1件」のみ。別の保留中アクションがあれば先に確定させる
-    mobFinalizeDeleteScenario();
-    mobFinalizeCardClear();
-
-    var tIn = item.querySelector('.title-input');
-    var cIn = item.querySelector('.content-textarea');
-    var snapshot = {
-        title: tIn ? tIn.value : '',
-        content: cIn ? cIn.value : '',
-        hidden: item.classList.contains('is-hidden'),
-        hadMedia: item.classList.contains('has-media'),
-        mediaId: item.dataset.mediaId
-    };
-
-    if (tIn) tIn.value = '';
-    if (cIn) cIn.value = '';
-    item.classList.remove('is-hidden');
-    item.classList.add('is-blank-card');
-    if (snapshot.hadMedia) {
-        item.classList.remove('has-media');
-        var img = item.querySelector('.card-media-layer img');
-        if (img) img.src = '';
-    }
-    saveCurrentGridDataWithIndicator();
-
-    // 消去アニメーション（グリッド上には空カードとして残る＝行数・列数は不変）
-    item.style.transition = 'transform 0.18s ease, opacity 0.18s ease';
-    item.style.transform = '';
-    item.style.opacity = '';
-    setTimeout(function() { item.style.transition = ''; }, 200);
-
-    var label = (snapshot.title || snapshot.content || '').slice(0, 12) || t('placeholder_title');
-    var msg = document.getElementById('undo-toast-msg');
-    if (msg) msg.textContent = '「' + label + '」' + t('toast_card_cleared');
-    var toast = document.getElementById('undo-toast');
-    if (toast) toast.classList.add('show');
-
-    pendingCardClear = {
-        item: item,
-        snapshot: snapshot,
-        timer: setTimeout(mobFinalizeCardClear, 4000)
-    };
-}
-
-function mobUndoClearCard() {
-    if (!pendingCardClear) return;
-    clearTimeout(pendingCardClear.timer);
-    var item = pendingCardClear.item;
-    var s = pendingCardClear.snapshot;
-    var tIn = item.querySelector('.title-input');
-    var cIn = item.querySelector('.content-textarea');
-    if (tIn) tIn.value = s.title;
-    if (cIn) cIn.value = s.content;
-    item.classList.toggle('is-hidden', s.hidden);
-    item.classList.toggle('is-blank-card', !(s.title || '').trim() && !(s.content || '').trim());
-    if (s.hadMedia) {
-        item.classList.add('has-media');
-        // Undo期限内はmediaDBから実削除していないため、再読み込みするだけで復元できる
-        mediaLoadForCard(s.mediaId, item, item.querySelector('.card-media-layer img'));
-    }
-    saveCurrentGridDataWithIndicator();
-
-    var toast = document.getElementById('undo-toast');
-    if (toast) toast.classList.remove('show');
-    pendingCardClear = null;
-}
-
-// [NEW] Undoトーストの「元に戻す」ボタンは共通化。保留中のアクションに応じて振り分ける
-function mobUndoLastAction() {
-    if (pendingScenarioDelete) { mobUndoDeleteScenario(); return; }
-    if (pendingCardClear)      { mobUndoClearCard(); return; }
 }
 
 // [NEW] カード追加FAB：既存の「行を追加」をそのまま呼ぶ（スワイプ表示中は新しい行の先頭へ自動ジャンプする挙動も既存のまま活きる）
