@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.0                                          ║
+  ║  Qcard PRO  v2.7.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3039,8 +3039,8 @@ min-height: 0;
 
     /* 学習モード タップヒント */
     .study-tap-hint {
-        font-size: 0.7rem;
-        color: var(--text-dim);
+        font-size: 0.78rem; /* [FIX] 視認性向上のため少し拡大 */
+        color: var(--text-muted); /* [FIX] text-dimより少し濃い色で気づきやすく */
         text-align: center;
         margin-top: 16px;
         pointer-events: none;
@@ -5947,7 +5947,9 @@ function setAppMode(mode) {
 
     // ── 7. モバイルスワイプUIを再描画 ──
     setTimeout(function() {
-        if (window.innerWidth <= 640 && document.body.classList.contains('mob-swipe')) {
+        // [FIX] isMobileViewport() に統一（studyShowの同期条件とズレないようにする）
+        var _isMob = (typeof isMobileViewport === 'function') ? isMobileViewport() : (window.innerWidth <= 640);
+        if (_isMob && document.body.classList.contains('mob-swipe')) {
             if (typeof window.mRenderAll === 'function') window.mRenderAll();
         }
         // 後方互換
@@ -11274,8 +11276,12 @@ function rdSaveRate(v) {
         // 学習モード：中央スライド（表示中）のみ表面（タイトルのみ）で初期化
         var isCurrent = (slide === slides[1]);
         if (isStudy) {
-            if (contentEl) contentEl.style.display = 'none';
-            // タップヒントを付与（中央スライドのみ）
+            // [FIX] 既にタップして裏返し済み（studyFlipped）の場合は表示状態を維持する。
+            // 以前は renderSlide が呼ばれるたびに無条件で contentEl を隠していたため、
+            // 何らかの再描画（他モード切替の巻き戻り等）で答えと評価ボタンが消えることがあった。
+            var keepFlipped = isCurrent && (typeof studyFlipped !== 'undefined') && studyFlipped;
+            if (contentEl) contentEl.style.display = keepFlipped ? '' : 'none';
+            // タップヒントを付与（中央スライドのみ、かつ未フリップ時のみ）
             var hint = inner.querySelector('.study-tap-hint');
             if (!hint) {
                 hint = document.createElement('div');
@@ -11283,7 +11289,12 @@ function rdSaveRate(v) {
                 hint.textContent = 'タップして答えを確認';
                 inner.appendChild(hint);
             }
-            hint.style.display = isCurrent ? '' : 'none';
+            hint.style.display = (isCurrent && !keepFlipped) ? '' : 'none';
+            // [FIX] フリップ済みなら評価ボタンも表示を維持する
+            if (keepFlipped) {
+                var evalBar = document.getElementById('mob-study-eval');
+                if (evalBar) evalBar.classList.add('show');
+            }
         } else {
             if (contentEl) contentEl.style.display = '';
             var oldHint = inner.querySelector('.study-tap-hint');
@@ -13092,8 +13103,11 @@ window.addEventListener('load', function() {
         }
 
         // ── モバイル：スワイプビューを studyCards[studyIdx] に同期 ──
-        // mIdx を studyCards[studyIdx] の origIdx に合わせて描画
-        if (window.innerWidth <= 640 && typeof window.mRenderAll === 'function') {
+        // [FIX] window.innerWidth <= 640 の直接比較ではなく、共通の isMobileViewport() に統一。
+        // 直接比較のままだと、判定基準が別ロジック（進捗サマリー更新など）とズレた場合に
+        // mRenderAll() 自体が呼ばれず、評価ボタン(mob-study-eval)が同期されない不整合が起きていた。
+        if ((typeof isMobileViewport === 'function' ? isMobileViewport() : (window.innerWidth <= 640))
+            && typeof window.mRenderAll === 'function') {
             // mIdx = studyIdx（studyCards配列順）
             window._studyMobIdx = studyIdx;
             window._studyCards   = studyCards;
