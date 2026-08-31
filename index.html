@@ -812,10 +812,23 @@
         body.media-hidden .grid-item .card-media-add-btn {
             display: none !important;
         }
+        /* [FIX] 画像OFF時、通常カード（画像なし）と全く同じレイアウトになるよう、
+           title-row/content-row それぞれの本来のdisplay/flex値に個別で合わせる。
+           以前は共通の .field-row に display:flex しか指定しておらず、
+           content-row に必要な flex:1（残りスペースを埋める指定）が欠けていたため
+           画像なしカードと高さの見え方が異なっていた。 */
         body.media-hidden .grid-item.has-media .title-input { display: block !important; }
         body.media-hidden .grid-item.has-media .content-textarea { display: block !important; }
         body.media-hidden .grid-item.has-media .item-meta { display: flex !important; }
-        body.media-hidden .grid-item.has-media .field-row { display: flex !important; }
+        body.media-hidden .grid-item.has-media .field-row.title-row { display: block !important; }
+        body.media-hidden .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
+
+        /* [NEW] 閲覧モードでは番号・ショートカット・非表示アイコン等の付帯UIを一切出さない。
+           カード（特に画像）をスクリーンショットする用途があるため、内容以外の余計な表示を完全に消す。
+           このルールは他の .item-meta 表示ルール（media-hidden等）より後に置き、
+           詳細度が同等の場合でも記述順で確実に勝つようにする。 */
+        body.view-mode .grid-item .item-meta,
+        body.view-mode .grid-item.has-media .item-meta { display: none !important; }
         body.edit-mode-active .grid-item:hover { border-color: var(--accent2); }
 
         .drag-handle {
@@ -853,12 +866,18 @@
 
         /* [NEW] 左上ステータススロット：学習アイコン／非表示アイコンのどちらか1つだけを表示する
            （優先順位は studyRenderBadges / applyHiddenClass 側のJSで制御） */
+        /* [FIX] 通常カードでは item-meta（番号）の右隣に並べる（重なりを避けるため通常フロー配置）。
+           画像カードの場合のみ、item-meta が絶対配置されるのに合わせて右上（削除✕ボタンの反対側＝左上）に別配置する。 */
         .item-status-slot {
-            position: absolute; top: 4px; left: 4px; z-index: 7;
             display: none;
             align-items: center; justify-content: center;
+            margin-left: 4px;
         }
         .item-status-slot.show { display: flex; }
+        /* [FIX] 画像カード時：item-status-slot は item-meta（絶対配置のコンテナ）の子として
+           番号ピルの右隣に自然に並ぶ（通常カードと同じ並び方になり、
+           右上の画像削除✕ボタンとも重ならない） */
+        .grid-item.has-media .item-status-slot { margin-left: 4px; }
         .item-status-slot .status-study-icon {
             font-size: 0.78rem; line-height: 1; pointer-events: none;
         }
@@ -7289,6 +7308,7 @@ function createItem(index, d) {
 
     meta.appendChild(num);
     meta.appendChild(badge);
+    // statusSlot は後で meta 内に追加する（この時点ではまだ生成前のため下で appendChild）
 
     // [NEW] 左上ステータススロット：学習アイコン／非表示アイコンのどちらか1つだけを表示する。
     // 実際の表示内容は updateItemStatusSlot() が優先順位に従って決める。
@@ -7527,9 +7547,12 @@ function createItem(index, d) {
     });
     item.tabIndex = -1; // ペーストイベントを受け取れるようにする
 
+    // [FIX] item-status-slot は item 直下ではなく meta（番号の並び）の中に入れ、
+    // 通常カードでは「#1」の右隣に自然に並ぶようにする（絶対配置の重なりを避けるため）
+    meta.appendChild(statusSlot);
+
     item.appendChild(handle);
     item.appendChild(meta);
-    item.appendChild(statusSlot); // [NEW] 学習アイコン／非表示アイコンの統合スロット
     item.appendChild(titleRow);
     item.appendChild(contentRow);
     item.appendChild(mediaAddBtn);
