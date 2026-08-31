@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.3                                          ║
+  ║  Qcard PRO  v3.1.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3102,6 +3102,48 @@ min-height: 0;
         font-family: 'DM Mono', monospace;
         color: var(--text-dim);
         white-space: nowrap;
+        cursor: pointer; /* [NEW] 各状態（✅/💡/❌/─）をクリックして絞り込み可能にする */
+    }
+    /* [NEW] クリック可能な4状態を視覚的に少し区別（見た目は極力現状維持） */
+    .study-progress-text .sp-seg { padding: 0 2px; border-radius: 3px; transition: background 0.12s, color 0.12s; }
+    .study-progress-text .sp-seg:hover  { background: var(--surface3); }
+    .study-progress-text .sp-seg.active { background: var(--accent); color: #fff; }
+
+    /* [NEW] モバイル：状態フィルターボタン群（進捗テキストの代わり） */
+    #mob-study-filter-bar {
+        display: flex; gap: 5px; justify-content: center;
+        margin-top: 2px; flex-wrap: nowrap;
+        overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    #mob-study-filter-bar::-webkit-scrollbar { display: none; }
+    .mob-study-filter-btn {
+        flex-shrink: 0;
+        background: var(--surface2); border: 1px solid var(--border);
+        border-radius: 7px; color: var(--text-muted);
+        font-family: 'DM Mono', monospace; font-size: 0.64rem;
+        padding: 3px 9px; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mob-study-filter-btn.active {
+        background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700;
+    }
+    /* [NEW] 現在のフィルター状態の説明 */
+    #mob-study-filter-current {
+        font-size: 0.62rem; color: var(--text-dim);
+        text-align: center; margin-top: 2px;
+    }
+    /* [NEW] フィルター対象0枚時の空状態（PC・モバイル共通トーン） */
+    #mob-study-empty, #study-empty-state {
+        display: none;
+        flex-direction: column; align-items: center; justify-content: center;
+        gap: 14px; padding: 40px 20px;
+        color: var(--text-muted); text-align: center; flex: 1;
+    }
+    #mob-study-empty-text, #study-empty-text { font-size: 0.85rem; }
+    #mob-study-empty-back-btn, #study-empty-back-btn {
+        background: var(--accent); border: none; border-radius: 8px;
+        color: #fff; font-size: 0.78rem; font-weight: 700;
+        padding: 9px 18px; cursor: pointer;
     }
 
     /* ── PC学習モード：オーバーレイ内コントロールバー ── */
@@ -3618,7 +3660,7 @@ min-height: 0;
             <span data-i18n="label_audio">音声再生</span>
         </label>
         <button class="top-btn danger" onclick="studyResetAll()" data-i18n="btn_study_reset" data-i18n-title="btn_study_reset" title="学習記録をリセット">🗑 記録リセット</button>
-        <span id="study-progress-text" class="study-progress-text"></span>
+        <span id="study-progress-text" class="study-progress-text" onclick="onStudyProgressTextClick(event)"></span>
     </div>
 </div>
 
@@ -3649,7 +3691,7 @@ min-height: 0;
             </label>
         </div>
         <div id="study-overlay-right">
-            <span id="study-progress-text2" class="study-progress-text"></span>
+            <span id="study-progress-text2" class="study-progress-text" onclick="onStudyProgressTextClick(event)"></span>
             <button class="study-ctrl-btn" id="study-audio-pause-btn" onclick="studyPauseAudio()" title="一時停止" style="display:none">⏸ 一時停止</button>
             <button class="study-ctrl-btn" id="study-audio-stop-btn"  onclick="studyStopAudio()"  title="停止"    style="display:none">⏹ 停止</button>
             <button class="study-ctrl-btn danger" onclick="studyResetAll()" title="学習記録をリセット">🗑 リセット</button>
@@ -3679,6 +3721,12 @@ min-height: 0;
                 <button class="study-eval-btn done"  onclick="studyEval('done')"  data-i18n="eval_done">✅ 覚えた</button>
             </div>
         </div>
+    </div>
+
+    <!-- [NEW] フィルター対象0枚時の空状態表示（PC） -->
+    <div id="study-empty-state" style="display:none">
+        <div id="study-empty-text"></div>
+        <button type="button" id="study-empty-back-btn" onclick="studyApplyFilter('all')">← すべてのカード</button>
     </div>
 
     <!-- ── ナビゲーション ── -->
@@ -3727,7 +3775,20 @@ min-height: 0;
             <div id="mob-study-progress-hint"  class="mob-study-prog-seg"></div>
             <div id="mob-study-progress-done"  class="mob-study-prog-seg"></div>
         </div>
-        <span id="mob-study-progress-text"></span>
+        <!-- [NEW] 状態フィルター：タップで絞り込み。既存の進捗テキストの代わりにボタン化 -->
+        <div id="mob-study-filter-bar">
+            <button type="button" class="mob-study-filter-btn" data-filter="none"  onclick="studyToggleFilter('none')"></button>
+            <button type="button" class="mob-study-filter-btn" data-filter="again" onclick="studyToggleFilter('again')"></button>
+            <button type="button" class="mob-study-filter-btn" data-filter="hint"  onclick="studyToggleFilter('hint')"></button>
+            <button type="button" class="mob-study-filter-btn" data-filter="done"  onclick="studyToggleFilter('done')"></button>
+        </div>
+        <!-- [NEW] 現在のフィルター状態の説明（絞り込み中のみ表示） -->
+        <div id="mob-study-filter-current" style="display:none"></div>
+    </div>
+    <!-- [NEW] フィルター対象0枚時の空状態表示 -->
+    <div id="mob-study-empty" style="display:none">
+        <div id="mob-study-empty-text"></div>
+        <button type="button" id="mob-study-empty-back-btn" onclick="studyApplyFilter('all')">← すべてのカード</button>
     </div>
     <!-- 学習モード：評価ボタン -->
     <div id="mob-study-eval">
@@ -13013,12 +13074,14 @@ window.addEventListener('load', function() {
 })();
 // ===== STUDY MODE =====
 (function() {
-    var studyCards    = [];   // 現在の表示順カード配列 { title, content, itvId, audioSource, origIdx }
-    var studyOriginal = [];   // 元の順番
+    var studyCards    = [];   // 現在の表示順カード配列（＝現在実際に学習する対象） { title, content, itvId, audioSource, origIdx }
+    var studyOriginal = [];   // 元の順番（全学習対象、origIdx昇順）
     var studyIdx      = 0;
     var studyFlipped  = false;
     var studyShuffled = false;
     var studyAudio    = localStorage.getItem('study_audio') !== '0'; // デフォルトtrue
+    // [NEW] 状態フィルター: all(すべて) / none(未学習) / again(❌) / hint(💡) / done(✅)
+    var studyFilter    = 'all';
 
     // --- 状態管理 ---
     function studyGetStatus(origIdx) {
@@ -13042,6 +13105,7 @@ window.addEventListener('load', function() {
         studyOriginal = (active.data || [])
             .map(function(d, i) { return Object.assign({}, d, { origIdx: i }); })
             .filter(function(d) { return d.title || d.content; });
+        studyFilter   = 'all'; // [NEW] 学習モード開始・シナリオ変更時は必ず「すべて」から開始
         studyCards    = studyOriginal.slice();
         studyShuffled = false;
         studyIdx      = 0;
@@ -13078,9 +13142,14 @@ window.addEventListener('load', function() {
     };
 
     window.studyUnshuffle = function() {
-        studyCards    = studyOriginal.slice();
+        // [FIX] 常に studyOriginal 全体へ戻すのではなく、
+        // 「現在のフィルター条件を維持したまま origIdx 昇順に並べ直す」。
+        // studyFilter === 'all' の場合は studyOriginal 全体が対象になるため、従来と同じ結果になる。
+        studyCards    = studyFilterCards(studyFilter);
         studyShuffled = false;
         studyIdx      = 0;
+        window._studyMobIdx = 0;
+        window._studyCards  = studyCards;
         // 元順ボタンを非表示（旧study-bar + 新オーバーレイ内 + モバイル）
         ['unshuffle-btn', 'study-unshuffle-btn', 'mob-unshuffle-btn'].forEach(function(id) {
             var el = document.getElementById(id);
@@ -13088,6 +13157,50 @@ window.addEventListener('load', function() {
         });
         studyShow();
         showToast(t('toast_unshuffled'));
+    };
+
+    // [NEW] フィルター条件に一致する studyOriginal のサブセットを origIdx 昇順で返す
+    function studyFilterCards(filter) {
+        if (!filter || filter === 'all') return studyOriginal.slice();
+        return studyOriginal.filter(function(d) {
+            var status = studyGetStatus(d.origIdx);
+            if (filter === 'none') return !status;
+            return status === filter;
+        });
+    }
+
+    // [NEW] フィルター適用（PC・モバイル共通のエントリーポイント）
+    window.studyApplyFilter = function(filter) {
+        studyFilter = filter || 'all';
+
+        if (studyFilter === 'all') {
+            // [仕様] 「すべて」に戻す操作は常に studyOriginal 順（シャッフル解除）を基本状態とする
+            studyCards    = studyOriginal.slice();
+            studyShuffled = false;
+        } else {
+            studyCards    = studyFilterCards(studyFilter);
+            studyShuffled = false;
+        }
+
+        studyIdx = 0;
+        window._studyMobIdx = 0;
+        window._studyCards  = studyCards;
+
+        // 元順ボタンは新たな並びが「シャッフル前」の状態なので非表示に統一
+        ['unshuffle-btn', 'study-unshuffle-btn', 'mob-unshuffle-btn'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        studyShow();
+        studyUpdateProgress();
+        studyRenderBadges();
+        updateStudyFilterUI();
+    };
+
+    // [NEW] 同じフィルターを再タップした場合は 'all' に戻すトグル動作
+    window.studyToggleFilter = function(filter) {
+        window.studyApplyFilter(studyFilter === filter ? 'all' : filter);
     };
 
     // --- 音声設定 ---
@@ -13099,6 +13212,45 @@ window.addEventListener('load', function() {
     // --- カード表示 ---
     function studyShow() {
         studyFlipped = false;
+
+        // [NEW] フィルター対象0枚の空状態表示・解除
+        var isEmpty = (studyFilter !== 'all' && studyCards.length === 0);
+        var pcEmptyEl  = document.getElementById('study-empty-state');
+        var pcFaceEl   = document.getElementById('study-card-inner');
+        var pcNavEl    = document.getElementById('study-card-nav');
+        var mobEmptyEl = document.getElementById('mob-study-empty');
+        var mobStageEl = document.getElementById('mob-stage');
+        var mobNavEl   = document.getElementById('mobile-nav');
+        var mobEvalEl  = document.getElementById('mob-study-eval');
+        if (isEmpty) {
+            var filterLabel = studyFilterLabel(studyFilter);
+            if (pcEmptyEl) {
+                pcEmptyEl.style.display = 'flex';
+                var pcEmptyText = document.getElementById('study-empty-text');
+                if (pcEmptyText) pcEmptyText.textContent = filterLabel + 'のカードはありません';
+            }
+            if (pcFaceEl) pcFaceEl.style.display = 'none';
+            if (pcNavEl)  pcNavEl.style.display  = 'none';
+            if (mobEmptyEl) {
+                mobEmptyEl.style.display = 'flex';
+                var mobEmptyText = document.getElementById('mob-study-empty-text');
+                if (mobEmptyText) mobEmptyText.textContent = filterLabel + 'のカードはありません';
+            }
+            if (mobStageEl) mobStageEl.style.display = 'none';
+            if (mobNavEl)   mobNavEl.style.display   = 'none';
+            if (mobEvalEl)  mobEvalEl.classList.remove('show');
+            studyUpdateProgress();
+            updateStudyFilterUI();
+            return;
+        } else {
+            if (pcEmptyEl)  pcEmptyEl.style.display  = 'none';
+            if (pcFaceEl)   pcFaceEl.style.display   = '';
+            if (pcNavEl)    pcNavEl.style.display    = '';
+            if (mobEmptyEl) mobEmptyEl.style.display = 'none';
+            if (mobStageEl) mobStageEl.style.display = '';
+            if (mobNavEl)   mobNavEl.style.display   = '';
+        }
+
         var d = studyCards[studyIdx];
         if (!d) return;
 
@@ -13278,9 +13430,10 @@ window.addEventListener('load', function() {
     // --- 評価 ---
     window.studyEval = function(status) {
         var d = studyCards[studyIdx];
+        var evaluatedOrigIdx = d ? d.origIdx : null; // [NEW] 除外判定・次カード探索に使用
         if (d) {
             studySetStatus(d.origIdx, status);
-            // studyCount・studyStatus をカードデータに保存
+            // studyCount・studyStatus をカードデータに保存（変更禁止範囲：以下3行は変更しない）
             var active = (typeof getActive === 'function') ? getActive() : null;
             if (active && active.data && active.data[d.origIdx]) {
                 active.data[d.origIdx].studyStatus = status;
@@ -13291,7 +13444,51 @@ window.addEventListener('load', function() {
         document.querySelectorAll('.study-eval-btn').forEach(function(btn) {
             btn.classList.toggle('selected', btn.classList.contains(status));
         });
-        // 自動で次へ
+
+        // [NEW] フィルター中、評価結果が現在のフィルター条件から外れたら studyCards から即座に除外し、
+        // 評価したカードの origIdx を基準に、origIdx 順で次に存在するフィルター対象カードへ進む。
+        if (studyFilter !== 'all' && evaluatedOrigIdx !== null) {
+            var stillMatches = (studyFilter === 'none') ? (status === '') : (status === studyFilter);
+            if (!stillMatches) {
+                var nextCards = studyCards.filter(function(c) { return c.origIdx !== evaluatedOrigIdx; });
+                studyCards = nextCards;
+                window._studyCards = studyCards;
+
+                if (studyCards.length === 0) {
+                    // 対象が0枚になった場合は空状態表示へ
+                    setTimeout(function() { studyIdx = 0; studyShow(); studyUpdateProgress(); updateStudyFilterUI(); }, 400);
+                } else {
+                    // [FIX] origIdx昇順で「次に存在するカード」を探す（なければ最小origIdxへ循環）。
+                    // studyCards の“配列内での並び順”には依存せず、origIdx の値そのもので比較する。
+                    // （シャッフル中は studyCards が origIdx 昇順とは限らず、findIndex による
+                    //   「配列中で最初に条件を満たす要素」だと無関係なカードへ飛ぶ不具合があったため）
+                    var nextOrig = null;
+                    studyCards.forEach(function(c) {
+                        if (c.origIdx > evaluatedOrigIdx && (nextOrig === null || c.origIdx < nextOrig)) {
+                            nextOrig = c.origIdx;
+                        }
+                    });
+                    if (nextOrig === null) {
+                        studyCards.forEach(function(c) {
+                            if (nextOrig === null || c.origIdx < nextOrig) nextOrig = c.origIdx;
+                        });
+                    }
+                    var nextIdx = studyCards.findIndex(function(c) { return c.origIdx === nextOrig; });
+                    if (nextIdx === -1) nextIdx = 0;
+                    setTimeout(function() {
+                        studyIdx = nextIdx;
+                        window._studyMobIdx = studyIdx;
+                        studyShow();
+                        studyUpdateProgress();
+                        studyRenderBadges();
+                        updateStudyFilterUI();
+                    }, 400);
+                }
+                return; // 通常の studyNav(1) は使わない
+            }
+        }
+
+        // 自動で次へ（フィルターなし、または引き続き対象内の場合）
         setTimeout(function() { studyNav(1); }, 400);
     };
 
@@ -13305,12 +13502,14 @@ window.addEventListener('load', function() {
     };
 
     // --- 進捗バー更新 ---
+    // [MOD] 進捗バー・進捗テキストは常に「シナリオ全体（studyOriginal）」を母数にする。
+    // 「現在のフィルター対象」の状況は updateStudyFilterUI() 側で別途表示する（要件13：混同しない）。
     function studyUpdateProgress() {
         var active = getActive();
-        var total  = studyCards.length;
+        var total  = studyOriginal.length;
         if (!active || total === 0) return;
         var again = 0, hint = 0, done = 0;
-        studyCards.forEach(function(d) {
+        studyOriginal.forEach(function(d) {
             var s = studyGetStatus(d.origIdx);
             if (s === 'again') again++;
             else if (s === 'hint') hint++;
@@ -13318,12 +13517,23 @@ window.addEventListener('load', function() {
         });
         var none = total - again - hint - done;
         var pct = function(n) { return (n / total * 100).toFixed(1) + '%'; };
-        var progressText = '✅' + done + '  💡' + hint + '  ❌' + again + '  ─' + none;
+        // [NEW] PC: 各区分をクリック可能な<span>として組み立てる（見た目のテキストは従来通り）
+        var buildSegHTML = function() {
+            var seg = function(cls, filterKey, label) {
+                var activeCls = (studyFilter === filterKey) ? ' active' : '';
+                return '<span class="sp-seg' + activeCls + '" data-filter="' + filterKey + '">' + label + '</span>';
+            };
+            return seg('done',  'done',  '✅' + done)
+                 + '&nbsp;&nbsp;' + seg('hint',  'hint',  '💡' + hint)
+                 + '&nbsp;&nbsp;' + seg('again', 'again', '❌' + again)
+                 + '&nbsp;&nbsp;' + seg('none',  'none',  '─' + none);
+        };
+        var progressHTML = buildSegHTML();
         // PC 進捗バー（旧study-bar内 + 新オーバーレイ内）
         document.getElementById('study-progress-again').style.width = pct(again);
         document.getElementById('study-progress-hint').style.width  = pct(hint);
         document.getElementById('study-progress-done').style.width  = pct(done);
-        document.getElementById('study-progress-text').textContent  = progressText;
+        document.getElementById('study-progress-text').innerHTML    = progressHTML;
         var oa = document.getElementById('study-progress-again2');
         var oh = document.getElementById('study-progress-hint2');
         var od = document.getElementById('study-progress-done2');
@@ -13331,17 +13541,57 @@ window.addEventListener('load', function() {
         if (oa) oa.style.width = pct(again);
         if (oh) oh.style.width = pct(hint);
         if (od) od.style.width = pct(done);
-        if (ot) ot.textContent = progressText;
-        // モバイル進捗バー（#mob-study-bar 内）
+        if (ot) ot.innerHTML = progressHTML;
+        // モバイル進捗バー（#mob-study-bar 内、3色バーのみ。テキストはフィルターボタン群に統合）
         var mobAgain = document.getElementById('mob-study-progress-again');
         var mobHint  = document.getElementById('mob-study-progress-hint');
         var mobDone  = document.getElementById('mob-study-progress-done');
-        var mobText  = document.getElementById('mob-study-progress-text');
         if (mobAgain) mobAgain.style.width = pct(again);
         if (mobHint)  mobHint.style.width  = pct(hint);
         if (mobDone)  mobDone.style.width  = pct(done);
-        if (mobText)  mobText.textContent  = progressText;
+
+        // [NEW] モバイルのフィルターボタンの数値ラベルを更新
+        var counts = { none: none, again: again, hint: hint, done: done };
+        var labels = { none: '─', again: '❌', hint: '💡', done: '✅' };
+        document.querySelectorAll('.mob-study-filter-btn').forEach(function(btn) {
+            var key = btn.dataset.filter;
+            if (labels[key] !== undefined) {
+                btn.textContent = labels[key] + counts[key];
+            }
+        });
     }
+
+    // [NEW] フィルター種別に応じた日本語ラベル
+    function studyFilterLabel(filter) {
+        if (filter === 'none')  return '未学習';
+        if (filter === 'again') return '❌ もう一度';
+        if (filter === 'hint')  return '💡 うろ覚え';
+        if (filter === 'done')  return '✅ 覚えた';
+        return 'すべて';
+    }
+
+    // [NEW] フィルターUIの選択状態・現在の絞り込み表示を更新
+    window.updateStudyFilterUI = function() {
+        // PC: sp-seg の active クラス切り替え
+        document.querySelectorAll('.sp-seg').forEach(function(el) {
+            el.classList.toggle('active', el.dataset.filter === studyFilter);
+        });
+        // モバイル: フィルターボタンの active クラス切り替え
+        document.querySelectorAll('.mob-study-filter-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.filter === studyFilter);
+        });
+        // モバイル: 「現在：💡 うろ覚え（2枚）」の表示
+        var curEl = document.getElementById('mob-study-filter-current');
+        if (curEl) {
+            if (studyFilter === 'all') {
+                curEl.style.display = 'none';
+                curEl.textContent = '';
+            } else {
+                curEl.style.display = '';
+                curEl.textContent = '現在：' + studyFilterLabel(studyFilter) + '（' + studyCards.length + '枚）';
+            }
+        }
+    };
 
     // --- グリッドカードにバッジ表示 ---
     function studyRenderBadges() {
@@ -13360,6 +13610,15 @@ window.addEventListener('load', function() {
             item.appendChild(badge);
         });
     }
+
+    // [NEW] PC: 進捗テキスト内の各状態（✅/💡/❌/─）クリックで絞り込み
+    window.onStudyProgressTextClick = function(e) {
+        var seg = e.target.closest ? e.target.closest('.sp-seg') : null;
+        if (!seg) return;
+        var filter = seg.dataset.filter;
+        if (!filter) return;
+        window.studyToggleFilter(filter);
+    };
 
     // --- 記録リセット ---
     window.studyResetAll = function() {
