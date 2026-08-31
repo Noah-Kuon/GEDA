@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.4                                          ║
+  ║  Qcard PRO  v3.1.5                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1229,9 +1229,11 @@
             border: 1px solid var(--border); border-radius: 8px;
             background: var(--surface2); color: var(--text);
             font-size: inherit; font-weight: 500; line-height: 1.7;
-            padding: 12px 14px; resize: none; outline: none;
-            box-sizing: border-box; min-height: 120px;
+            padding: 12px 14px; outline: none;
+            box-sizing: border-box; min-height: 120px; max-height: 65vh;
             font-family: 'Noto Sans JP', sans-serif;
+            /* [NEW] 下辺（右下）をドラッグして縦幅を調整できるようにする。横幅は変えさせない */
+            resize: vertical;
         }
         #overlay-edit:focus { border-color: var(--accent); }
         #overlay.edit-mode #overlay-text { display: none; }
@@ -1260,11 +1262,13 @@
         .overlay-field-clear {
             flex-shrink: 0; border: 1px solid var(--border);
             background: var(--surface2); color: var(--text-dim);
-            border-radius: 6px; width: 30px; cursor: pointer;
+            border-radius: 6px; width: 30px; height: 30px; cursor: pointer;
             font-size: 0.9rem; line-height: 1; transition: all 0.15s;
             align-self: flex-start;
         }
-        #overlay-edit-row .overlay-field-clear { align-self: stretch; height: auto; }
+        /* [FIX] 本文の✕ボタンをタイトルと同じ小さいサイズに統一。
+           以前はボックスの高さいっぱいに伸びており、新設した下辺のリサイズハンドルの
+           すぐ隣に大きな✕ボタンが位置してしまい、誤って本文を消去しやすい配置になっていた。 */
         .overlay-field-clear:hover { background: rgba(242,82,106,0.15); border-color: var(--danger); color: var(--danger); }
 
         #close-btn {
@@ -1287,6 +1291,49 @@
             transform: translate(-50%, -50%);
             width: 32px; height: 3px;
             background: var(--border2); border-radius: 2px;
+        }
+        /* [NEW] ヘッダーをダブルクリックしてカードを一時的にたたむ機能。
+           ヘッダー（ドラッグハンドル・×／⇔／✏️／🔗ボタン・タイトル）だけ残し、
+           それ以外の本文・画像・音声バー等をすべて非表示にする。 */
+        #overlay.overlay-collapsed {
+            height: auto !important;
+            min-height: 0 !important;
+        }
+        #overlay.overlay-collapsed > #overlay-find-bar,
+        #overlay.overlay-collapsed > #size-panel,
+        #overlay.overlay-collapsed > #overlay-media-layer,
+        #overlay.overlay-collapsed > #overlay-text,
+        #overlay.overlay-collapsed > #overlay-edit-row,
+        #overlay.overlay-collapsed > #audio-source-row,
+        #overlay.overlay-collapsed > #speech-bar,
+        #overlay.overlay-collapsed > #itv-bar,
+        #overlay.overlay-collapsed > #itv-history,
+        #overlay.overlay-collapsed > #overlay-meta,
+        #overlay.overlay-collapsed > #overlay-resize-handle {
+            display: none !important;
+        }
+        #overlay.overlay-collapsed #overlay-title { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        #overlay-drag-handle.collapsible { cursor: pointer; }
+
+        /* [NEW] 右下リサイズハンドル */
+        #overlay-resize-handle {
+            position: absolute; right: 4px; bottom: 4px;
+            width: 20px; height: 20px;
+            cursor: nwse-resize;
+            z-index: 6;
+        }
+        #overlay-resize-handle::after {
+            content: '';
+            position: absolute; right: 4px; bottom: 4px;
+            width: 10px; height: 10px;
+            background:
+                linear-gradient(135deg, transparent 0 45%, var(--border2) 45% 55%, transparent 55% 100%),
+                linear-gradient(135deg, transparent 0 65%, var(--border2) 65% 75%, transparent 75% 100%);
+        }
+        #overlay-resize-handle:hover::after {
+            background:
+                linear-gradient(135deg, transparent 0 45%, var(--accent) 45% 55%, transparent 55% 100%),
+                linear-gradient(135deg, transparent 0 65%, var(--accent) 65% 75%, transparent 75% 100%);
         }
 
         /* ─── SPEECH BAR ─── */
@@ -1429,6 +1476,23 @@
             font-size: 0.68rem; color: var(--accent);
             font-weight: 600; min-width: 40px; text-align: center;
         }
+        /* [NEW] クリックで直接数値入力できることを示すヒント */
+        .sp-val-editable { cursor: text; border-radius: 4px; }
+        .sp-val-editable:hover { background: rgba(61,139,255,0.12); text-decoration: underline dotted; }
+        .sp-val-input {
+            width: 44px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.68rem; font-weight: 600;
+            color: var(--accent);
+            background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 4px; text-align: center;
+            padding: 1px 2px;
+            outline: none;
+        }
+        /* [NEW] スマホでの数字入力（スピナー）を消す */
+        .sp-val-input::-webkit-outer-spin-button,
+        .sp-val-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .sp-val-input[type=number] { -moz-appearance: textfield; }
         .sp-btn {
             background: var(--surface3); border: 1px solid var(--border2);
             border-radius: 5px; color: var(--text-muted);
@@ -4093,6 +4157,8 @@ min-height: 0;
         </div>
     </div>
     <!-- ══ END メタゾーン ══════════════════════════════════════════════ -->
+    <!-- [NEW] 右下をドラッグして幅・高さを自由に変更 -->
+    <div id="overlay-resize-handle" title="ドラッグして幅・高さを変更"></div>
 </div>
 
 <!-- DATA MODAL -->
@@ -4940,6 +5006,7 @@ const I18N = {
         confirm_row_reduce: '行を減らすと、はみ出したカードのデータが削除されます。よろしいですか？',
         confirm_col_reduce: '列を減らすと、はみ出したカードのデータが削除されます。よろしいですか？',
         confirm_clear_memo: ' のメモを全て消去しますか？',
+        confirm_clear_content: '本文を消去しますか？この操作は元に戻せません。',
         toast_qcf_export:   'QCFをエクスポート',
         toast_qcp_export:   'QCPをエクスポート（全シナリオ）',
         toast_csv_export:   'CSVをエクスポート',
@@ -5156,6 +5223,7 @@ const I18N = {
         confirm_row_reduce: 'Reducing rows will delete overflowing card data. Continue?',
         confirm_col_reduce: 'Reducing columns will delete overflowing card data. Continue?',
         confirm_clear_memo: ' — clear all memos?',
+        confirm_clear_content: 'Clear the content? This cannot be undone.',
         toast_qcf_export:   'QCF exported',
         toast_qcp_export:   'QCP exported (all scenarios)',
         toast_csv_export:   'CSV exported',
@@ -7510,13 +7578,18 @@ function clearSearch() {
 
 // ===== OVERLAY =====
 overlay.addEventListener('mouseenter', function(){ clearTimeout(hideTimeout); });
-overlay.addEventListener('mouseleave', function(){ if (!isLocked) hideOverlay(); });
+overlay.addEventListener('mouseleave', function(){
+    // [FIX] リサイズ／ヘッダードラッグ中は、素早い操作でカーソルが一瞬カードの外に出ても
+    // ホバー解除とみなして閉じてしまわないようにする（掴み判定が外れてカードが消える不具合の原因）
+    if (!isLocked && overlay.dataset.interacting !== '1') hideOverlay();
+});
 
 function showOverlay(title, text, cardItem) {
     // タイトル・本文が空でも、画像があるカードはオーバーレイを開く
     if (!title.trim() && !text.trim() &&
         !(cardItem && cardItem.classList.contains('has-media'))) return;
     exitEditMode();
+    overlay.classList.remove('overlay-collapsed'); // [NEW] カードを開き直すたびに折りたたみ状態はリセットする
     if (cardItem !== undefined) editCardItem = cardItem;
     overlayTitle.innerText = title;
     overlayTitle.style.display = title.trim() ? 'block' : 'none';
@@ -8551,6 +8624,50 @@ function overlayAdjustSize(axis, delta) {
     }
     syncSizeBar();
 }
+
+// [NEW] サイズパネルの数値（文字／幅／高さ）をクリックすると直接入力できるようにする。
+// 既存の +/- ボタン（overlayAdjustFont / overlayAdjustSize）の上限下限・保存処理をそのまま
+// 再利用するため、入力値と現在値の差分を「delta」として渡すだけにしている。
+function makeSizeValEditable(spanId, applyDelta, getCurrent) {
+    var span = document.getElementById(spanId);
+    if (!span) return;
+    span.classList.add('sp-val-editable');
+    span.title = 'クリックして数値を直接入力';
+    span.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (span.querySelector('input')) return; // 編集中に再クリックしても何もしない
+        var current = getCurrent();
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'sp-val-input';
+        input.value = current;
+        ['click', 'mousedown'].forEach(function(evt) {
+            input.addEventListener(evt, function(ev) { ev.stopPropagation(); });
+        });
+        var committed = false;
+        function commit() {
+            if (committed) return;
+            committed = true;
+            var v = parseFloat(input.value);
+            if (!isNaN(v)) applyDelta(v - getCurrent());
+            syncSizeBar(); // spanの中身をテキストに戻す（inputごと置き換わる）
+        }
+        input.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') input.blur();
+            ev.stopPropagation();
+        });
+        input.addEventListener('blur', commit);
+        span.textContent = '';
+        span.appendChild(input);
+        input.focus();
+        input.select();
+    });
+}
+(function initSizePanelEditableVals() {
+    makeSizeValEditable('sp-font-val',   function(delta){ overlayAdjustFont(delta); },        function(){ return currentFontSize; });
+    makeSizeValEditable('sp-width-val',  function(delta){ overlayAdjustSize('width', delta); }, function(){ return currentWidth; });
+    makeSizeValEditable('sp-height-val', function(delta){ overlayAdjustSize('height', delta); }, function(){ return currentHeight; });
+})();
 
 function clearAll() {
     var active = getActive();
@@ -9937,6 +10054,7 @@ function fallbackCopy(text, label) {
         overlay.style.transform = 'none';
         overlay.style.left = rect.left + 'px'; overlay.style.top = rect.top + 'px';
         overlay.dataset.dragged = '1';
+        overlay.dataset.interacting = '1'; // [FIX] ドラッグ中の意図しないホバー解除を防ぐ
         ox = rect.left; oy = rect.top;
         startX = e.clientX; startY = e.clientY;
         dragging = true; e.preventDefault();
@@ -9947,7 +10065,67 @@ function fallbackCopy(text, label) {
         var ny = Math.max(0, Math.min(window.innerHeight - overlay.offsetHeight, oy + e.clientY - startY));
         overlay.style.left = nx + 'px'; overlay.style.top = ny + 'px';
     });
-    document.addEventListener('mouseup', function() { dragging = false; });
+    document.addEventListener('mouseup', function() {
+        dragging = false;
+        delete overlay.dataset.interacting;
+    });
+
+    // [NEW] ヘッダーのダブルクリックで折りたたみ／展開をトグル
+    handle.classList.add('collapsible');
+    handle.title = 'ダブルクリックで折りたたみ／展開';
+    handle.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var willCollapse = !overlay.classList.contains('overlay-collapsed');
+        overlay.classList.toggle('overlay-collapsed', willCollapse);
+        if (willCollapse) closeSizePanel(); // 開いていたらついでに閉じる
+    });
+})();
+
+// ===== OVERLAY RESIZE（右下ハンドル） =====
+(function initOverlayResize() {
+    var rHandle = document.getElementById('overlay-resize-handle');
+    if (!rHandle) return;
+    var resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+
+    rHandle.addEventListener('mousedown', function(e) {
+        if (overlay.classList.contains('overlay-collapsed')) return; // 折りたたみ中は不可
+        var rect = overlay.getBoundingClientRect();
+        // ドラッグ中に位置がずれないよう、既存のヘッダードラッグと同じ絶対座標化を行う
+        overlay.style.transform = 'none';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top  = rect.top + 'px';
+        overlay.dataset.dragged = '1';
+        overlay.dataset.interacting = '1'; // [FIX] 素早いドラッグでカーソルが枠外に出てもホバー解除扱いにしない
+        startW = rect.width; startH = rect.height;
+        startX = e.clientX; startY = e.clientY;
+        resizing = true;
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!resizing) return;
+        var maxW = window.innerWidth  - overlay.offsetLeft - 8;
+        var maxH = window.innerHeight - overlay.offsetTop  - 8;
+        var newW = Math.max(320, Math.min(maxW, startW + (e.clientX - startX)));
+        var newH = Math.max(220, Math.min(maxH, startH + (e.clientY - startY)));
+        overlay.style.width  = newW + 'px';
+        overlay.style.height = newH + 'px';
+        // [NEW] +/-パネルと単位（%）を揃えて連動させる
+        currentWidth  = Math.round(newW / window.innerWidth  * 100);
+        currentHeight = Math.round(newH / window.innerHeight * 100);
+        syncSizeBar();
+    });
+    document.addEventListener('mouseup', function() {
+        if (!resizing) return;
+        resizing = false;
+        delete overlay.dataset.interacting;
+        // 以後は%基準（+/-ボタン、リロード時の復元）に統一する
+        overlay.style.width  = currentWidth  + '%';
+        overlay.style.height = currentHeight + '%';
+        localStorage.setItem('kp_width',  currentWidth);
+        localStorage.setItem('kp_height', currentHeight);
+    });
 })();
 
 // ===== EDIT MODE (OVERLAY) =====
@@ -9982,7 +10160,10 @@ function overlayClearField(field) {
         overlayTitle.style.display = 'none';
         titleEditEl.focus();
     } else {
+        // [NEW] 本文はタイトルより長文になりやすく消去の代償が大きいため、
+        // ボタンを小さくした物理的な対策に加えて軽い確認を挟む（空欄なら確認不要）
         var c = editCardItem.querySelector('.content-textarea');
+        if (c && c.value.trim() && !confirm(window.t('confirm_clear_content'))) return;
         var contentEditEl = document.getElementById('overlay-edit');
         if (c) c.value = '';
         contentEditEl.value = '';
