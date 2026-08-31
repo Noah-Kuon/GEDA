@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.5                                          ║
+  ║  Qcard PRO  v3.1.6                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -625,10 +625,15 @@
         }
         .grid-item.has-media .title-input,
         .grid-item.has-media .content-textarea,
-        .grid-item.has-media .item-meta,
         .grid-item.has-media .field-clear-btn {
             display: none !important;
         }
+        /* [MOD] item-meta（番号表示）は画像カードでも消さない。中の要素だけ個別制御する */
+        .grid-item.has-media .item-meta {
+            position: absolute; top: 4px; left: 4px; z-index: 6;
+            margin: 0; background: transparent;
+        }
+        .grid-item.has-media .item-meta .shortcut-badge { display: none; } /* 画像上ではショートカット表示は省略 */
         .card-media-layer {
             display: none;
             position: absolute;
@@ -824,12 +829,60 @@
         .mob-title-label { display: none !important; }
 
         .item-meta { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; }
-        .item-num { font-family: 'DM Mono', monospace; font-size: 0.56rem; color: var(--text-dim); }
+        /* [MOD] 番号：画像カードの上でも視認できるよう半透明の丸ピルに統一 */
+        .item-num {
+            font-family: 'DM Mono', monospace; font-size: 0.56rem; color: var(--text-dim);
+        }
+        .grid-item.has-media .item-num {
+            background: rgba(8,12,20,0.55);
+            color: #e2e8f5;
+            border-radius: 10px;
+            padding: 1px 6px;
+            backdrop-filter: blur(2px);
+        }
+        /* [MOD] ショートカット表示「[1]」：常時表示をやめ、カードホバー時のみフェードイン
+           （キーボード操作をしないユーザーの視界を普段は塞がないため） */
         .shortcut-badge {
             font-family: 'DM Mono', monospace;
             font-size: 0.55rem; background: var(--surface2);
             border: 1px solid var(--border); border-radius: 3px;
             padding: 1px 4px; color: var(--accent2); font-weight: 700; letter-spacing: 0.04em;
+            opacity: 0; transition: opacity 0.12s;
+        }
+        .grid-item:hover .shortcut-badge { opacity: 1; }
+
+        /* [NEW] 左上ステータススロット：学習アイコン／非表示アイコンのどちらか1つだけを表示する
+           （優先順位は studyRenderBadges / applyHiddenClass 側のJSで制御） */
+        .item-status-slot {
+            position: absolute; top: 4px; left: 4px; z-index: 7;
+            display: none;
+            align-items: center; justify-content: center;
+        }
+        .item-status-slot.show { display: flex; }
+        .item-status-slot .status-study-icon {
+            font-size: 0.78rem; line-height: 1; pointer-events: none;
+        }
+        .item-status-slot .status-hidden-btn {
+            display: flex; align-items: center; gap: 3px;
+            background: rgba(8,12,20,0.6); color: #cbd5e1;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px; padding: 2px 6px;
+            font-size: 0.62rem; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.12s, padding 0.15s;
+            max-width: 18px; overflow: hidden; white-space: nowrap;
+        }
+        .item-status-slot .status-hidden-btn .shi-icon { flex-shrink: 0; display: flex; }
+        .item-status-slot .status-hidden-btn .shi-label {
+            opacity: 0; max-width: 0; transition: opacity 0.15s, max-width 0.15s;
+        }
+        .item-status-slot .status-hidden-btn:hover {
+            background: rgba(61,139,255,0.85);
+            color: #fff;
+            max-width: 120px;
+        }
+        .item-status-slot .status-hidden-btn:hover .shi-label {
+            opacity: 1; max-width: 80px; margin-left: 1px;
         }
         .search-highlight { background: rgba(245,166,35,0.35); border-radius: 2px; }
 
@@ -1093,12 +1146,8 @@
             outline: 1.5px dashed var(--accent);
             outline-offset: -2px;
         }
-        /* カード番号：hidden状態のとき薄いアイコンで示す */
-        .grid-item.is-hidden .item-num::after {
-            content: ' 👁';
-            font-size: 0.6em;
-            opacity: 0.45;
-        }
+        /* [MOD] 旧: カード番号の隣に👁を付与していたが、
+           .item-status-slot 側の専用アイコンに統合したため削除。 */
 
         /* [FIX] モバイル：非表示カードをタップで復元するための案内バッジ
            （PCは :hover で気づけるが、モバイルは hover が無いため常設のヒントで対応） */
@@ -3277,13 +3326,12 @@ min-height: 0;
     #study-progress-hint  { background: #fbbf24; }
     #study-progress-done  { background: #34d399; }
 
-    /* グリッド上の学習ステータスバッジ */
+    /* [MOD] グリッド上の学習ステータスバッジ：
+       独立した絶対配置はやめ、.item-status-slot 内の要素として表示する。
+       このクラス自体は studyRenderBadges() が要素に付与するために維持。 */
     .study-badge {
-        position: absolute;
-        top: 4px; left: 4px;
-        font-size: 0.75rem;
+        font-size: 0.78rem;
         line-height: 1;
-        z-index: 5;
         pointer-events: none;
     }
 
@@ -3426,7 +3474,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.1.0</span>
+    <span class="version-badge">v3.2.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -6074,6 +6122,9 @@ function setAppMode(mode) {
     var isStudy = (resolvedMode === 'study');
     if (studyToolbar) studyToolbar.style.display = (isStudy && !isMobileViewport()) ? 'block' : 'none';
     if (studyProgBar) studyProgBar.style.display = (isStudy && !isMobileViewport()) ? 'flex'  : 'none';
+    // [NEW] 学習モードの出入り時、左上ステータススロットを同期
+    // （学習中は学習アイコン、それ以外は非表示アイコンの表示へ正しく切り替える）
+    if (typeof studyRenderBadges === 'function') studyRenderBadges();
 
     // ── 6. モード別追加処理 ──
     if (resolvedMode === 'edit') {
@@ -7224,23 +7275,12 @@ function createItem(index, d) {
     var meta  = document.createElement('div');
     meta.className = 'item-meta';
 
+    // [MOD] 番号表示：クリックによる表示/非表示トグルは廃止。
+    // 「隠す」操作はカード編集画面の非表示チェックボックスに一本化する。
+    // 番号はただの識別表示に戻す（画像カードの上でも見えるよう半透明ピル化はCSS側で対応）。
     var num   = document.createElement('span');
     num.className = 'item-num';
     num.innerText = '#' + (index + 1);
-    num.title = 'クリックで表示/非表示をトグル';
-    num.style.cursor = 'pointer';
-    num.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var nowHidden = item.classList.toggle('is-hidden');
-        setCardMeta(item, { hidden: nowHidden });
-        // overlayが開いていれば同期
-        var toggle = document.getElementById('meta-hidden-toggle');
-        var label  = document.getElementById('meta-hidden-label');
-        if (editCardItem === item) {
-            if (toggle) toggle.checked = nowHidden;
-            if (label)  label.textContent = nowHidden ? '非表示中' : 'このカードを非表示にする';
-        }
-    });
 
     var badge = document.createElement('span');
     badge.className = 'shortcut-badge';
@@ -7249,6 +7289,11 @@ function createItem(index, d) {
 
     meta.appendChild(num);
     meta.appendChild(badge);
+
+    // [NEW] 左上ステータススロット：学習アイコン／非表示アイコンのどちらか1つだけを表示する。
+    // 実際の表示内容は updateItemStatusSlot() が優先順位に従って決める。
+    var statusSlot = document.createElement('div');
+    statusSlot.className = 'item-status-slot';
 
     var titleInput = document.createElement('input');
     titleInput.className   = 'title-input';
@@ -7484,10 +7529,14 @@ function createItem(index, d) {
 
     item.appendChild(handle);
     item.appendChild(meta);
+    item.appendChild(statusSlot); // [NEW] 学習アイコン／非表示アイコンの統合スロット
     item.appendChild(titleRow);
     item.appendChild(contentRow);
     item.appendChild(mediaAddBtn);
     item.appendChild(mediaLayer);
+
+    // [NEW] 初期表示時のステータススロット反映（非表示状態を含む）
+    updateItemStatusSlot(item);
 
     // [FIX] モバイル：非表示カードの「タップで復元」案内バッジ
     // （通常は非表示。CSS側で body.card-hide-on.mob-grid1/2 .is-hidden 時のみ表示される）
@@ -7660,6 +7709,8 @@ function toggleCardHide() {
 // grid-item に is-hidden クラスを付与/解除
 function applyHiddenClass(item, isHidden) {
     item.classList.toggle('is-hidden', !!isHidden);
+    // [NEW] 編集画面のチェックボックス操作からも、左上ステータススロットを同期する
+    if (typeof updateItemStatusSlot === 'function') updateItemStatusSlot(item);
 }
 
 // ══ END カード非表示モード ══════════════════════════════════════
@@ -7945,6 +7996,68 @@ function getCardMeta(cardItem) {
 }
 
 // gridItem の card データを更新して保存
+// [NEW] 左上ステータススロットの表示内容を優先順位に従って更新する
+// 優先順位: ① 学習モード中の学習ステータス > ② 非表示中アイコン（クリックで再表示） > ③ 何も表示しない
+function updateItemStatusSlot(cardItem) {
+    var slot = cardItem.querySelector('.item-status-slot');
+    if (!slot) return;
+    slot.innerHTML = '';
+
+    var active = getActive();
+    var items  = Array.from(grid.querySelectorAll('.grid-item'));
+    var idx    = items.indexOf(cardItem);
+    var status = (active && active.data[idx]) ? active.data[idx].studyStatus : '';
+
+    if (appMode === 'study' && status) {
+        // ① 学習モード中：学習ステータスアイコンのみ
+        var icon = document.createElement('span');
+        icon.className = 'status-study-icon study-badge';
+        icon.textContent = status === 'done' ? '✅' : status === 'hint' ? '💡' : '❌';
+        slot.appendChild(icon);
+        slot.classList.add('show');
+        return;
+    }
+
+    if (cardItem.classList.contains('is-hidden')) {
+        // ② 非表示中：クリックで再表示できるアイコン（ホバーでラベルが伸びる）
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'status-hidden-btn';
+        btn.title = 'クリックで再表示';
+        btn.innerHTML =
+            '<span class="shi-icon">' + ICON_HIDDEN_SVG + '</span>' +
+            '<span class="shi-label">再表示</span>';
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            cardItem.classList.remove('is-hidden');
+            setCardMeta(cardItem, { hidden: false });
+            var toggle = document.getElementById('meta-hidden-toggle');
+            var label  = document.getElementById('meta-hidden-label');
+            if (editCardItem === cardItem) {
+                if (toggle) toggle.checked = false;
+                if (label)  label.textContent = 'このカードを非表示にする';
+            }
+            updateItemStatusSlot(cardItem);
+        });
+        slot.appendChild(btn);
+        slot.classList.add('show');
+        return;
+    }
+
+    // ③ 通常時：何も表示しない
+    slot.classList.remove('show');
+}
+
+// [NEW] 目に斜線を重ねたシンプルな非表示アイコン（絵文字による表示崩れを避けるためSVGで統一）
+var ICON_HIDDEN_SVG =
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94"/>' +
+    '<path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>' +
+    '<path d="M1 1l22 22"/>' +
+    '<path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>' +
+    '</svg>';
+
 function setCardMeta(cardItem, patch) {
     var active = getActive();
     if (!active) return;
@@ -13775,20 +13888,11 @@ window.addEventListener('load', function() {
     };
 
     // --- グリッドカードにバッジ表示 ---
+    // [MOD] 独立した絶対配置バッジの直接付与はやめ、統合スロット（updateItemStatusSlot）に委譲する。
+    // これにより非表示アイコンとの重なりが解消される（優先順位: 学習中 > 非表示 > 非表示）。
     function studyRenderBadges() {
-        if (appMode !== 'study') return;
-        grid.querySelectorAll('.grid-item').forEach(function(item, i) {
-            var old = item.querySelector('.study-badge');
-            if (old) old.remove();
-            var active = getActive();
-            if (!active || !active.data[i]) return;
-            var status = active.data[i].studyStatus;
-            if (!status) return;
-            var badge = document.createElement('span');
-            badge.className = 'study-badge';
-            badge.textContent = status === 'done' ? '✅' : status === 'hint' ? '💡' : '❌';
-            item.style.position = 'relative';
-            item.appendChild(badge);
+        grid.querySelectorAll('.grid-item').forEach(function(item) {
+            if (typeof updateItemStatusSlot === 'function') updateItemStatusSlot(item);
         });
     }
 
