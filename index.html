@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.2                                          ║
+  ║  Qcard PRO  v3.1.3                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3730,7 +3730,7 @@ min-height: 0;
         <span id="mob-study-progress-text"></span>
     </div>
     <!-- 学習モード：評価ボタン -->
-    <div id="mob-study-eval" style="display:none">
+    <div id="mob-study-eval">
         <button class="study-eval-btn again" onclick="studyEval('again')" data-i18n="eval_again">❌ もう一度</button>
         <button class="study-eval-btn hint"  onclick="studyEval('hint')"  data-i18n="eval_hint">💡 うろ覚え</button>
         <button class="study-eval-btn done"  onclick="studyEval('done')"  data-i18n="eval_done">✅ 覚えた</button>
@@ -13168,7 +13168,14 @@ window.addEventListener('load', function() {
 
         // 評価ボタン表示
         var mobEval = document.getElementById('mob-study-eval');
-        if (mobEval) mobEval.classList.add('show');
+        if (mobEval) {
+            mobEval.classList.add('show');
+            // [DEBUG] 検証用ログ（問題が再発した場合の切り分けに使用。害はないため残置可）
+            if (window.console && console.debug) {
+                console.debug('[studyFlipMob] mob-study-eval classList=', mobEval.className,
+                    'computedDisplay=', getComputedStyle(mobEval).display);
+            }
+        }
 
         // 音声再生
         if (studyAudio) studyPlayAudio(d);
