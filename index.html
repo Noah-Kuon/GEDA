@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v2.7.2                                          ║
+  ║  Qcard PRO  v3.1.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2583,6 +2583,8 @@ min-height: 0;
         #mob-stage {
             flex: 1;
             min-height: 0;
+            /* [FIX] 学習モード時は評価ボタン・ナビ分の高さを必ず残すため上限を設ける。
+               中身が多いカードは #mob-card-inner 側で overflow-y:auto によりスクロール可能。 */
             display: flex;
             /* 3枚を横に並べる: prev | cur | next */
             width: 300%;
@@ -3004,18 +3006,31 @@ min-height: 0;
     #mob-study-bar {
         display: none;
         flex-direction: column;
-        gap: 4px;
-        padding: 6px 12px 2px;
+        gap: 3px; /* [FIX] 縦スペース削減 */
+        padding: 4px 10px 1px; /* [FIX] 縦スペース削減 */
         flex-shrink: 0;
     }
     body.study-mode #mob-study-bar { display: flex; }
-    #mob-study-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    /* [FIX] 学習モード時、カード表示エリアの最大高さを制限し、
+       評価ボタン(mob-study-eval)とナビ(mobile-nav)が必ず画面内に収まるようにする */
+    body.study-mode #mob-stage { max-height: calc(100% - 160px); }
+    #mob-study-actions {
+        display: flex; gap: 6px; justify-content: flex-start;
+        flex-wrap: nowrap; /* [FIX] 折り返しによる高さ圧迫を防ぎ、代わりに横スクロールにする */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+    }
+    #mob-study-actions::-webkit-scrollbar { display: none; }
+    #mob-study-actions button { flex-shrink: 0; white-space: nowrap; }
     #mob-shuffle-btn, #mob-unshuffle-btn, #mob-study-reset-btn {
         background: var(--surface2); border: 1px solid var(--border);
-        color: var(--text-muted); border-radius: 8px;
-        padding: 6px 14px; font-size: 0.76rem;
+        color: var(--text-muted); border-radius: 7px;
+        padding: 5px 11px; font-size: 0.7rem; /* [FIX] 縦スペース確保のためコンパクト化 */
         cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
     }
+    #mobStudyBarToggleBtn { padding: 5px 11px !important; font-size: 0.7rem !important; }
     #mob-shuffle-btn:active, #mob-unshuffle-btn:active { border-color: var(--accent); color: var(--accent); }
     #mob-study-reset-btn { color: var(--danger); border-color: rgba(242,82,106,0.3); }
     #mob-study-reset-btn:active { background: rgba(242,82,106,0.1); }
@@ -3028,13 +3043,21 @@ min-height: 0;
     /* 学習モード評価ボタン（モバイル） */
     #mob-study-eval {
         display: none;
-        gap: 8px;
+        gap: 6px;
         justify-content: center;
-        padding: 4px 12px;
+        padding: 4px 10px;
         flex-shrink: 0;
-        flex-wrap: wrap;
+        flex-wrap: nowrap; /* [FIX] 3ボタンが折り返して2行になり評価不能になるのを防ぐ */
     }
     body.study-mode #mob-study-eval.show { display: flex; }
+    /* [FIX] モバイル評価ボタン: 縦スペース確保のため既存の .study-eval-btn より小さく上書き */
+    #mob-study-eval .study-eval-btn {
+        padding: 8px 10px !important;
+        font-size: 0.72rem !important;
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+    }
     body.study-mode #mob-itv-history { display: none !important; }
 
     /* 学習モード タップヒント */
