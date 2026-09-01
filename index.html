@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.1                                          ║
+  ║  Qcard PRO  v3.2.2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -359,13 +359,11 @@
         }
 
         /* ─── SCENARIO BAR ─── */
+        /* [FIX] 検索バーに統合したため、以前の「専用の1行」用スタイルは不要になった。
+           ポップオーバーの基準位置（position:relative）としてだけ機能させる。 */
         .scenario-bar {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 6px 14px;
-            display: flex; align-items: center; gap: 10px;
-            flex-shrink: 0;
             position: relative; /* [FIX] ポップオーバーの基準位置 */
+            flex-shrink: 0;
         }
         .scenario-bar-label {
             font-size: 0.62rem; color: var(--text-dim);
@@ -382,19 +380,20 @@
             background: var(--surface2); border: 1px solid var(--border);
             border-radius: 8px; padding: 6px 12px;
             font-size: 0.78rem; color: var(--text); cursor: pointer;
-            max-width: 280px; font-family: inherit;
+            max-width: 220px; font-family: inherit;
         }
         .scenario-selector-btn:hover { border-color: var(--accent); }
         .scenario-selector-btn.open { border-color: var(--accent); background: rgba(61,139,255,0.08); }
+        .scenario-selector-btn .ssb-icon { flex-shrink: 0; font-size: 0.85rem; }
         .scenario-selector-btn .ssb-name {
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;
         }
         .scenario-selector-btn .ssb-caret { color: var(--text-dim); font-size: 0.65rem; transition: transform 0.15s; }
         .scenario-selector-btn.open .ssb-caret { transform: rotate(180deg); }
 
         .scenario-popover {
             display: none;
-            position: absolute; top: 100%; left: 14px; margin-top: 6px;
+            position: absolute; top: 100%; left: 0; margin-top: 6px;
             width: 300px; max-height: 70vh; overflow-y: auto;
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
@@ -3683,6 +3682,34 @@ min-height: 0;
     </div>
     <span class="search-count" id="search-count"></span>
 
+    <!-- [MOVED] シナリオ選択：検索窓の右隣に配置。以前は専用の1行（.scenario-bar）を
+         占有していたが、検索バーに統合してカード表示領域の縦幅を稼ぐようにした。
+         検索🔍と見分けやすいよう🗂️アイコンを付けている。 -->
+    <div class="scenario-bar">
+        <button type="button" class="scenario-selector-btn" id="scenario-selector-btn" onclick="toggleScenarioPopover()">
+            <span class="ssb-icon">🗂️</span>
+            <span class="ssb-name" id="scenario-selector-name">シナリオ</span>
+            <span class="ssb-caret">▾</span>
+        </button>
+        <div class="scenario-popover" id="scenario-popover">
+            <input type="text" id="scenario-search-input" class="sp-search-input"
+                   placeholder="シナリオを検索…" oninput="filterScenarioPopover(this.value)"
+                   onkeydown="if(event.key==='Escape'){closeScenarioPopover();}">
+            <div class="sp-section" id="sp-recent-section">
+                <div class="sp-section-label">最近使ったシナリオ</div>
+                <div id="scenario-recent-list"></div>
+            </div>
+            <div class="sp-section">
+                <div class="sp-section-label">すべてのシナリオ</div>
+                <div id="scenario-tabs"></div>
+            </div>
+            <div class="sp-footer">
+                <button class="sp-manage-btn" type="button" title="名前クリックで変更・×で削除・ドラッグで並べ替え" onclick="scenarioManageClick()">⚙ 管理</button>
+                <button class="scenario-add-btn" id="scenario-add-btn" onclick="addScenario()" data-i18n="scenario_add">＋ 追加</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 行×列（PC専用・常時表示） -->
     <!-- ↕=行（縦方向）↔=列（横方向）で言語に依存しないアイコン表記 -->
     <div id="grid-size-bar" title="↕ 行 × ↔ 列">
@@ -3797,32 +3824,7 @@ min-height: 0;
     <button type="button" id="undo-toast-btn" onclick="mobUndoDeleteScenario()" data-i18n="undo_label">元に戻す</button>
 </div>
 
-<!-- SCENARIO BAR -->
-<div class="scenario-bar">
-    <button type="button" class="scenario-selector-btn" id="scenario-selector-btn" onclick="toggleScenarioPopover()">
-        <span class="ssb-name" id="scenario-selector-name">シナリオ</span>
-        <span class="ssb-caret">▾</span>
-    </button>
-    <div class="scenario-popover" id="scenario-popover">
-        <input type="text" id="scenario-search-input" class="sp-search-input"
-               placeholder="シナリオを検索…" oninput="filterScenarioPopover(this.value)"
-               onkeydown="if(event.key==='Escape'){closeScenarioPopover();}">
-        <div class="sp-section" id="sp-recent-section">
-            <div class="sp-section-label">最近使ったシナリオ</div>
-            <div id="scenario-recent-list"></div>
-        </div>
-        <div class="sp-section">
-            <div class="sp-section-label">すべてのシナリオ</div>
-            <div id="scenario-tabs"></div>
-        </div>
-        <div class="sp-footer">
-            <button class="sp-manage-btn" type="button" title="名前クリックで変更・×で削除・ドラッグで並べ替え" onclick="scenarioManageClick()">⚙ 管理</button>
-            <button class="scenario-add-btn" id="scenario-add-btn" onclick="addScenario()" data-i18n="scenario_add">＋ 追加</button>
-        </div>
-    </div>
-</div>
 
-<!-- 学習モード専用ツールバー -->
 <div id="study-bar" style="display:none">
     <div id="study-controls">
         <button class="top-btn" id="shuffle-btn" onclick="studyShuffle()" data-i18n="btn_shuffle" data-i18n-title="btn_shuffle" title="シャッフル">🔀 シャッフル</button>
