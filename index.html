@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.1.7                                          ║
+  ║  Qcard PRO  v3.1.8                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -826,15 +826,33 @@
         body.mob-swipe .grid-item.has-media .item-meta,
         body.mob-grid1 .grid-item.has-media .item-meta,
         body.mob-grid2 .grid-item.has-media .item-meta { display: none !important; }
+        /* [FIX] 根本原因：media-hidden時の title-input/content-textarea/title-row/content-row
+           強制表示ルール（.grid-item.has-media が3クラス連結で詳細度が高い）が、
+           モバイル各モードの非表示ルール（.mob-grid1 等クラス2つ）より優先されてしまい、
+           モバイル専用のタイトルラベル（mob-title-label）と生の入力欄が二重に表示されていた。
+           モバイル表示中はこれらを確実に隠す（詳細度をさらに上げて確実に勝たせる）。 */
+        body.mob-swipe .grid-item.has-media .title-input,
+        body.mob-grid1 .grid-item.has-media .title-input,
+        body.mob-grid2 .grid-item.has-media .title-input,
+        body.mob-swipe .grid-item.has-media .content-textarea,
+        body.mob-grid1 .grid-item.has-media .content-textarea,
+        body.mob-grid2 .grid-item.has-media .content-textarea,
+        body.mob-swipe .grid-item.has-media .title-row,
+        body.mob-grid1 .grid-item.has-media .title-row,
+        body.mob-grid2 .grid-item.has-media .title-row,
+        body.mob-swipe .grid-item.has-media .content-row,
+        body.mob-grid1 .grid-item.has-media .content-row,
+        body.mob-grid2 .grid-item.has-media .content-row { display: none !important; }
         /* [FIX] PC：画像表示OFF（media-hidden）のときは画像自体が見えていないので、
            item-meta の絶対配置（画像の上に浮かせる指定）を解除し、
            画像なしカードと同じ通常フロー配置に戻す。
            これによりタイトル入力欄と番号が重なって見える問題を解消する。 */
         body.media-hidden .grid-item.has-media .item-meta {
-            position: relative !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important; /* [FIX] flexアイテムとして確実に横幅いっぱいを占有させ、
-                                        直後の title-row が同じ行に回り込むのを防ぐ */
+            /* [FIX] position指定自体を持たせず、通常カードの item-meta（position未指定=static）と
+               完全に同じボックスモデルに揃える。static のままでも width:100% は適用できるため、
+               positioned要素化による再描画コンテキストの違い（罫線の位置ズレの原因）を避ける。 */
+            position: static !important;
+            width: 100% !important;
         }
         body.media-hidden .grid-item.has-media .field-row.title-row { display: block !important; }
         body.media-hidden .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
