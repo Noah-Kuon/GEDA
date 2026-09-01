@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v1.3.9                                          ║
+  ║  Qcard PRO  v3.2.1                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1007,11 +1007,19 @@
             letter-spacing: 0.04em; margin-bottom: 14px; padding-bottom: 10px;
             border-bottom: 1px solid var(--border);
             font-family: 'Noto Sans JP', sans-serif;
+            border-radius: 6px; transition: background 0.12s;
         }
         #overlay-text {
             font-weight: 500; color: var(--text); line-height: 1.7;
             white-space: pre-wrap; word-wrap: break-word; padding-bottom: 64px;
             font-family: 'Noto Sans JP', sans-serif;
+            border-radius: 6px; transition: background 0.12s;
+        }
+        /* [NEW] ダブルクリックで編集モードに入れることの発見しやすさのため、
+           ホバー時にごく薄い背景を出す（編集モード中はこれらの要素自体が非表示になるので出番はない） */
+        #overlay-title:hover,
+        #overlay-text:hover {
+            background: rgba(61,139,255,0.05);
         }
         /* ══ カード メタゾーン ══════════════════════════════════════ */
         #overlay-meta {
@@ -6079,6 +6087,19 @@ const backdrop     = document.getElementById('overlay-backdrop');
 const overlay      = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText  = document.getElementById('overlay-text');
+
+// [NEW] タイトル／本文の空白部分をダブルクリックすると編集モードに入れるようにする。
+// シングルクリックではなくダブルクリックにしているのは、本文には既存の「クリックで読み上げ」
+// 機能（デフォルトはロック中で無効）があり、クリックイベントが競合しないようにするため。
+// dblclickはclickとは別イベントなので、読み上げのロック状態に関わらず常に安全に共存できる。
+[overlayTitle, overlayText].forEach(function(el) {
+    el.style.cursor = 'text';
+    el.title = 'ダブルクリックで編集';
+    el.addEventListener('dblclick', function() {
+        if (!editCardItem || isEditMode) return;
+        enterEditMode();
+    });
+});
 const toast        = document.getElementById('shortcut-toast');
 
 let currentFontSize = +localStorage.getItem('kp_font')   || 30;
