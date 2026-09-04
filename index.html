@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.3-UI-redesign                                          ║
+  ║  Qcard PRO  v3.2.2-UI-ANKI                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4345,6 +4345,15 @@ min-height: 0;
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">テキストとしてコピー</div><div class="dm-desc">クリップボードにコピー</div></div>
             </button>
+            <button class="dm-action" onclick="exportActiveAnkiTSV()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki用テキスト</div>
+                    <div class="dm-desc">簡易書き出し・非公式対応
+                        <span title="本機能はAnki社との提携・公認によるものではありません。タブ区切りテキスト（表面・裏面）としての簡易書き出しです。画像・タグ等は含まれません。" style="cursor:help;opacity:0.7;">ⓘ</span>
+                    </div>
+                </div>
+            </button>
             <hr class="dm-divider">
             <div class="dm-section-label">全シナリオ</div>
             <div class="dm-action-row">
@@ -4364,6 +4373,13 @@ min-height: 0;
             <button class="dm-action" onclick="copyToClipboard('all')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">全シナリオをコピー</div></div>
+            </button>
+            <button class="dm-action" onclick="exportAnkiTSV()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki用テキスト（全シナリオ）</div>
+                    <div class="dm-desc">簡易書き出し・非公式対応</div>
+                </div>
             </button>
             <hr class="dm-divider">
             <button class="dm-action" onclick="confirmSortCards()">
@@ -4416,6 +4432,17 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">.csv 形式</div></div>
                 </button>
             </div>
+            <!-- [NEW] Anki (.apkg) 読み込み。常時見えるのは小さな一言のみ、詳細はⓘのツールチップに格納 -->
+            <button class="dm-action" onclick="document.getElementById('importFileAnki').click()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki (.apkg)</div>
+                    <div class="dm-desc">簡易インポート・非公式対応
+                        <span title="本機能はAnki社との提携・公認によるものではありません。また、Cloze等の特殊なテンプレートや復習履歴・復習間隔は完全には再現されません（タイトル・本文・画像・デッキ構成の取り込みを目的とした簡易インポートです）。" style="cursor:help;opacity:0.7;">ⓘ</span>
+                    </div>
+                </div>
+            </button>
+            <input type="file" id="importFileAnki" accept=".apkg,.colpkg" style="display:none" onchange="importAnki(event)">
             <div class="dm-warn">⚠️ 追加 or 全置換を選択できます。全置換は現在のデータが消えます。</div>
             <input type="file" id="importFileJSON" accept=".json,.qcf,.qcp" style="display:none" onchange="importJSON(event)">
             <input type="file" id="importFileCSV"  accept=".csv"            style="display:none" onchange="importCSV(event)">
@@ -9423,6 +9450,39 @@ function csvEscape(str) {
     return /[,"\r\n]/.test(s) ? '"' + s + '"' : s;
 }
 
+// ===== Anki用タブ区切りテキスト書き出し（Phase 1：簡易対応） =====
+// 非公式・簡易対応。画像やタグ、学習履歴は含まない、表面/裏面のみのテキスト書き出し。
+function ankiTSVClean(s) {
+    // Ankiはタブをフィールド区切りとして扱うため、フィールド内のタブはスペースに、
+    // 改行は<br>に変換して1行に収める（Anki側でHTMLとして解釈される）
+    return String(s || '').replace(/\t/g, '    ').replace(/\r\n|\r|\n/g, '<br>');
+}
+function ankiTSVRow(title, content) {
+    return ankiTSVClean(title) + '\t' + ankiTSVClean(content);
+}
+function exportActiveAnkiTSV() {
+    var a = getActive(); if (!a) return;
+    var lines = (a.data || [])
+        .filter(function(c){ return (c.title||'').trim() || (c.content||'').trim(); })
+        .map(function(c){ return ankiTSVRow(c.title, c.content); });
+    if (!lines.length) { showToast('書き出せるカードがありません'); return; }
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, activeFilename('txt'));
+    showToast('Anki用テキストを書き出しました'); closeDataModal();
+}
+function exportAnkiTSV() {
+    var lines = [];
+    scenarios.forEach(function(s) {
+        (s.data || []).forEach(function(c) {
+            if ((c.title||'').trim() || (c.content||'').trim()) lines.push(ankiTSVRow(c.title, c.content));
+        });
+    });
+    if (!lines.length) { showToast('書き出せるカードがありません'); return; }
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, 'qcard_anki_' + today() + '.txt');
+    showToast('Anki用テキストを書き出しました'); closeDataModal();
+}
+
 // [NEW] Markdown形式の生成（1シナリオ分）
 // # シナリオ名
 //
@@ -10237,6 +10297,220 @@ function importCSV(e) {
         }
     });
     e.target.value = '';
+}
+
+// ===== Anki (.apkg / .colpkg) インポート（Phase 1：簡易・非公式対応） =====
+// 方針：完全な再現は目指さない。タイトル・本文・画像・デッキ構成（→シナリオ）の
+// 取り込みに絞り、復習履歴・間隔（revlog / ivl / factor 等）は意図的に取り込まない。
+// JSZip / sql.js はこの機能を使う時だけ動的に読み込む（常時ロードして重くしない）。
+
+var _ankiLibsPromise = null;
+function ankiLoadScript(src) {
+    return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload  = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('failed to load ' + src)); };
+        document.head.appendChild(s);
+    });
+}
+function ankiLoadLibs() {
+    if (_ankiLibsPromise) return _ankiLibsPromise;
+    _ankiLibsPromise = Promise.all([
+        (typeof JSZip !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'),
+        (typeof initSqlJs !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js')
+    ]);
+    return _ankiLibsPromise;
+}
+
+function ankiGuessMime(filename) {
+    var ext = (String(filename).split('.').pop() || '').toLowerCase();
+    var map = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml' };
+    return map[ext] || 'application/octet-stream';
+}
+
+// Anki側のHTML/Cloze/音声タグを、Qcardのプレーンテキストへ簡易変換する
+function ankiFieldToPlainText(raw) {
+    var s = String(raw || '');
+    s = s.replace(/\[sound:[^\]]+\]/g, '');                       // 音声参照は取り込まない
+    s = s.replace(/\{\{c\d+::(.*?)(::.*?)?\}\}/g, '$1');          // Cloze: {{c1::答え::ヒント}} → 答え のみ
+    s = s.replace(/<br\s*\/?>/gi, '\n');
+    s = s.replace(/<(p|div|li)[^>]*>/gi, '\n');
+    s = s.replace(/<\/(p|div|li)>/gi, '\n');
+    s = s.replace(/<[^>]+>/g, '');
+    s = s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+         .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 抽出した画像バイナリを、既存の画像最適化パイプラインに乗せてmediaDBへ保存する
+// （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
+function ankiSaveImageBlob(mediaId, bytes, filename) {
+    var blob = new Blob([bytes], { type: ankiGuessMime(filename) });
+    return optimizeImageToWebP(blob).then(function(result) {
+        var record = {
+            cardId: mediaId,
+            type: 'image',
+            blob: result.blob,
+            mimeType: result.mimeType,
+            optimizedMimeType: result.optimizedMimeType || result.mimeType,
+            size: result.optimizedSize,
+            originalFilename: filename || '',
+            originalMimeType: blob.type || '',
+            originalWidth: result.originalWidth || 0,
+            originalHeight: result.originalHeight || 0,
+            originalSize: result.originalSize,
+            optimizedWidth: result.width,
+            optimizedHeight: result.height,
+            optimizedSize: result.optimizedSize,
+            savedAt: new Date().toISOString(),
+            hash: null,
+            mediaUrl: null
+        };
+        return mediaDB.save(record);
+    }).catch(function(err) { console.error('[ankiSaveImageBlob]', err); });
+}
+
+function importAnki(e) {
+    var file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+
+    showToast('Ankiデータを読み込み中…');
+
+    ankiLoadLibs().then(function() {
+        return file.arrayBuffer();
+    }).then(function(buf) {
+        return JSZip.loadAsync(buf);
+    }).then(function(zip) {
+        var colEntry = zip.file('collection.anki21') || zip.file('collection.anki2');
+        if (!colEntry) throw new Error('collection.anki2 が見つかりません（Ankiの書き出しファイルではない可能性があります）');
+
+        return colEntry.async('uint8array').then(function(colBytes) {
+            return initSqlJs({
+                locateFile: function(f) { return 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f; }
+            }).then(function(SQL) {
+                return { db: new SQL.Database(colBytes), zip: zip };
+            });
+        });
+    }).then(function(ctx) {
+        var db = ctx.db, zip = ctx.zip;
+
+        // ── デッキ情報（レガシー：col.decks のJSON文字列 / 新形式：decksテーブル の両対応） ──
+        var decksMap = {};
+        try {
+            var colRes = db.exec('SELECT decks FROM col LIMIT 1');
+            if (colRes.length && colRes[0].values.length) decksMap = JSON.parse(colRes[0].values[0][0]);
+        } catch (err) { /* 列が無い場合は下のフォールバックへ */ }
+        if (!Object.keys(decksMap).length) {
+            try {
+                var decksTable = db.exec('SELECT id, name FROM decks');
+                if (decksTable.length) {
+                    decksTable[0].values.forEach(function(row) { decksMap[row[0]] = { name: row[1] }; });
+                }
+            } catch (err) { /* テーブルも無ければデッキ不明として later にフォールバック */ }
+        }
+
+        // ── メディアのファイル名対応表（数値ファイル名 → 元ファイル名。逆引きも作る） ──
+        var mediaMap = {};
+        var mediaFile = zip.file('media');
+        var mediaPromise = mediaFile ? mediaFile.async('string').then(function(txt) {
+            try { mediaMap = JSON.parse(txt); } catch (err) {}
+        }) : Promise.resolve();
+
+        return mediaPromise.then(function() {
+            var mediaReverse = {};
+            Object.keys(mediaMap).forEach(function(num) { mediaReverse[mediaMap[num]] = num; });
+
+            var notesRes = db.exec('SELECT id, flds FROM notes');
+            if (!notesRes.length) throw new Error('カードデータ（notes）が見つかりませんでした');
+
+            var noteToDeck = {};
+            try {
+                var cardsRes = db.exec('SELECT nid, did FROM cards');
+                if (cardsRes.length) {
+                    cardsRes[0].values.forEach(function(row) {
+                        if (!(row[0] in noteToDeck)) noteToDeck[row[0]] = row[1];
+                    });
+                }
+            } catch (err) { /* cards が読めなくても notes だけで続行する */ }
+
+            var scenarioByDeck = {};
+            var importedScenarios = [];
+            var totalCards = 0;
+            var imagePromises = [];
+
+            notesRes[0].values.forEach(function(row) {
+                var nid  = row[0];
+                var flds = row[1] || '';
+                var fields  = flds.split('\x1f');
+                var rawFront = fields[0] || '';
+                var rawBack  = fields[1] || '';
+
+                // 画像は前後どちらかの最初の1枚のみ取り込む（Qcardは1カード1画像のため）
+                var imgFilename = null;
+                var imgMatch = (rawFront + ' ' + rawBack).match(/<img[^>]+src=["']([^"']+)["']/i);
+                if (imgMatch) imgFilename = imgMatch[1];
+
+                var title   = ankiFieldToPlainText(rawFront);
+                var content = ankiFieldToPlainText(rawBack);
+                if (!title && !content && !imgFilename) return; // 完全に空のノートはスキップ
+
+                var did = noteToDeck[nid];
+                var deckName = (decksMap[did] && decksMap[did].name) ? decksMap[did].name : 'Anki Import';
+                deckName = String(deckName).replace(/::/g, ' / '); // 親::子 デッキ名を読みやすく
+
+                var scenario = scenarioByDeck[did];
+                if (!scenario) {
+                    scenario = newScenarioMeta(deckName);
+                    scenarioByDeck[did] = scenario;
+                    importedScenarios.push(scenario);
+                }
+
+                var card = newCardMeta(title, content);
+                scenario.data.push(card);
+                totalCards++;
+
+                if (imgFilename && mediaReverse[imgFilename] !== undefined) {
+                    var numName = mediaReverse[imgFilename];
+                    var entry = zip.file(numName);
+                    if (entry) {
+                        imagePromises.push(
+                            entry.async('uint8array').then(function(bytes) {
+                                var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                                card.mediaId = mediaId;
+                                return ankiSaveImageBlob(mediaId, bytes, imgFilename);
+                            }).catch(function(){ /* 1枚失敗しても全体は続行する */ })
+                        );
+                    }
+                }
+            });
+
+            if (!importedScenarios.length) throw new Error('取り込めるカードがありませんでした');
+
+            // 3列固定で、カード数がちょうど収まる行数に自動調整する
+            importedScenarios.forEach(function(s) {
+                s.cols = 3;
+                s.rows = Math.max(3, Math.ceil(s.data.length / 3));
+            });
+
+            return Promise.all(imagePromises).then(function() {
+                scenarios = scenarios.concat(importedScenarios);
+                saveScenarios();
+                renderScenarioTabs();
+                activeScenarioId = importedScenarios[0].id;
+                switchScenario(activeScenarioId);
+                updateGrid();
+                showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
+                closeDataModal();
+            });
+        });
+    }).catch(function(err) {
+        console.error('[importAnki]', err);
+        alert('Ankiデータの読み込みに失敗しました。\n' + (err && err.message ? err.message : '') + '\n\nファイルが破損しているか、対応していない形式の可能性があります。');
+    });
 }
 
 function parseCSV(text) {
