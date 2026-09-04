@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.2-UI-ANKI                                          ║
+  ║  Qcard PRO  v3.2.3-ANKI-ｖ2                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -10499,6 +10499,14 @@ function importAnki(e) {
             return Promise.all(imagePromises).then(function() {
                 scenarios = scenarios.concat(importedScenarios);
                 saveScenarios();
+                // [FIX] newCardMeta()で作った最小限のカードオブジェクトには、
+                // tags/source/note/studyCount等、後から追加された付随フィールドが無い。
+                // 通常はページ読み込み時の loadScenarios() マイグレーションで補完されるが、
+                // インポートは実行中のセッションに直接データを差し込むためこれを経由しない。
+                // 保存 → 再読み込みでマイグレーションを明示的に通し、他の経路で作られた
+                // カードと完全に同じ形へ正規化する（描画時に欠けたフィールドを参照して
+                // 失敗する不具合の原因だった）。
+                loadScenarios();
                 renderScenarioTabs();
                 activeScenarioId = importedScenarios[0].id;
                 switchScenario(activeScenarioId);
