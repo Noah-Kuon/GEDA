@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.2                                          ║
+  ║  Qcard PRO  v3.2.4　ANKI-V3                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -338,6 +338,35 @@
         .ds-row { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
         .ds-row label { white-space: nowrap; font-weight: 500; flex-shrink: 0; }
         .ds-divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+        /* ─── [NEW] TOPバーのオーバーフローメニュー（ヘルプ／データ管理） ─── */
+        #top-overflow-wrap { position: relative; flex-shrink: 0; }
+        #top-overflow-btn { font-size: 0.9rem; padding: 4px 10px; line-height: 1; }
+        #top-overflow-btn.active { background: rgba(61,139,255,0.12); border-color: var(--accent); color: var(--accent); }
+        #top-overflow-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: 10px;
+            padding: 6px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+            z-index: 550;
+            min-width: 160px;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #top-overflow-menu.open { display: flex; }
+        .to-menu-item {
+            display: block; width: 100%; text-align: left;
+            background: none; border: none; border-radius: 6px;
+            color: var(--text); font-size: 0.74rem; font-weight: 500;
+            padding: 8px 10px; cursor: pointer; white-space: nowrap;
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+        .to-menu-item:hover { background: var(--surface2); }
         #display-settings-popover #cardRatioSelect {
             background: var(--surface2);
             border: 1px solid var(--border);
@@ -3547,8 +3576,6 @@ min-height: 0;
     </div>
 
     <div class="divider"></div>
-    <button class="top-btn" id="hide-toggle-btn" onclick="toggleCardHide()" title="非表示カードのON/OFF（H）">👁</button>
-    <div class="divider"></div>
 
     <!-- SAVE INDICATOR -->
     <div class="save-indicator saved" id="saveIndicator">
@@ -3566,16 +3593,18 @@ min-height: 0;
     ">· 編集無効</span>
 
     <div style="flex:1"></div>
-    <!-- ☁️ クラウド同期（Pro版で実装予定） -->
-    <div class="top-btn"
-         style="opacity:0.45; cursor:default; pointer-events:none;"
-         data-i18n="btn_sync_lock"
-         data-i18n-title="sync_title"
-         title="クラウド同期 — Pro版で実装予定">☁️ 同期 🔒</div>
 
-    <div class="top-btn" onclick="showTutorial()" data-i18n="btn_help">? ヘルプ</div>
-    <div class="top-btn danger" onclick="clearAll()" data-i18n="btn_clear_all">全消去</div>
-    <div class="top-btn" onclick="openDataModal()" data-i18n="btn_data_modal">データ管理</div>
+    <!-- [FIX] ヘルプ／データ管理を1つのオーバーフローメニューに集約。
+         クラウド同期（Pro版）の常時disabledボタンと、危険操作「全消去」は
+         TOPバーから撤去し、全消去は「データ管理」内の専用タブに移設した
+         （機能は削っていない。導線を整理しただけ）。 -->
+    <div id="top-overflow-wrap">
+        <button class="top-btn" id="top-overflow-btn" onclick="toggleTopOverflow(event)" data-i18n-title="btn_more" title="その他のメニュー">⋯</button>
+        <div id="top-overflow-menu">
+            <button class="to-menu-item" onclick="closeTopOverflow(); showTutorial();" data-i18n="btn_help">❓ ヘルプ</button>
+            <button class="to-menu-item" onclick="closeTopOverflow(); openDataModal();" data-i18n="btn_data_modal">🗂️ データ管理</button>
+        </div>
+    </div>
 
     <!-- モバイル用ハンバーガーボタン -->
     <div id="mob-menu-btn" onclick="mobDrawerOpen()">☰</div>
@@ -3761,6 +3790,10 @@ min-height: 0;
                 <button id="learningModeToggleBtn" onclick="toggleLearningDirection()" class="top-btn" style="flex:1; text-align:center; padding: 4px 8px;" data-i18n="dir_normal">
                     📁 タイトル ➔ 内容
                 </button>
+            </div>
+            <div class="ds-divider"></div>
+            <div class="ds-row">
+                <div class="top-btn" id="hide-toggle-btn" onclick="toggleCardHide()" style="width:100%;text-align:center;" title="非表示カードのON/OFF（H）"></div>
             </div>
             <div class="ds-divider"></div>
             <div class="ds-row">
@@ -4286,6 +4319,7 @@ min-height: 0;
         <button class="dm-tab" onclick="dmTab(this,'dm-import')">読み込み</button>
         <button class="dm-tab" onclick="dmTab(this,'dm-share')">共有</button>
         <button class="dm-tab" onclick="dmTab(this,'dm-scenario')">シナリオ設定</button>
+        <button class="dm-tab" onclick="dmTab(this,'dm-other')">その他</button>
     </div>
     <!-- コンテンツ -->
     <div style="padding:0 18px 18px;overflow-y:auto;max-height:calc(80vh - 90px);">
@@ -4311,6 +4345,15 @@ min-height: 0;
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">テキストとしてコピー</div><div class="dm-desc">クリップボードにコピー</div></div>
             </button>
+            <button class="dm-action" onclick="exportActiveAnkiTSV()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki用テキスト</div>
+                    <div class="dm-desc">簡易書き出し・非公式対応
+                        <span title="本機能はAnki社との提携・公認によるものではありません。タブ区切りテキスト（表面・裏面）としての簡易書き出しです。画像・タグ等は含まれません。" style="cursor:help;opacity:0.7;">ⓘ</span>
+                    </div>
+                </div>
+            </button>
             <hr class="dm-divider">
             <div class="dm-section-label">全シナリオ</div>
             <div class="dm-action-row">
@@ -4330,6 +4373,13 @@ min-height: 0;
             <button class="dm-action" onclick="copyToClipboard('all')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">全シナリオをコピー</div></div>
+            </button>
+            <button class="dm-action" onclick="exportAnkiTSV()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki用テキスト（全シナリオ）</div>
+                    <div class="dm-desc">簡易書き出し・非公式対応</div>
+                </div>
             </button>
             <hr class="dm-divider">
             <button class="dm-action" onclick="confirmSortCards()">
@@ -4382,6 +4432,17 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">.csv 形式</div></div>
                 </button>
             </div>
+            <!-- [NEW] Anki (.apkg) 読み込み。常時見えるのは小さな一言のみ、詳細はⓘのツールチップに格納 -->
+            <button class="dm-action" onclick="document.getElementById('importFileAnki').click()">
+                <span class="dm-icon">🗃️</span>
+                <div>
+                    <div class="dm-label">Anki (.apkg)</div>
+                    <div class="dm-desc">簡易インポート・非公式対応
+                        <span title="本機能はAnki社との提携・公認によるものではありません。また、Cloze等の特殊なテンプレートや復習履歴・復習間隔は完全には再現されません（タイトル・本文・画像・デッキ構成の取り込みを目的とした簡易インポートです）。" style="cursor:help;opacity:0.7;">ⓘ</span>
+                    </div>
+                </div>
+            </button>
+            <input type="file" id="importFileAnki" accept=".apkg,.colpkg" style="display:none" onchange="importAnki(event)">
             <div class="dm-warn">⚠️ 追加 or 全置換を選択できます。全置換は現在のデータが消えます。</div>
             <input type="file" id="importFileJSON" accept=".json,.qcf,.qcp" style="display:none" onchange="importJSON(event)">
             <input type="file" id="importFileCSV"  accept=".csv"            style="display:none" onchange="importCSV(event)">
@@ -4473,6 +4534,24 @@ min-height: 0;
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- ── その他 ── -->
+        <!-- [MOVED] TOPバーに常時表示していた「全消去」（危険操作）と、
+             常時disabledだった「クラウド同期」プレースホルダーをここに移設。
+             機能はそのまま。誤って押しやすい場所から、意図的に開く場所へ移した。 -->
+        <div id="dm-other" class="dm-panel">
+            <div class="dm-section-label">クラウド同期</div>
+            <div class="dm-action" style="opacity:0.5;cursor:default;pointer-events:none;">
+                <span class="dm-icon">☁️</span>
+                <div><div class="dm-label">クラウド同期</div><div class="dm-desc">Pro版で実装予定</div></div>
+            </div>
+            <hr class="dm-divider">
+            <div class="dm-section-label">危険な操作</div>
+            <button class="dm-action" style="border-color:rgba(242,82,106,0.35);" onclick="closeDataModal(); clearAll();">
+                <span class="dm-icon" style="color:var(--danger);">🗑</span>
+                <div><div class="dm-label" style="color:var(--danger);">全消去</div><div class="dm-desc">現在のシナリオの全カードを削除します（元に戻せません）</div></div>
+            </button>
         </div>
 
     </div><!-- /スクロール領域 -->
@@ -4988,9 +5067,10 @@ const I18N = {
         save_saved:         '保存済み',
         save_saving:        '保存中...',
         btn_sync_lock:      '☁️ 同期 🔒',
-        btn_help:           '? ヘルプ',
+        btn_more:           'その他のメニュー',
+        btn_help:           '❓ ヘルプ',
         btn_clear_all:      '全消去',
-        btn_data_modal:     'データ管理',
+        btn_data_modal:     '🗂️ データ管理',
         sync_title:         'クラウド同期 — Pro版で実装予定',
         // SEARCH BAR
         search_placeholder: 'カードを検索...',
@@ -5205,9 +5285,10 @@ const I18N = {
         save_saved:         'Saved',
         save_saving:        'Saving...',
         btn_sync_lock:      '☁️ Sync 🔒',
-        btn_help:           '? Help',
+        btn_more:           'More',
+        btn_help:           '❓ Help',
         btn_clear_all:      'Clear All',
-        btn_data_modal:     'Data',
+        btn_data_modal:     '🗂️ Data',
         sync_title:         'Cloud Sync — Coming in Pro',
         // SEARCH BAR
         search_placeholder: 'Search cards...',
@@ -6089,6 +6170,17 @@ const backdrop     = document.getElementById('overlay-backdrop');
 const overlay      = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText  = document.getElementById('overlay-text');
+
+// [NEW] 目に斜線を重ねたシンプルな非表示アイコン（絵文字による表示崩れを避けるためSVGで統一）。
+// [FIX] init()（下のIIFE）内で最初に使われるため、その前に定義しておく必要がある。
+var ICON_HIDDEN_SVG =
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94"/>' +
+    '<path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>' +
+    '<path d="M1 1l22 22"/>' +
+    '<path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>' +
+    '</svg>';
 
 // [NEW] タイトル／本文の空白部分をダブルクリックすると編集モードに入れるようにする。
 // シングルクリックではなくダブルクリックにしているのは、本文には既存の「クリックで読み上げ」
@@ -7113,6 +7205,28 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// [NEW] TOPバーのオーバーフローメニュー（ヘルプ／データ管理）
+function toggleTopOverflow(e) {
+    if (e) e.stopPropagation();
+    var menu = document.getElementById('top-overflow-menu');
+    var btn  = document.getElementById('top-overflow-btn');
+    var isOpen = menu.classList.toggle('open');
+    if (btn) btn.classList.toggle('active', isOpen);
+}
+function closeTopOverflow() {
+    var menu = document.getElementById('top-overflow-menu');
+    var btn  = document.getElementById('top-overflow-btn');
+    if (menu) menu.classList.remove('open');
+    if (btn)  btn.classList.remove('active');
+}
+document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('top-overflow-wrap');
+    if (!wrap) return;
+    var menu = document.getElementById('top-overflow-menu');
+    if (!menu || !menu.classList.contains('open')) return;
+    if (!wrap.contains(e.target)) closeTopOverflow();
+});
+
 // [NEW] カード縦横比設定
 // 'auto' = 既存仕様（height: 160px固定）/ それ以外は aspect-ratio で「横幅に対する高さの比率」を適用
 // [v2.5.5] デフォルト比率を 'fit' に変更。未移行ユーザーは強制的に 'fit' へリセット
@@ -7776,7 +7890,10 @@ var cardHideOn = localStorage.getItem('kp_card_hide') === '1';
 function applyCardHideState() {
     document.body.classList.toggle('card-hide-on', cardHideOn);
     var btn = document.getElementById('hide-toggle-btn');
-    if (btn) btn.classList.toggle('active', cardHideOn);
+    if (btn) {
+        btn.classList.toggle('active', cardHideOn);
+        btn.innerHTML = ICON_HIDDEN_SVG + ' 非表示カードを表示: ' + (cardHideOn ? 'ON' : 'OFF');
+    }
 }
 
 // トップバーボタン / Hキー でON/OFF切替
@@ -8127,16 +8244,6 @@ function updateItemStatusSlot(cardItem) {
     // ③ 通常時：何も表示しない
     slot.classList.remove('show');
 }
-
-// [NEW] 目に斜線を重ねたシンプルな非表示アイコン（絵文字による表示崩れを避けるためSVGで統一）
-var ICON_HIDDEN_SVG =
-    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94"/>' +
-    '<path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>' +
-    '<path d="M1 1l22 22"/>' +
-    '<path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>' +
-    '</svg>';
 
 function setCardMeta(cardItem, patch) {
     var active = getActive();
@@ -9343,6 +9450,39 @@ function csvEscape(str) {
     return /[,"\r\n]/.test(s) ? '"' + s + '"' : s;
 }
 
+// ===== Anki用タブ区切りテキスト書き出し（Phase 1：簡易対応） =====
+// 非公式・簡易対応。画像やタグ、学習履歴は含まない、表面/裏面のみのテキスト書き出し。
+function ankiTSVClean(s) {
+    // Ankiはタブをフィールド区切りとして扱うため、フィールド内のタブはスペースに、
+    // 改行は<br>に変換して1行に収める（Anki側でHTMLとして解釈される）
+    return String(s || '').replace(/\t/g, '    ').replace(/\r\n|\r|\n/g, '<br>');
+}
+function ankiTSVRow(title, content) {
+    return ankiTSVClean(title) + '\t' + ankiTSVClean(content);
+}
+function exportActiveAnkiTSV() {
+    var a = getActive(); if (!a) return;
+    var lines = (a.data || [])
+        .filter(function(c){ return (c.title||'').trim() || (c.content||'').trim(); })
+        .map(function(c){ return ankiTSVRow(c.title, c.content); });
+    if (!lines.length) { showToast('書き出せるカードがありません'); return; }
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, activeFilename('txt'));
+    showToast('Anki用テキストを書き出しました'); closeDataModal();
+}
+function exportAnkiTSV() {
+    var lines = [];
+    scenarios.forEach(function(s) {
+        (s.data || []).forEach(function(c) {
+            if ((c.title||'').trim() || (c.content||'').trim()) lines.push(ankiTSVRow(c.title, c.content));
+        });
+    });
+    if (!lines.length) { showToast('書き出せるカードがありません'); return; }
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    downloadBlob(blob, 'qcard_anki_' + today() + '.txt');
+    showToast('Anki用テキストを書き出しました'); closeDataModal();
+}
+
 // [NEW] Markdown形式の生成（1シナリオ分）
 // # シナリオ名
 //
@@ -10157,6 +10297,233 @@ function importCSV(e) {
         }
     });
     e.target.value = '';
+}
+
+// ===== Anki (.apkg / .colpkg) インポート（Phase 1：簡易・非公式対応） =====
+// 方針：完全な再現は目指さない。タイトル・本文・画像・デッキ構成（→シナリオ）の
+// 取り込みに絞り、復習履歴・間隔（revlog / ivl / factor 等）は意図的に取り込まない。
+// JSZip / sql.js はこの機能を使う時だけ動的に読み込む（常時ロードして重くしない）。
+
+var _ankiLibsPromise = null;
+function ankiLoadScript(src) {
+    return new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload  = function(){ resolve(); };
+        s.onerror = function(){ reject(new Error('failed to load ' + src)); };
+        document.head.appendChild(s);
+    });
+}
+function ankiLoadLibs() {
+    if (_ankiLibsPromise) return _ankiLibsPromise;
+    _ankiLibsPromise = Promise.all([
+        (typeof JSZip !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'),
+        (typeof initSqlJs !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js')
+    ]);
+    return _ankiLibsPromise;
+}
+
+function ankiGuessMime(filename) {
+    var ext = (String(filename).split('.').pop() || '').toLowerCase();
+    var map = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml' };
+    return map[ext] || 'application/octet-stream';
+}
+
+// Anki側のHTML/Cloze/音声タグを、Qcardのプレーンテキストへ簡易変換する
+function ankiFieldToPlainText(raw) {
+    var s = String(raw || '');
+    s = s.replace(/\[sound:[^\]]+\]/g, '');                       // 音声参照は取り込まない
+    s = s.replace(/\{\{c\d+::(.*?)(::.*?)?\}\}/g, '$1');          // Cloze: {{c1::答え::ヒント}} → 答え のみ
+    s = s.replace(/<br\s*\/?>/gi, '\n');
+    s = s.replace(/<(p|div|li)[^>]*>/gi, '\n');
+    s = s.replace(/<\/(p|div|li)>/gi, '\n');
+    s = s.replace(/<[^>]+>/g, '');
+    s = s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+         .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 抽出した画像バイナリを、既存の画像最適化パイプラインに乗せてmediaDBへ保存する
+// （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
+function ankiSaveImageBlob(mediaId, bytes, filename) {
+    var blob = new Blob([bytes], { type: ankiGuessMime(filename) });
+    return optimizeImageToWebP(blob).then(function(result) {
+        var record = {
+            cardId: mediaId,
+            type: 'image',
+            blob: result.blob,
+            mimeType: result.mimeType,
+            optimizedMimeType: result.optimizedMimeType || result.mimeType,
+            size: result.optimizedSize,
+            originalFilename: filename || '',
+            originalMimeType: blob.type || '',
+            originalWidth: result.originalWidth || 0,
+            originalHeight: result.originalHeight || 0,
+            originalSize: result.originalSize,
+            optimizedWidth: result.width,
+            optimizedHeight: result.height,
+            optimizedSize: result.optimizedSize,
+            savedAt: new Date().toISOString(),
+            hash: null,
+            mediaUrl: null
+        };
+        return mediaDB.save(record);
+    }).catch(function(err) { console.error('[ankiSaveImageBlob]', err); });
+}
+
+function importAnki(e) {
+    var file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+
+    showToast('Ankiデータを読み込み中…');
+
+    ankiLoadLibs().then(function() {
+        return file.arrayBuffer();
+    }).then(function(buf) {
+        return JSZip.loadAsync(buf);
+    }).then(function(zip) {
+        var colEntry = zip.file('collection.anki21') || zip.file('collection.anki2');
+        if (!colEntry) throw new Error('collection.anki2 が見つかりません（Ankiの書き出しファイルではない可能性があります）');
+
+        return colEntry.async('uint8array').then(function(colBytes) {
+            return initSqlJs({
+                locateFile: function(f) { return 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f; }
+            }).then(function(SQL) {
+                return { db: new SQL.Database(colBytes), zip: zip };
+            });
+        });
+    }).then(function(ctx) {
+        var db = ctx.db, zip = ctx.zip;
+
+        // ── デッキ情報（レガシー：col.decks のJSON文字列 / 新形式：decksテーブル の両対応） ──
+        var decksMap = {};
+        try {
+            var colRes = db.exec('SELECT decks FROM col LIMIT 1');
+            if (colRes.length && colRes[0].values.length) decksMap = JSON.parse(colRes[0].values[0][0]);
+        } catch (err) { /* 列が無い場合は下のフォールバックへ */ }
+        if (!Object.keys(decksMap).length) {
+            try {
+                var decksTable = db.exec('SELECT id, name FROM decks');
+                if (decksTable.length) {
+                    decksTable[0].values.forEach(function(row) { decksMap[row[0]] = { name: row[1] }; });
+                }
+            } catch (err) { /* テーブルも無ければデッキ不明として later にフォールバック */ }
+        }
+
+        // ── メディアのファイル名対応表（数値ファイル名 → 元ファイル名。逆引きも作る） ──
+        var mediaMap = {};
+        var mediaFile = zip.file('media');
+        var mediaPromise = mediaFile ? mediaFile.async('string').then(function(txt) {
+            try { mediaMap = JSON.parse(txt); } catch (err) {}
+        }) : Promise.resolve();
+
+        return mediaPromise.then(function() {
+            var mediaReverse = {};
+            Object.keys(mediaMap).forEach(function(num) { mediaReverse[mediaMap[num]] = num; });
+
+            var notesRes = db.exec('SELECT id, flds FROM notes');
+            if (!notesRes.length) throw new Error('カードデータ（notes）が見つかりませんでした');
+
+            var noteToDeck = {};
+            try {
+                var cardsRes = db.exec('SELECT nid, did FROM cards');
+                if (cardsRes.length) {
+                    cardsRes[0].values.forEach(function(row) {
+                        if (!(row[0] in noteToDeck)) noteToDeck[row[0]] = row[1];
+                    });
+                }
+            } catch (err) { /* cards が読めなくても notes だけで続行する */ }
+
+            var scenarioByDeck = {};
+            var importedScenarios = [];
+            var totalCards = 0;
+            var imagePromises = [];
+
+            notesRes[0].values.forEach(function(row) {
+                var nid  = row[0];
+                var flds = row[1] || '';
+                var fields  = flds.split('\x1f');
+                var rawFront = fields[0] || '';
+                var rawBack  = fields[1] || '';
+
+                // 画像は前後どちらかの最初の1枚のみ取り込む（Qcardは1カード1画像のため）
+                var imgFilename = null;
+                var imgMatch = (rawFront + ' ' + rawBack).match(/<img[^>]+src=["']([^"']+)["']/i);
+                if (imgMatch) imgFilename = imgMatch[1];
+
+                var title   = ankiFieldToPlainText(rawFront);
+                var content = ankiFieldToPlainText(rawBack);
+                if (!title && !content && !imgFilename) return; // 完全に空のノートはスキップ
+
+                var did = noteToDeck[nid];
+                var deckName = (decksMap[did] && decksMap[did].name) ? decksMap[did].name : 'Anki Import';
+                deckName = String(deckName).replace(/::/g, ' / '); // 親::子 デッキ名を読みやすく
+
+                var scenario = scenarioByDeck[did];
+                if (!scenario) {
+                    scenario = newScenarioMeta(deckName);
+                    scenarioByDeck[did] = scenario;
+                    importedScenarios.push(scenario);
+                }
+
+                var card = newCardMeta(title, content);
+                scenario.data.push(card);
+                totalCards++;
+
+                if (imgFilename && mediaReverse[imgFilename] !== undefined) {
+                    var numName = mediaReverse[imgFilename];
+                    var entry = zip.file(numName);
+                    if (entry) {
+                        imagePromises.push(
+                            entry.async('uint8array').then(function(bytes) {
+                                var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                                card.mediaId = mediaId;
+                                return ankiSaveImageBlob(mediaId, bytes, imgFilename);
+                            }).catch(function(){ /* 1枚失敗しても全体は続行する */ })
+                        );
+                    }
+                }
+            });
+
+            if (!importedScenarios.length) throw new Error('取り込めるカードがありませんでした');
+
+            // 3列固定で、カード数がちょうど収まる行数に自動調整する
+            importedScenarios.forEach(function(s) {
+                s.cols = 3;
+                s.rows = Math.max(3, Math.ceil(s.data.length / 3));
+            });
+
+            return Promise.all(imagePromises).then(function() {
+                scenarios = scenarios.concat(importedScenarios);
+                saveScenarios();
+                renderScenarioTabs();
+
+                // Ankiインポート直後は switchScenario() を使わない。
+                // switchScenario() は先頭で saveCurrentGridData() を実行するため、
+                // activeScenarioId を先に新シナリオへ変更すると、現在画面の旧グリッド内容で
+                // インポート済みデータを上書きしてしまう。
+                activeScenarioId = importedScenarios[0].id;
+                var active = getActive();
+                document.getElementById('colsInput').value = active ? active.cols : 3;
+                var rowsEl = document.getElementById('rowsInput');
+                if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
+                isLearningReversed = !!(active && active.isReversed);
+                updateLearningDirectionBtn();
+                updateGrid();
+                applySearch(currentQuery);
+                hideOverlay();
+
+                showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
+                closeDataModal();
+            });
+        });
+    }).catch(function(err) {
+        console.error('[importAnki]', err);
+        alert('Ankiデータの読み込みに失敗しました。\n' + (err && err.message ? err.message : '') + '\n\nファイルが破損しているか、対応していない形式の可能性があります。');
+    });
 }
 
 function parseCSV(text) {
