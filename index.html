@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.4　ANKI-V3                                          ║
+  ║  Qcard PRO  v3.3.0                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3563,7 +3563,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.2.0</span>
+    <span class="version-badge">v3.3.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -5595,9 +5595,18 @@ function applyI18n() {
 // ═══════════════════════════════════════════════════════════════
 // Supabase 接続設定
 // ═══════════════════════════════════════════════════════════════
+// 本番用の値。配布するファイルはこの値のまま変更しない。
+var SUPABASE_URL_PROD  = 'https://uyqrppgsgbxotfvyqlsl.supabase.co';
+var SUPABASE_ANON_PROD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5cXJwcGdzZ2J4b3RmdnlxbHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NDg4NDcsImV4cCI6MjEwNDAyNDg0N30.KO8fH0BZ2QMKW2eoTB8WNvigbx3H5iz7a2opuCNHlr0';
 
-var SUPABASE_URL  = 'https://uyqrppgsgbxotfvyqlsl.supabase.co';
-var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5cXJwcGdzZ2J4b3RmdnlxbHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NDg4NDcsImV4cCI6MjEwNDAyNDg0N30.KO8fH0BZ2QMKW2eoTB8WNvigbx3H5iz7a2opuCNHlr0';
+// [NEW] 開発用の上書き設定。ブラウザのlocalStorageに値がある場合のみそちらを優先する。
+// 使い方（開発端末のブラウザのConsoleで一度だけ実行）：
+//   localStorage.setItem('qcard_dev_supabase_url', 'https://xxxx.supabase.co');
+//   localStorage.setItem('qcard_dev_supabase_key', '開発用のanonキー');
+// 元に戻す場合は localStorage.removeItem('qcard_dev_supabase_url' / 'qcard_dev_supabase_key')。
+// [FIX] 本番環境のためコンソールへの出力は一切行わない（サイレントに切り替わるのみ）。
+var SUPABASE_URL  = localStorage.getItem('qcard_dev_supabase_url') || SUPABASE_URL_PROD;
+var SUPABASE_ANON = localStorage.getItem('qcard_dev_supabase_key') || SUPABASE_ANON_PROD;
 
 // supabase-js が CDN からロードされている前提
 var sbClient = null;
@@ -5636,10 +5645,18 @@ async function uploadMediaToStorage(cardId, ulid) {
             upsert: true
         });
         console.log('[Media] upload result:', JSON.stringify(res));
-        if (res.error) { console.warn('画像アップロード失敗:', res.error.message); return null; }
+        if (res.error) {
+            console.warn('画像アップロード失敗:', res.error.message);
+            if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードに失敗しました（' + res.error.message + '）');
+            return null;
+        }
         var pub = sb.storage.from('qcard-media').getPublicUrl(path);
         return pub.data.publicUrl || null;
-    } catch(e) { console.warn('画像アップロードエラー:', e); return null; }
+    } catch(e) {
+        console.warn('画像アップロードエラー:', e);
+        if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードでエラーが発生しました');
+        return null;
+    }
 }
 
 // ── Phase C: 音声を Supabase Storage にアップロード ─────────────
@@ -5670,8 +5687,12 @@ async function uploadAudioToStorage(cardId, ulid) {
                     return pub.data.publicUrl || null;
                 }
                 console.warn('アップロード音声の送信失敗:', res.error.message);
+                if (typeof showToast === 'function') showToast('⚠️ 音声のアップロードに失敗しました（' + res.error.message + '）');
             }
-        } catch(e) { console.warn('uploadDB取得エラー:', e); }
+        } catch(e) {
+            console.warn('uploadDB取得エラー:', e);
+            if (typeof showToast === 'function') showToast('⚠️ 音声データの読み込みでエラーが発生しました');
+        }
     }
 
     // ② 録音音声（最新の1件）
@@ -5690,8 +5711,12 @@ async function uploadAudioToStorage(cardId, ulid) {
                     return pub2.data.publicUrl || null;
                 }
                 console.warn('録音音声の送信失敗:', res2.error.message);
+                if (typeof showToast === 'function') showToast('⚠️ 録音のアップロードに失敗しました（' + res2.error.message + '）');
             }
-        } catch(e) { console.warn('itvDB取得エラー:', e); }
+        } catch(e) {
+            console.warn('itvDB取得エラー:', e);
+            if (typeof showToast === 'function') showToast('⚠️ 録音データの読み込みでエラーが発生しました');
+        }
     }
     return null;
 }
