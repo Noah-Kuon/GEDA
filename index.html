@@ -3758,7 +3758,7 @@ min-height: 0;
 <div class="search-bar">
     <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" data-i18n-ph="search_placeholder" placeholder="カードを検索..." oninput="onSearch(this.value)" autocomplete="off">
+        <input type="text" id="search-input" data-i18n-ph="search_placeholder" placeholder="カードを検索..." oninput="onSearch(this.value)" oncompositionend="onSearch(this.value)" autocomplete="off">
         <button class="search-clear" onclick="clearSearch()" data-i18n-title="search_clear" title="クリア">×</button>
     </div>
     <span class="search-count" id="search-count" onclick="toggleSearchFilterView()"></span>
@@ -6712,20 +6712,78 @@ function removeCardLink(card, targetUri) {
     return card.links.length !== before;
 }
 
-// [NEW] 全シナリオを横断してカードを検索する（カード選択UI用。DOMではなくデータを直接走査）
+// [FIX] 検索用文字列をQcard全体で統一する。
+// IMEそのものだけでなく、全角/半角・Unicode表現差・不可視文字・空白差などで
+// 「見た目は同じなのに検索できない」状態が起きないよう、比較前に正規化する。
+function normalizeSearchText(value) {
+    if (value === null || value === undefined) return '';
+    var text = String(value);
+    try { text = text.normalize('NFKC'); } catch (e) {}
+    // ゼロ幅文字・BOM等、コピー＆ペーストで混入しやすい不可視文字を除去
+    text = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    // 改行・タブ・連続空白を1つの空白へ統一
+    text = text.replace(/[\r\n\t]+/g, ' ');
+    text = text.replace(/\s+/g, ' ');
+    return text.trim().toLowerCase();
+}
+
+function getCardSearchText(card) {
+    if (!card) return '';
+    return [
+        card.title,
+        card.content,
+        Array.isArray(card.tags) ? card.tags.join(' ') : card.tags,
+        card.source,
+        card.sourceUrl,
+        card.note
+    ].map(normalizeSearchText).filter(Boolean).join(' ');
+}
+
+// [FIX] メイン検索・カードリンク検索・シナリオ件数を同じ判定に統一。
+function cardMatchesQuery(card, query) {
+    var q = normalizeSearchText(query);
+    if (!q) return false;
+    return getCardSearchText(card).indexOf(q) !== -1;
+}
+
+// [FIX] 全シナリオを横断してカードを検索する。
+// DOMを直接検索せず、保存データを基本にする。ただし現在のシナリオについては、
+// 未保存の編集途中の title/content もDOMからURI単位で上書きして検索対象にする。
 function searchCardsAcrossScenarios(query) {
-    var q = (query || '').trim().toLowerCase();
+    var q = normalizeSearchText(query);
     var results = [];
+    var active = getActive();
+    var liveByUri = {};
+
+    // 検索中の表示状態に関係なく、DOMに存在するカードの最新入力だけを補正情報として取得。
+    if (active && grid) {
+        Array.from(grid.querySelectorAll('.grid-item')).forEach(function(item) {
+            var uri = item.dataset.uri;
+            if (!uri) return;
+            var ti = item.querySelector('.title-input');
+            var ci = item.querySelector('.content-textarea');
+            liveByUri[uri] = {
+                title: ti ? ti.value : undefined,
+                content: ci ? ci.value : undefined
+            };
+        });
+    }
+
     scenarios.forEach(function(s, si) {
         (s.data || []).forEach(function(card, ci) {
             if (!card.uri) return;
-            var title = (card.title || '').trim();
-            var content = (card.content || '');
-            if (!title && !content.trim()) return; // 空カードは選択肢から除外
-            if (q) {
-                var hay = (title + ' ' + content).toLowerCase();
-                if (hay.indexOf(q) === -1) return;
+
+            var searchCard = card;
+            if (s === active && liveByUri[card.uri]) {
+                // 元データを破壊せず、入力中の値だけ検索用に反映する。
+                searchCard = Object.assign({}, card, liveByUri[card.uri]);
             }
+
+            var title = (searchCard.title || '').trim();
+            var content = (searchCard.content || '');
+            if (!title && !content.trim()) return; // 空カードは選択肢から除外
+            if (q && !cardMatchesQuery(searchCard, q)) return;
+
             results.push({
                 scenarioName: displayScenarioName(s, si),
                 scenarioId: s.id,
@@ -7514,7 +7572,7 @@ function updateGrid() {
     // 「一致したカードだけ」を可変件数で並べる一時的な表示にする。
     // scenario.data 自体は書き換えないため、絞り込みを解除すれば通常表示に戻る。
     if (typeof searchFilterActive !== 'undefined' && searchFilterActive && currentQuery) {
-        var lower = currentQuery.trim().toLowerCase();
+        var lower = normalizeSearchText(currentQuery);
         var filtered = data.filter(function(card) { return cardMatchesQuery(card, lower); });
         if (filtered.length === 0) {
             // 一致が0件になった場合（他のシナリオに切り替わった等）は絞り込みを自動解除する
@@ -7952,25 +8010,13 @@ function getMediaLazyObserver() {
 
 // ===== SEARCH =====
 
-// [NEW] 1枚のカード（scenario.data の要素）が検索語に一致するかどうかの共通判定。
-// title/content/tags/note のいずれかに含まれていれば一致とする。
-// applySearch（表示中シナリオのハイライト）と、シナリオ横断カウントの両方から使う。
-function cardMatchesQuery(card, lower) {
-    if (!card) return false;
-    var searchTitle   = toPlainText(card.title   || '').toLowerCase();
-    var searchContent = toPlainText(card.content || '').toLowerCase();
-    var searchTags    = (card.tags || []).join(' ').toLowerCase();
-    var searchNote    = (card.note || '').toLowerCase();
-    return searchTitle.includes(lower) || searchContent.includes(lower)
-        || searchTags.includes(lower)  || searchNote.includes(lower);
-}
 
 // [NEW] 全シナリオを横断して、シナリオごとの一致件数を返す。
 // DOM生成を伴わず scenario.data を直接見るだけなので、非表示のシナリオも軽く数えられる。
 function computeSearchMatchCounts(q) {
     var counts = {};
     if (!q) return counts;
-    var lower = q.trim().toLowerCase();
+    var lower = normalizeSearchText(q);
     if (!lower) return counts;
     scenarios.forEach(function(s) {
         var n = 0;
@@ -8008,7 +8054,7 @@ function applySearch(q) {
         return;
     }
 
-    var lower   = q.toLowerCase();
+    var lower   = normalizeSearchText(q);
     var matched = 0;
 
     items.forEach(function(item, idx) {
@@ -8016,7 +8062,7 @@ function applySearch(q) {
         // 表示中のカードは編集途中の値を優先して見るため、DOM側の現在値を使う
         var titleVal   = item.querySelector('.title-input').value;
         var contentVal = item.querySelector('.content-textarea').value;
-        var liveCard = { title: titleVal, content: contentVal, tags: cardMeta.tags, note: cardMeta.note };
+        var liveCard = { title: titleVal, content: contentVal, tags: cardMeta.tags, source: cardMeta.source, sourceUrl: cardMeta.sourceUrl, note: cardMeta.note };
         var hit = cardMatchesQuery(liveCard, lower);
         if (hit) {
             item.classList.add('search-match');
