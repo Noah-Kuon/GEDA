@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.4.2                                                   ║
+  ║  Qcard PRO  v3.5.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3615,7 +3615,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.5.0</span>
+    <span class="version-badge">v3.5.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -6833,11 +6833,32 @@ function cardLinkFilterPicker(query) {
     var resultsEl = document.getElementById('card-link-results');
     if (!resultsEl || !editCardItem) return;
     resultsEl.innerHTML = '';
-    // [FIX] 参照の陳腐化対策：フィルタ描画時点で最新のcurrentUriを取得する
-    saveCurrentGridData();
-    var currentMeta = getCardMeta(editCardItem);
-    var currentUri  = currentMeta ? currentMeta.uri : null;
+    try {
+        cardLinkFilterPickerImpl(query, resultsEl);
+    } catch (err) {
+        console.error('[cardLinkFilterPicker] 予期しないエラー:', err);
+        resultsEl.innerHTML = '';
+        var errEl = document.createElement('div');
+        errEl.className = 'clp-empty-hint';
+        errEl.textContent = '検索中にエラーが発生しました。もう一度お試しください。';
+        resultsEl.appendChild(errEl);
+    }
+}
+function cardLinkFilterPickerImpl(query, resultsEl) {
+
+    // [FIX] 「現在のカードの最新URIを取得する」処理と「検索して一覧を描画する」処理を分離する。
+    // 以前は前者が失敗すると後者（検索そのもの）まで一緒に止まってしまい、
+    // 「入力しても絞り込まれない」ように見える不具合の原因になっていた。
+    var currentUri = null;
     var currentEditItem = editCardItem; // クリック時に非同期でも正しいカードを参照できるよう固定
+    try {
+        saveCurrentGridData();
+        var currentMeta = getCardMeta(editCardItem);
+        currentUri = currentMeta ? currentMeta.uri : null;
+    } catch (err) {
+        console.warn('[cardLinkFilterPicker] 現在カードのURI取得に失敗（検索自体は続行します）:', err);
+    }
+
     var results = searchCardsAcrossScenarios(query);
     // シナリオごとにグルーピングして表示
     var groups = {};
@@ -6871,11 +6892,15 @@ function cardLinkFilterPicker(query) {
             } else {
                 item.addEventListener('click', function() {
                     // [FIX] クリック時点で改めて最新のカード参照を取得してから追加する
-                    saveCurrentGridData();
-                    var freshMeta = getCardMeta(currentEditItem);
-                    if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
-                        saveScenarios();
-                        renderCardLinks(currentEditItem);
+                    try {
+                        saveCurrentGridData();
+                        var freshMeta = getCardMeta(currentEditItem);
+                        if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
+                            saveScenarios();
+                            renderCardLinks(currentEditItem);
+                        }
+                    } catch (err) {
+                        console.warn('[cardLinkFilterPicker] リンク追加に失敗:', err);
                     }
                     cardLinkClosePicker();
                 });
