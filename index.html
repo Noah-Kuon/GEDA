@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.4.2 ANKI-img2                                                  ║
+  ║  Qcard PRO  v3.4.2  ANKI-medic+                                                 ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -10412,6 +10412,27 @@ function ankiFieldToPlainText(raw) {
     return s.replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// [NEW] ノートの全フィールド（フィールド0＝タイトルを除く）を、
+// 「フィールド名: 値」の形でラベル付き結合して本文にする。
+// フィールド名は col.models のノートタイプ定義（fldNames配列）から取得する。
+// 空欄フィールド（例：画像だけ入っていて他が空の「画像」フィールド）はスキップする。
+// fldNames が取得できない場合（テーブル構造が想定外など）は、
+// 既存の「フィールド1をそのまま本文にする」挙動にフォールバックする。
+function ankiBuildContentFromFields(fields, fldNames) {
+    if (!fldNames || !fldNames.length) {
+        // フォールバック：従来通りフィールド1だけを本文にする
+        return ankiFieldToPlainText(fields[1] || '');
+    }
+    var parts = [];
+    for (var i = 1; i < fields.length; i++) {
+        var label = fldNames[i] || ('フィールド' + i);
+        var value = ankiFieldToPlainText(fields[i] || '');
+        if (!value) continue; // 空欄フィールドは省略
+        parts.push(label + ': ' + value);
+    }
+    return parts.join('\n');
+}
+
 // 抽出した画像バイナリを、既存の画像最適化パイプラインに乗せてmediaDBへ保存する
 // （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
 function ankiSaveImageBlob(mediaId, bytes, filename) {
@@ -10480,6 +10501,19 @@ function importAnki(e) {
             } catch (err) { /* テーブルも無ければデッキ不明として later にフォールバック */ }
         }
 
+        // [NEW] ノートタイプごとのフィールド名一覧（col.models のJSON定義から取得）。
+        // ノートタイプが複数ある場合に備え、モデルID→フィールド名配列 のマップを作る。
+        var fldNamesByModel = {};
+        try {
+            var modelsRes = db.exec('SELECT models FROM col LIMIT 1');
+            if (modelsRes.length && modelsRes[0].values.length) {
+                var models = JSON.parse(modelsRes[0].values[0][0]);
+                Object.keys(models).forEach(function(mid) {
+                    fldNamesByModel[mid] = models[mid].flds.map(function(f) { return f.name; });
+                });
+            }
+        } catch (err) { /* 取得できなければ従来のフォールバック挙動になる */ }
+
         // ── メディアのファイル名対応表（数値ファイル名 → 元ファイル名。逆引きも作る） ──
         var mediaMap = {};
         var mediaFile = zip.file('media');
@@ -10491,7 +10525,7 @@ function importAnki(e) {
             var mediaReverse = {};
             Object.keys(mediaMap).forEach(function(num) { mediaReverse[mediaMap[num]] = num; });
 
-            var notesRes = db.exec('SELECT id, flds FROM notes');
+            var notesRes = db.exec('SELECT id, mid, flds FROM notes');
             if (!notesRes.length) throw new Error('カードデータ（notes）が見つかりませんでした');
 
             var noteToDeck = {};
@@ -10507,14 +10541,16 @@ function importAnki(e) {
             var scenarioByDeck = {};
             var importedScenarios = [];
             var totalCards = 0;
-            var imagePromises = [];
+            // [MOD] 画像だけを {card, filename} の形で集めておき、
+            // カード本体（テキスト）の保存とは切り離してあとで処理する。
+            var pendingImages = [];
 
             notesRes[0].values.forEach(function(row) {
                 var nid  = row[0];
-                var flds = row[1] || '';
-                var fields  = flds.split('\x1f');
-                var rawFront = fields[0] || '';
-                var rawBack  = fields[1] || '';
+                var mid  = row[1];
+                var flds = row[2] || '';
+                var fields = flds.split('\x1f');
+                var fldNames = fldNamesByModel[mid];
 
                 // [FIX] 画像は表・裏(フィールド0/1)だけでなく、ノートの全フィールドから探す。
                 // Ankiはノートタイプが自由に作れるため、「単語/訳/読み/音声/画像/タグ」のように
@@ -10524,8 +10560,12 @@ function importAnki(e) {
                 var imgMatch = fields.join(' ').match(/<img[^>]+src=["']([^"']+)["']/i);
                 if (imgMatch) imgFilename = imgMatch[1];
 
-                var title   = ankiFieldToPlainText(rawFront);
-                var content = ankiFieldToPlainText(rawBack);
+                // [MOD] タイトルはフィールド0のまま。本文は「フィールド1だけ」ではなく、
+                // フィールド名をラベルにして残り全フィールドを結合する。
+                // 表裏2フィールドだけの単純なデッキでは、結果的に従来と同じ
+                // 「フィールド1の内容だけ」になるため、既存の正常動作には影響しない。
+                var title   = ankiFieldToPlainText(fields[0] || '');
+                var content = ankiBuildContentFromFields(fields, fldNames);
                 if (!title && !content && !imgFilename) return; // 完全に空のノートはスキップ
 
                 var did = noteToDeck[nid];
@@ -10544,17 +10584,7 @@ function importAnki(e) {
                 totalCards++;
 
                 if (imgFilename && mediaReverse[imgFilename] !== undefined) {
-                    var numName = mediaReverse[imgFilename];
-                    var entry = zip.file(numName);
-                    if (entry) {
-                        imagePromises.push(
-                            entry.async('uint8array').then(function(bytes) {
-                                var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-                                card.mediaId = mediaId;
-                                return ankiSaveImageBlob(mediaId, bytes, imgFilename);
-                            }).catch(function(){ /* 1枚失敗しても全体は続行する */ })
-                        );
-                    }
+                    pendingImages.push({ card: card, filename: imgFilename, numName: mediaReverse[imgFilename] });
                 }
             });
 
@@ -10566,29 +10596,74 @@ function importAnki(e) {
                 s.rows = Math.max(3, Math.ceil(s.data.length / 3));
             });
 
-            return Promise.all(imagePromises).then(function() {
-                scenarios = scenarios.concat(importedScenarios);
-                saveScenarios();
-                renderScenarioTabs();
+            // [MOD] テキストは画像処理を待たずに、ここで先に確定保存する。
+            // 画像1枚あたりの変換（WebP化）はメインスレッドで時間がかかるため、
+            // 300枚を超えるような大きなデッキでは全体の完了まで数十秒〜かかることがある。
+            // 従来は Promise.all() で全画像の完了を待ってから保存していたため、
+            // その間ブラウザが固まって見え、「何も取り込まれなかった」ように見える事故があった。
+            scenarios = scenarios.concat(importedScenarios);
+            saveScenarios();
+            renderScenarioTabs();
 
-                // Ankiインポート直後は switchScenario() を使わない。
-                // switchScenario() は先頭で saveCurrentGridData() を実行するため、
-                // activeScenarioId を先に新シナリオへ変更すると、現在画面の旧グリッド内容で
-                // インポート済みデータを上書きしてしまう。
-                activeScenarioId = importedScenarios[0].id;
-                var active = getActive();
-                document.getElementById('colsInput').value = active ? active.cols : 3;
-                var rowsEl = document.getElementById('rowsInput');
-                if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
-                isLearningReversed = !!(active && active.isReversed);
-                updateLearningDirectionBtn();
-                updateGrid();
-                applySearch(currentQuery);
-                hideOverlay();
+            // Ankiインポート直後は switchScenario() を使わない。
+            // switchScenario() は先頭で saveCurrentGridData() を実行するため、
+            // activeScenarioId を先に新シナリオへ変更すると、現在画面の旧グリッド内容で
+            // インポート済みデータを上書きしてしまう。
+            activeScenarioId = importedScenarios[0].id;
+            var active = getActive();
+            document.getElementById('colsInput').value = active ? active.cols : 3;
+            var rowsEl = document.getElementById('rowsInput');
+            if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
+            isLearningReversed = !!(active && active.isReversed);
+            updateLearningDirectionBtn();
+            updateGrid();
+            applySearch(currentQuery);
+            hideOverlay();
+            closeDataModal();
 
+            if (!pendingImages.length) {
                 showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
-                closeDataModal();
-            });
+                return;
+            }
+
+            // [NEW] 画像はここから非同期・少数ずつ処理する。
+            // テキストは既に保存済みなので、画像処理が重くても
+            // 「一切取り込めなかった」という事態にはならない。
+            showToast('カードを保存しました。画像を処理中… (0/' + pendingImages.length + ')');
+            var BATCH_SIZE = 5;
+            var done = 0;
+
+            function processImageBatch(startIdx) {
+                var batch = pendingImages.slice(startIdx, startIdx + BATCH_SIZE);
+                if (!batch.length) {
+                    // 全画像処理が完了。最後にもう一度保存して画面へ反映する。
+                    saveScenarios();
+                    updateGrid();
+                    showToast('画像の読み込みが完了しました（' + done + '/' + pendingImages.length + '枚）');
+                    return;
+                }
+                var batchPromises = batch.map(function(item) {
+                    var entry = zip.file(item.numName);
+                    if (!entry) return Promise.resolve();
+                    return entry.async('uint8array').then(function(bytes) {
+                        var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                        item.card.mediaId = mediaId;
+                        return ankiSaveImageBlob(mediaId, bytes, item.filename);
+                    }).catch(function(){ /* 1枚失敗しても全体は続行する */ });
+                });
+                Promise.all(batchPromises).then(function() {
+                    done += batch.length;
+                    // バッチごとに保存・再描画し、少しずつ画像が反映されていく様子を見せる
+                    saveScenarios();
+                    if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
+                        updateGrid();
+                    }
+                    showToast('画像を処理中… (' + done + '/' + pendingImages.length + ')');
+                    // メインスレッドを一度解放してから次のバッチへ（UIが固まって見えるのを防ぐ）
+                    setTimeout(function() { processImageBatch(startIdx + BATCH_SIZE); }, 30);
+                });
+            }
+            processImageBatch(0);
         });
     }).catch(function(err) {
         console.error('[importAnki]', err);
