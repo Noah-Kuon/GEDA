@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.3.0                                                   ║
+  ║  Qcard PRO  v3.4.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -544,6 +544,11 @@
             cursor: default; overflow: hidden; position: relative;
             transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
             height: 160px;
+            /* [NEW] 画面外のカードはブラウザ側でレイアウト・描画処理を丸ごとスキップさせる。
+               大量枚数（Ankiインポート等）でも軽快さを保つための対策その1。
+               高さは常に160pxで確定しているため、契約サイズをそのまま指定してもズレは生じない。 */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 160px;
         }
         .content-textarea { overflow-y: auto !important; }
         .content-textarea::-webkit-scrollbar { width: 3px; }
@@ -3563,7 +3568,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.3.0</span>
+    <span class="version-badge">v3.4.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -7413,6 +7418,9 @@ function updateGrid() {
 }
 
 function renderGrid(data, total) {
+    // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
+    // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
+    if (_mediaLazyObserver) _mediaLazyObserver.disconnect();
     grid.innerHTML = '';
     var cols = getActiveCols();
     var rows = getActiveRows();
@@ -7775,10 +7783,44 @@ function createItem(index, d) {
     });
     item.appendChild(pasteHint);
 
-    // [NEW] 既存の画像データを読み込んで表示（あれば）
-    mediaLoadForCard(cardId, item, mediaImg);
+    // [NEW] 既存の画像データは、画面に入ってから読み込む（画面外カードの無駄な
+    // IndexedDBアクセス・デコード処理を防ぐ。大量枚数対策その2）
+    try {
+        getMediaLazyObserver().observe(item);
+    } catch (err) {
+        // [FIX] 何らかの理由でオブザーバーが使えない場合、画像が永久に読み込まれない
+        // 事態を避けるため、即時読み込みにフォールバックする
+        console.warn('[lazy-load] フォールバックして即時読み込みします:', err);
+        mediaLoadForCard(cardId, item, mediaImg);
+    }
 
     return item;
+}
+
+// [NEW] グリッド全体で1つだけ共有するIntersectionObserver。
+// スクロール領域(.grid-wrapper)を基準に、カードが画面に近づいた時点で
+// 一度だけ mediaLoadForCard() を呼び、以後はそのカードの監視を解除する。
+var _mediaLazyObserver = null;
+function getMediaLazyObserver() {
+    if (!_mediaLazyObserver) {
+        var rootEl = document.querySelector('.grid-wrapper');
+        // [FIX] コールバック内は、外側の可変変数(_mediaLazyObserver)ではなく、
+        // このクロージャ専用のローカル変数(obs)だけを参照するようにする。
+        // 再描画のタイミング次第で外側の変数を経由すると不整合が起きうるため、
+        // 「このコールバックは常に自分自身が属するインスタンスだけを見る」形に固定する。
+        var obs = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (!entry.isIntersecting) return;
+                var el = entry.target;
+                if (obs) obs.unobserve(el);
+                var cid = el.dataset.mediaId;
+                var img = el.querySelector('.card-media-layer img');
+                if (cid && img && typeof mediaLoadForCard === 'function') mediaLoadForCard(cid, el, img);
+            });
+        }, { root: rootEl, rootMargin: '400px 0px', threshold: 0.01 });
+        _mediaLazyObserver = obs;
+    }
+    return _mediaLazyObserver;
 }
 
 // ===== SEARCH =====
