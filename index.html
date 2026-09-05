@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.4.2  ANKI-medic+                                                 ║
+  ║  Qcard PRO  v3.4.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -486,6 +486,53 @@
         }
         .scenario-tab.drop-insert-before::before { left: -4px; }
         .scenario-tab.drop-insert-after::after    { right: -4px; }
+
+        /* [NEW] 検索：一致カードを含むシナリオのタブに枠色＋件数バッジを表示 */
+        .scenario-tab.search-hit {
+            border-color: rgba(245,166,35,0.7) !important;
+            box-shadow: 0 0 0 1px rgba(245,166,35,0.25);
+        }
+        .scenario-tab .search-hit-badge {
+            display: none;
+            align-items: center; justify-content: center;
+            min-width: 16px; height: 16px; padding: 0 4px;
+            background: rgba(245,166,35,0.85); color: #1a1a1a;
+            border-radius: 8px; font-size: 0.6rem; font-weight: 700;
+            font-family: 'DM Mono', monospace;
+            margin-left: 2px;
+        }
+        .scenario-tab.search-hit .search-hit-badge { display: inline-flex; }
+
+        /* [NEW] 検索絞り込みビュー：一致カードだけを表示している間のバナー */
+        #search-filter-banner {
+            display: none;
+            align-items: center; gap: 8px;
+            background: rgba(245,166,35,0.1);
+            border: 1px solid rgba(245,166,35,0.35);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--text);
+            margin: 0 14px 8px;
+        }
+        #search-filter-banner.show { display: flex; }
+        #search-filter-banner .sfb-clear {
+            margin-left: auto;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 6px; padding: 3px 10px; font-size: 0.7rem;
+            color: var(--text-muted); cursor: pointer;
+        }
+        .search-count { cursor: pointer; } /* [NEW] クリックで絞り込みビューを開けることを示す */
+        .search-count.has-results:hover { text-decoration: underline; }
+
+        /* [NEW] 検索絞り込みビュー中は、誤って編集して保存されない事故を防ぐため、
+           カードのタイトル・本文入力を一時的に読み取り専用にする。
+           （絞り込み中の編集は保存されない設計のため、編集できないことを明示する） */
+        body.search-filter-view .title-input,
+        body.search-filter-view .content-textarea {
+            pointer-events: none;
+            opacity: 0.85;
+        }
         .scenario-tab .tab-key {
             font-family: 'DM Mono', monospace;
             font-size: 0.56rem; background: var(--border); border-radius: 3px;
@@ -3568,7 +3615,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.4.2</span>
+    <span class="version-badge">v3.5.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3714,7 +3761,7 @@ min-height: 0;
         <input type="text" id="search-input" data-i18n-ph="search_placeholder" placeholder="カードを検索..." oninput="onSearch(this.value)" autocomplete="off">
         <button class="search-clear" onclick="clearSearch()" data-i18n-title="search_clear" title="クリア">×</button>
     </div>
-    <span class="search-count" id="search-count"></span>
+    <span class="search-count" id="search-count" onclick="toggleSearchFilterView()"></span>
 
     <!-- [MOVED] シナリオ選択：検索窓の右隣に配置。以前は専用の1行（.scenario-bar）を
          占有していたが、検索バーに統合してカード表示領域の縦幅を稼ぐようにした。
@@ -3824,6 +3871,12 @@ min-height: 0;
             </div>
         </div>
     </div>
+</div>
+
+<!-- [NEW] 検索絞り込みビュー：一致カードのみ表示中に出すバナー -->
+<div id="search-filter-banner">
+    <span id="search-filter-banner-text"></span>
+    <button type="button" class="sfb-clear" onclick="clearSearchFilterView()">すべて表示</button>
 </div>
 
 <!-- モバイル シナリオセレクト -->
@@ -6969,10 +7022,14 @@ function closeTutorial(save) {
 function renderScenarioTabs() {
     var container = document.getElementById('scenario-tabs');
     container.innerHTML = '';
+    // [NEW] 検索中は、シナリオごとの一致件数を先に計算しておく
+    var searchCounts = (typeof currentQuery !== 'undefined' && currentQuery)
+        ? computeSearchMatchCounts(currentQuery) : {};
     scenarios.forEach(function(s, idx) {
         var isActive = s.id === activeScenarioId;
+        var hitCount = searchCounts[s.id] || 0;
         var tab = document.createElement('div');
-        tab.className = 'scenario-tab' + (isActive ? ' active' : '');
+        tab.className = 'scenario-tab' + (isActive ? ' active' : '') + (hitCount > 0 ? ' search-hit' : '');
         tab.draggable = true;
         tab.dataset.sid = s.id;
 
@@ -7040,6 +7097,15 @@ function renderScenarioTabs() {
         tab.appendChild(key);
         tab.appendChild(name);
 
+        // [NEW] 検索一致件数バッジ（該当シナリオがある場合のみ表示）
+        if (hitCount > 0) {
+            var hitBadge = document.createElement('span');
+            hitBadge.className = 'search-hit-badge';
+            hitBadge.textContent = hitCount;
+            hitBadge.title = currentQuery + ' に一致するカード ' + hitCount + '件';
+            tab.appendChild(hitBadge);
+        }
+
         var del = document.createElement('button');
         del.className = 'tab-delete';
         del.textContent = '×';
@@ -7062,6 +7128,14 @@ function renderScenarioTabs() {
 
 function switchScenario(id) {
     saveCurrentGridData();
+    // [NEW] シナリオを切り替えたら、絞り込みビューは自動解除する
+    // （別シナリオのデータに対して古い絞り込み状態を引き継がないようにする）
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) {
+        searchFilterActive = false;
+        document.body.classList.remove('search-filter-view');
+        var sfBanner = document.getElementById('search-filter-banner');
+        if (sfBanner) sfBanner.classList.remove('show');
+    }
     activeScenarioId = id;
     saveScenarios();
     renderScenarioTabs();
@@ -7198,6 +7272,11 @@ function getCurrentGridData() {
 }
 
 function saveCurrentGridData() {
+    // [FIX] 検索の絞り込みビュー中は、画面に見えているのは一致カードだけの部分集合。
+    // ここで通常通り保存すると、シナリオの全データが「見えている分だけ」に
+    // 上書きされてしまい、他のカードが消える重大なデータ損失につながる。
+    // 絞り込み表示中は保存をスキップする（絞り込みを解除してから保存する設計にする）。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) return;
     var active = getActive();
     if (!active) return;
     active.data      = getCurrentGridData();
@@ -7206,6 +7285,8 @@ function saveCurrentGridData() {
 }
 
 function saveCurrentGridDataWithIndicator() {
+    // [FIX] 同上の理由で、絞り込みビュー中の保存は行わない。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) return;
     setSaveState('unsaved');
     triggerSave(function() {
         var active = getActive();
@@ -7402,6 +7483,26 @@ function updateGrid() {
     var active = getActive();
     var data = active ? active.data : [];
     var total = rows * cols;
+
+    // [NEW] 検索の絞り込みビュー中は、行×列の固定グリッドではなく
+    // 「一致したカードだけ」を可変件数で並べる一時的な表示にする。
+    // scenario.data 自体は書き換えないため、絞り込みを解除すれば通常表示に戻る。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive && currentQuery) {
+        var lower = currentQuery.trim().toLowerCase();
+        var filtered = data.filter(function(card) { return cardMatchesQuery(card, lower); });
+        if (filtered.length === 0) {
+            // 一致が0件になった場合（他のシナリオに切り替わった等）は絞り込みを自動解除する
+            searchFilterActive = false;
+            document.body.classList.remove('search-filter-view');
+            var banner = document.getElementById('search-filter-banner');
+            if (banner) banner.classList.remove('show');
+        } else {
+            data  = filtered;
+            total = filtered.length;
+            cols  = Math.min(cols, Math.max(1, filtered.length));
+        }
+    }
+
     var rowsEl = document.getElementById('rowsInput');
     if (rowsEl) rowsEl.value = rows;
     
@@ -7824,6 +7925,35 @@ function getMediaLazyObserver() {
 }
 
 // ===== SEARCH =====
+
+// [NEW] 1枚のカード（scenario.data の要素）が検索語に一致するかどうかの共通判定。
+// title/content/tags/note のいずれかに含まれていれば一致とする。
+// applySearch（表示中シナリオのハイライト）と、シナリオ横断カウントの両方から使う。
+function cardMatchesQuery(card, lower) {
+    if (!card) return false;
+    var searchTitle   = toPlainText(card.title   || '').toLowerCase();
+    var searchContent = toPlainText(card.content || '').toLowerCase();
+    var searchTags    = (card.tags || []).join(' ').toLowerCase();
+    var searchNote    = (card.note || '').toLowerCase();
+    return searchTitle.includes(lower) || searchContent.includes(lower)
+        || searchTags.includes(lower)  || searchNote.includes(lower);
+}
+
+// [NEW] 全シナリオを横断して、シナリオごとの一致件数を返す。
+// DOM生成を伴わず scenario.data を直接見るだけなので、非表示のシナリオも軽く数えられる。
+function computeSearchMatchCounts(q) {
+    var counts = {};
+    if (!q) return counts;
+    var lower = q.trim().toLowerCase();
+    if (!lower) return counts;
+    scenarios.forEach(function(s) {
+        var n = 0;
+        (s.data || []).forEach(function(card) { if (cardMatchesQuery(card, lower)) n++; });
+        if (n > 0) counts[s.id] = n;
+    });
+    return counts;
+}
+
 function onSearch(q) {
     currentQuery = q.trim();
     applySearch(currentQuery);
@@ -7832,6 +7962,7 @@ function onSearch(q) {
 function applySearch(q) {
     var items    = Array.from(grid.querySelectorAll('.grid-item'));
     var countEl  = document.getElementById('search-count');
+    var active   = getActive();
 
     // reset highlights first
     items.forEach(function(item) {
@@ -7845,27 +7976,22 @@ function applySearch(q) {
     if (!q) {
         countEl.textContent = '';
         countEl.className = 'search-count';
+        // [NEW] 検索語が消えたらシナリオタブのバッジ・絞り込みビューも解除する
+        renderScenarioTabs();
+        if (searchFilterActive) clearSearchFilterView();
         return;
     }
 
     var lower   = q.toLowerCase();
     var matched = 0;
 
-    items.forEach(function(item) {
-        var title   = item.querySelector('.title-input').value;
-        var content = item.querySelector('.content-textarea').value;
-        // toPlainText で ** 記号・引用マーカー(>)を除去してから検索
-        var searchTitle   = toPlainText(title).toLowerCase();
-        var searchContent = toPlainText(content).toLowerCase();
-        // カードメタデータ（タグ・メモ）も検索対象に含める
-        var active = getActive();
-        var items_all = Array.from(grid.querySelectorAll('.grid-item'));
-        var cardIdx   = items_all.indexOf(item);
-        var cardMeta  = (active && active.data && active.data[cardIdx]) || {};
-        var searchTags = (cardMeta.tags || []).join(' ').toLowerCase();
-        var searchNote = (cardMeta.note || '').toLowerCase();
-        var hit = searchTitle.includes(lower) || searchContent.includes(lower)
-               || searchTags.includes(lower)  || searchNote.includes(lower);
+    items.forEach(function(item, idx) {
+        var cardMeta = (active && active.data && active.data[idx]) || {};
+        // 表示中のカードは編集途中の値を優先して見るため、DOM側の現在値を使う
+        var titleVal   = item.querySelector('.title-input').value;
+        var contentVal = item.querySelector('.content-textarea').value;
+        var liveCard = { title: titleVal, content: contentVal, tags: cardMeta.tags, note: cardMeta.note };
+        var hit = cardMatchesQuery(liveCard, lower);
         if (hit) {
             item.classList.add('search-match');
             matched++;
@@ -7876,6 +8002,9 @@ function applySearch(q) {
 
     countEl.textContent = matched + ' 件一致';
     countEl.className   = 'search-count' + (matched > 0 ? ' has-results' : '');
+
+    // [NEW] シナリオを跨いだ一致件数をタブに反映する
+    renderScenarioTabs();
 }
 
 function clearSearch() {
@@ -7884,6 +8013,35 @@ function clearSearch() {
     currentQuery = '';
     applySearch('');
     inp.focus();
+}
+
+// ===== SEARCH FILTER VIEW（一致カードのみ一時的に絞り込み表示） =====
+// 学習モードの studyApplyFilter() と同じ考え方：
+// 表示用の一時的なビューであり、scenario.data の並び順そのものは書き換えない。
+var searchFilterActive = false;
+
+function toggleSearchFilterView() {
+    if (!currentQuery) return;
+    if (searchFilterActive) { clearSearchFilterView(); return; }
+    searchFilterActive = true;
+    document.body.classList.add('search-filter-view');
+    updateGrid();
+    var banner = document.getElementById('search-filter-banner');
+    var text   = document.getElementById('search-filter-banner-text');
+    if (banner) banner.classList.add('show');
+    if (text) {
+        var n = document.querySelectorAll('.grid-item.search-match').length;
+        text.textContent = '「' + currentQuery + '」に一致するカードのみ表示中（' + n + '件・編集不可）';
+    }
+}
+
+function clearSearchFilterView() {
+    searchFilterActive = false;
+    document.body.classList.remove('search-filter-view');
+    var banner = document.getElementById('search-filter-banner');
+    if (banner) banner.classList.remove('show');
+    updateGrid();
+    if (currentQuery) applySearch(currentQuery);
 }
 
 // ===== OVERLAY =====
