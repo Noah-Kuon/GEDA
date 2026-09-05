@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2   POKEMON V2                       ║
+  ║  Qcard PRO  v3.5.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4137,6 +4137,7 @@ min-height: 0;
            placeholder="🔍 タイトル・本文・TAG・シナリオ名・URIで検索（全シナリオ）…"
            onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}">
     <div id="card-link-results"></div>
+    <div id="card-link-action-status" class="clp-action-status"></div>
 </div>
 <div id="overlay">
 
@@ -6927,33 +6928,68 @@ function renderCardLinks(cardItem) {
     });
 }
 
-// [NEW] カード選択ポップオーバー（リンク追加用）
+// [FIX v6] Card Link picker：UIからURI直接指定を廃止し、
+// 「検索→カード選択」だけでリンクを作成する。
+// 重要：リンク元はDOM要素そのものではなく、pickerを開いた時点のURIを保持する。
+//       検索・再描画・別シナリオをまたいでも、URIを主キーとして正しく保存する。
+var cardLinkSourceUri = null;
+
+function cardLinkSetActionStatus(message, type) {
+    var el = document.getElementById('card-link-action-status');
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = 'clp-action-status' + (type ? ' ' + type : '');
+}
+
 function cardLinkOpenPicker() {
     if (!editCardItem) return;
     var backdrop = document.getElementById('card-link-picker-backdrop');
     var picker   = document.getElementById('card-link-picker');
     if (!backdrop || !picker) return;
+
+    // pickerを開いた瞬間に「リンク元URI」を固定する。
+    // 以後の検索操作ではDOM indexやeditCardItemの陳腐化に依存しない。
+    cardLinkSourceUri = null;
+    try {
+        var sourceMeta = getCardMeta(editCardItem);
+        if (sourceMeta && sourceMeta.uri) {
+            cardLinkSourceUri = normalizeCardUri(sourceMeta.uri);
+        } else if (editCardItem.dataset && editCardItem.dataset.uri) {
+            cardLinkSourceUri = normalizeCardUri(editCardItem.dataset.uri);
+        }
+    } catch (err) {
+        console.warn('[cardLinkOpenPicker] リンク元URI取得失敗:', err);
+    }
+
+    if (!cardLinkSourceUri) {
+        showToast('⚠ リンク元カードのURIを取得できません');
+        return;
+    }
+
     backdrop.classList.add('show');
     picker.classList.add('show');
     var input = document.getElementById('card-link-search-input');
-    if (input) { input.value = ''; input.setAttribute('autocomplete','off'); }
-    if (uriInput) { uriInput.value = ''; }
-    if (status) { status.textContent = ''; status.className = 'clp-uri-status'; }
+    if (input) {
+        input.value = '';
+        input.setAttribute('autocomplete', 'off');
+    }
+    cardLinkSetActionStatus('', '');
     cardLinkFilterPicker('');
     if (input) setTimeout(function(){ input.focus(); }, 30);
 }
+
 function cardLinkClosePicker() {
     var backdrop = document.getElementById('card-link-picker-backdrop');
     var picker   = document.getElementById('card-link-picker');
     if (backdrop) backdrop.classList.remove('show');
     if (picker)   picker.classList.remove('show');
+    cardLinkSourceUri = null;
 }
+
 function cardLinkFilterPicker(query) {
     var resultsEl = document.getElementById('card-link-results');
     if (!resultsEl) return;
 
-    // イベント経路に依存せず、現在の入力欄の値を最終的な検索語として採用する。
-    // （IME確定、Safari/Chromeのinput差、インラインイベントの二重発火を吸収）
     var input = document.getElementById('card-link-search-input');
     var q = (query === undefined || query === null)
         ? (input ? input.value : '')
@@ -6971,18 +7007,13 @@ function cardLinkFilterPicker(query) {
         resultsEl.appendChild(errEl);
     }
 }
+
 function cardLinkFilterPickerImpl(query, resultsEl) {
     var q = normalizeSearchText(query);
-    var currentUri = null;
-    var currentEditItem = editCardItem;
+    var currentUri = normalizeCardUri(cardLinkSourceUri).toLowerCase();
 
-    try {
-        var currentMeta = getCardMeta(currentEditItem);
-        currentUri = currentMeta ? normalizeCardUri(currentMeta.uri).toLowerCase() : null;
-    } catch (err2) {
-        console.warn('[cardLinkFilterPicker] 現在カードのURI取得に失敗:', err2);
-    }
-
+    // 現在シナリオだけは未保存の title/content を検索対象へ反映する。
+    // リンク追加そのものは、このliveByUriではなく保存データをURIで更新する。
     var active = getActive();
     var liveByUri = {};
     if (active && grid) {
@@ -7009,18 +7040,15 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
             var live = (s === active) ? liveByUri[cardUri.toLowerCase()] : null;
             var title = String(live && live.title !== undefined ? live.title : (card.title || '')).trim();
             var content = String(live && live.content !== undefined ? live.content : (card.content || ''));
-            if (!title && !content.trim()) return;
-
+            var tagText = Array.isArray(card.tags) ? card.tags.join(' ') : (card.tags || '');
             var titleNorm = normalizeSearchText(title);
             var contentNorm = normalizeSearchText(content);
-            var tagText = Array.isArray(card.tags) ? card.tags.join(' ') : (card.tags || '');
             var tagNorm = normalizeSearchText(tagText);
             var uriNorm = normalizeSearchText(cardUri);
-            var haystack = [titleNorm, contentNorm, tagNorm, scenarioNameNorm, uriNorm]
-                .filter(Boolean).join(' ');
+            var haystack = [titleNorm, contentNorm, tagNorm, scenarioNameNorm, uriNorm].filter(Boolean).join(' ');
 
-            // [FIX v3] キーワード入力時は候補を絞り込み、関連度の高い順に並べる。
-            // タイトル > TAG > シナリオ名 > 本文 > URI の順で優先。
+            if (!title && !content.trim() && !tagNorm) return;
+
             var score = 0;
             if (q) {
                 if (titleNorm.indexOf(q) !== -1) score += titleNorm === q ? 1000 : 500;
@@ -7076,32 +7104,78 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
         group.appendChild(label);
 
         groups[sid].items.forEach(function(r) {
-            var item = document.createElement('div');
+            var item = document.createElement('button');
+            item.type = 'button';
             item.className = 'clp-item';
             item.textContent = '└ ' + r.cardTitle;
             item.title = r.uri || '';
-            var isSelf = (normalizeCardUri(r.uri).toLowerCase() === currentUri);
+
+            var isSelf = normalizeCardUri(r.uri).toLowerCase() === currentUri;
             if (isSelf) {
                 item.classList.add('disabled');
+                item.disabled = true;
                 item.title = '自分自身へのリンクは作成できません\n' + (r.uri || '');
             } else {
-                item.addEventListener('click', function() {
-                    try {
-                        var freshMeta = getCardMeta(currentEditItem);
-                        if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
-                            saveScenarios();
-                            renderCardLinks(currentEditItem);
-                        }
-                    } catch (err) {
-                        console.warn('[cardLinkFilterPicker] リンク追加に失敗:', err);
-                    }
-                    cardLinkClosePicker();
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cardLinkCommitTarget(r.uri, r.cardTitle);
                 });
             }
             group.appendChild(item);
         });
         resultsEl.appendChild(group);
     });
+}
+
+// [FIX v6] 検索結果をクリックした瞬間に、リンク元・リンク先をともにURIで再解決する。
+// 成功時だけpickerを閉じる。失敗時は画面を残し、理由を表示する。
+function cardLinkCommitTarget(targetUri, label) {
+    var sourceUri = normalizeCardUri(cardLinkSourceUri);
+    var target = findCardByUri(targetUri);
+    var source = findCardByUri(sourceUri);
+
+    if (!source) {
+        cardLinkSetActionStatus('⚠ リンク元カードが見つかりません', 'error');
+        showToast('⚠ リンク元カードが見つかりません');
+        return false;
+    }
+    if (!target) {
+        cardLinkSetActionStatus('⚠ リンク先カードが見つかりません', 'error');
+        showToast('⚠ リンク先カードが見つかりません');
+        return false;
+    }
+
+    var sourceKey = normalizeCardUri(source.card.uri).toLowerCase();
+    var targetKey = normalizeCardUri(target.card.uri).toLowerCase();
+    if (sourceKey === targetKey) {
+        cardLinkSetActionStatus('自分自身のカードにはリンクできません', 'error');
+        return false;
+    }
+
+    try {
+        if (!addCardLink(source.card, target.card.uri, label || target.card.title || '（無題）')) {
+            cardLinkSetActionStatus('このカードはすでにリンクされています', 'error');
+            showToast('このカードはすでにリンクされています');
+            return false;
+        }
+
+        saveScenarios();
+
+        // 現在の編集画面がリンク元なら、リンク一覧だけを即時更新する。
+        // シナリオを切り替える必要はない。
+        if (editCardItem) renderCardLinks(editCardItem);
+
+        cardLinkSetActionStatus('✓ 「' + (label || target.card.title || '無題') + '」をリンクしました', 'ok');
+        showToast('✓ 「' + (label || target.card.title || '無題') + '」をリンクしました');
+        setTimeout(cardLinkClosePicker, 250);
+        return true;
+    } catch (err) {
+        console.error('[cardLinkCommitTarget] リンク追加に失敗:', err);
+        cardLinkSetActionStatus('⚠ リンクの保存に失敗しました', 'error');
+        showToast('⚠ リンクの保存に失敗しました');
+        return false;
+    }
 }
 
 // ===== THEME =====
