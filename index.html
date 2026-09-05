@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2     POKEMON-V1                            ║
+  ║  Qcard PRO  v3.5.2   POKEMON V2                       ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4134,17 +4134,8 @@ min-height: 0;
 <div class="card-link-picker" id="card-link-picker">
     <div class="sp-section-label" style="margin-bottom:8px;">🔗 カードをリンク</div>
     <input type="text" id="card-link-search-input" class="sp-search-input"
-           placeholder="🔍 タイトル・本文・TAG・シナリオ名・URIで検索…"
+           placeholder="🔍 タイトル・本文・TAG・シナリオ名・URIで検索（全シナリオ）…"
            onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}">
-    <div class="clp-divider"></div>
-    <div class="sp-section-label" style="margin-bottom:4px;">🔗 URIを直接指定</div>
-    <div class="clp-uri-row">
-        <input type="text" id="card-link-uri-input" class="sp-search-input clp-uri-input"
-               placeholder="fig://…"
-               onkeydown="if(event.key==='Enter'){cardLinkAddByUri();} if(event.key==='Escape'){cardLinkClosePicker();}">
-        <button type="button" class="clp-uri-add-btn" onclick="cardLinkAddByUri()">追加</button>
-    </div>
-    <div id="card-link-uri-status" class="clp-uri-status"></div>
     <div id="card-link-results"></div>
 </div>
 <div id="overlay">
@@ -6945,8 +6936,6 @@ function cardLinkOpenPicker() {
     backdrop.classList.add('show');
     picker.classList.add('show');
     var input = document.getElementById('card-link-search-input');
-    var uriInput = document.getElementById('card-link-uri-input');
-    var status = document.getElementById('card-link-uri-status');
     if (input) { input.value = ''; input.setAttribute('autocomplete','off'); }
     if (uriInput) { uriInput.value = ''; }
     if (status) { status.textContent = ''; status.className = 'clp-uri-status'; }
@@ -7115,53 +7104,6 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
     });
 }
 
-// [NEW] fig:// URI を直接指定してリンクを追加する。
-// 検索結果と同じく最終保存値は targetUri のみで、タイトル変更に影響されない。
-function cardLinkAddByUri() {
-    if (!editCardItem) return;
-
-    var input = document.getElementById('card-link-uri-input');
-    var status = document.getElementById('card-link-uri-status');
-    var uri = input ? normalizeCardUri(input.value) : '';
-
-    if (status) { status.className = 'clp-uri-status'; status.textContent = ''; }
-    if (!/^fig:\/\/[^\s]+$/i.test(uri)) {
-        if (status) { status.className = 'clp-uri-status error'; status.textContent = 'fig:// で始まるURIを入力してください'; }
-        return;
-    }
-
-    try {
-        // [FIX v3] 直接URI指定は「現在のQcard内に存在すること」を必須条件にしない。
-        // URIは永続的な参照キーなので、別ファイル・未読込カードへのリンクも保存できる。
-        // 対象が現在存在すればタイトルをラベルに採用し、存在しなければ未解決リンクとして保持する。
-        var freshMeta = getCardMeta(editCardItem);
-        if (!freshMeta) throw new Error('現在カードのメタデータを取得できません');
-        if (normalizeCardUri(freshMeta.uri).toLowerCase() === normalizeCardUri(uri).toLowerCase()) {
-            if (status) { status.className = 'clp-uri-status error'; status.textContent = '自分自身へのリンクは作成できません'; }
-            return;
-        }
-
-        var found = findCardByUri(uri);
-        var label = found && found.card ? (found.card.title || '（無題）') : '';
-        if (!addCardLink(freshMeta, uri, label)) {
-            if (status) { status.className = 'clp-uri-status error'; status.textContent = 'このURIはすでにリンクされています'; }
-            return;
-        }
-        saveScenarios();
-        renderCardLinks(editCardItem);
-        if (status) {
-            status.className = 'clp-uri-status ok';
-            status.textContent = found ? '✓ ' + label + ' をリンクしました' : '✓ URIをリンクしました（現在のデータ内では未解決）';
-        }
-        if (input) input.value = '';
-        setTimeout(cardLinkClosePicker, 350);
-    } catch (err) {
-        console.warn('[cardLinkAddByUri] リンク追加に失敗:', err);
-        if (status) { status.className = 'clp-uri-status error'; status.textContent = 'リンクの追加に失敗しました'; }
-    }
-}
-
-
 // ===== THEME =====
 var isLight = localStorage.getItem('kp_theme') === 'light';
 
@@ -7231,18 +7173,6 @@ function toggleTheme() {
             searchInput.addEventListener('keyup', runSearch, false);
             searchInput.addEventListener('compositionend', runSearch, false);
             searchInput.addEventListener('change', runSearch, false);
-        }
-
-        var uriInput = document.getElementById('card-link-uri-input');
-        if (uriInput && !uriInput.dataset.qcardBoundV4) {
-            uriInput.dataset.qcardBoundV4 = '1';
-            uriInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    cardLinkAddByUri();
-                }
-            });
         }
     })();
 
@@ -8074,6 +8004,7 @@ function createItem(index, d) {
     mediaLayer.className = 'card-media-layer';
     var mediaImg = document.createElement('img');
     mediaLayer.appendChild(mediaImg);
+    if (d.mediaUrl) mediaImg.src = d.mediaUrl;
 
     var mediaRemoveBtn = document.createElement('div');
     mediaRemoveBtn.className = 'card-media-remove';
@@ -10865,6 +10796,53 @@ function ankiLoadLibs() {
     return _ankiLibsPromise;
 }
 
+// [v5] Anki画像参照の汎用抽出。
+// ノートタイプごとに「Image」が何番目のフィールドか固定されていないため、
+// フィールド位置ではなく、HTML/Markdown/画像URLそのものを判定する。
+function ankiExtractImageRefs(raw, fieldName) {
+    var s = String(raw || '');
+    var refs = [];
+    var push = function(v) {
+        v = String(v || '').trim();
+        if (!v) return;
+        v = v.replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '');
+        try { v = decodeURIComponent(v); } catch (e) {}
+        if (refs.indexOf(v) === -1) refs.push(v);
+    };
+
+    // <img src="..."> / data-src / srcset の先頭
+    var m, re = /<img\b[^>]*?(?:src|data-src)\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    while ((m = re.exec(s)) !== null) push(m[1]);
+    var srcsetRe = /<img\b[^>]*?srcset\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    while ((m = srcsetRe.exec(s)) !== null) {
+        var first = String(m[1]).split(',')[0].trim().split(/\s+/)[0];
+        push(first);
+    }
+
+    // CSS background-image:url(...)
+    var bgRe = /background(?:-image)?\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/gi;
+    while ((m = bgRe.exec(s)) !== null) push(m[1]);
+
+    // Markdown image: ![alt](url)
+    var mdImgRe = /!\[[^\]]*\]\(\s*[<]?([^\s>)]+)[>]?(?:\s+['"][^'"]*['"])?\s*\)/gi;
+    while ((m = mdImgRe.exec(s)) !== null) push(m[1]);
+
+    // 「Image / 画像 / Photo」等のフィールドで、[image](url) のような
+    // 通常リンク形式で画像を表現している古いデッキにも対応。
+    var fieldLooksImage = /^(?:image|images|img|photo|picture|画像|写真|イメージ)$/i.test(String(fieldName || '').trim());
+    var linkRe = /\[[^\]]*\b(?:image|画像|photo|写真)\b[^\]]*\]\(\s*[<]?([^\s>)]+)[>]?(?:\s+['"][^'"]*['"])?\s*\)/gi;
+    while ((m = linkRe.exec(s)) !== null) push(m[1]);
+    if (fieldLooksImage) {
+        // ImageフィールドにURLだけが入っているケース
+        var urlRe = /(?:https?:\/\/|\.\/?)[^\s<>"']+\.(?:jpe?g|png|gif|webp|bmp|svg)(?:\?[^\s<>"']*)?/gi;
+        while ((m = urlRe.exec(s)) !== null) push(m[0]);
+        // 拡張子のない画像プレビューURLも「Image」フィールドなら候補にする。
+        var bareUrlRe = /https?:\/\/[^\s<>"']+/gi;
+        while ((m = bareUrlRe.exec(s)) !== null) push(m[0]);
+    }
+    return refs;
+}
+
 function ankiGuessMime(filename) {
     var ext = (String(filename).split('.').pop() || '').toLowerCase();
     var map = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml' };
@@ -11030,25 +11008,22 @@ function importAnki(e) {
                 var fields = flds.split('\x1f');
                 var fldNames = fldNamesByModel[mid];
 
-                // [FIX v4] 画像はフィールド番号に依存せず、ノート全フィールドから探す。
-                // Ankiのノートタイプは自由なので、画像が3番目以降の独立フィールドに
-                // 入っているデッキでも取り込む。現行Qcardの画像UIは1カード1主画像なので、
-                // 複数画像がある場合は最初の画像を主画像として扱う。
+                // [FIX v5] 画像はフィールド番号に依存せず、全フィールドの内容から抽出。
+                // <img> / background-image / Markdown画像 / 「Image」フィールド内URLを横断判定する。
                 var imgFilename = null;
-                var allFieldsHtml = fields.join(' ');
+                var remoteImageUrl = null;
                 var allImgRefs = [];
-                var imgRe = /<img\b[^>]*?(?:src|data-src)\s*=\s*["']([^"']+)["'][^>]*>/gi;
-                var im;
-                while ((im = imgRe.exec(allFieldsHtml)) !== null) {
-                    if (im[1]) allImgRefs.push(im[1]);
-                }
-                // 一部テンプレートの background-image:url(...) も拾う。
-                var bgRe = /background(?:-image)?\s*:\s*url\(\s*["']?([^"')]+)["']?\s*\)/gi;
-                while ((im = bgRe.exec(allFieldsHtml)) !== null) {
-                    if (im[1]) allImgRefs.push(im[1]);
+                for (var fi = 0; fi < fields.length; fi++) {
+                    var fieldName = fldNames && fldNames[fi] ? fldNames[fi] : ('フィールド' + fi);
+                    ankiExtractImageRefs(fields[fi], fieldName).forEach(function(ref) {
+                        if (allImgRefs.indexOf(ref) === -1) allImgRefs.push(ref);
+                    });
                 }
                 if (allImgRefs.length) {
                     imgFilename = String(allImgRefs[0]).trim().replace(/^\.\//, '');
+                    // APKGのmediaマップにないhttp(s)画像は、ローカル保存を試みず
+                    // カードのmediaUrlとして保持し、Qcardの通常画像表示へ渡す。
+                    if (/^https?:\/\//i.test(imgFilename)) remoteImageUrl = imgFilename;
                 }
 
                 // [MOD] タイトルはフィールド0のまま。本文は「フィールド1だけ」ではなく、
@@ -11071,10 +11046,11 @@ function importAnki(e) {
                 }
 
                 var card = newCardMeta(title, content);
+                if (remoteImageUrl) card.mediaUrl = remoteImageUrl;
                 scenario.data.push(card);
                 totalCards++;
 
-                if (imgFilename) {
+                if (imgFilename && !remoteImageUrl) {
                     var imgKey = String(imgFilename).trim().replace(/^\.\//, '');
                     var mediaNum = mediaReverse[imgKey];
                     if (mediaNum === undefined) {
@@ -11120,7 +11096,8 @@ function importAnki(e) {
             hideOverlay();
             closeDataModal();
 
-            if (!pendingImages.length) {
+            var hasRemoteImages = importedScenarios.some(function(sc) { return (sc.data || []).some(function(c) { return !!c.mediaUrl; }); });
+            if (!pendingImages.length && !hasRemoteImages) {
                 showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
                 return;
             }
