@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.4.1                                                   ║
+  ║  Qcard PRO  v3.4.2 ANKI-img2                                                  ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3568,7 +3568,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.4.1</span>
+    <span class="version-badge">v3.4.2</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -10516,9 +10516,12 @@ function importAnki(e) {
                 var rawFront = fields[0] || '';
                 var rawBack  = fields[1] || '';
 
-                // 画像は前後どちらかの最初の1枚のみ取り込む（Qcardは1カード1画像のため）
+                // [FIX] 画像は表・裏(フィールド0/1)だけでなく、ノートの全フィールドから探す。
+                // Ankiはノートタイプが自由に作れるため、「単語/訳/読み/音声/画像/タグ」のように
+                // 画像だけ独立したフィールドに分離されているデッキも多く、表裏だけを見ていると
+                // 画像を取りこぼす（実際にこのデッキがそのパターンだった）。
                 var imgFilename = null;
-                var imgMatch = (rawFront + ' ' + rawBack).match(/<img[^>]+src=["']([^"']+)["']/i);
+                var imgMatch = fields.join(' ').match(/<img[^>]+src=["']([^"']+)["']/i);
                 if (imgMatch) imgFilename = imgMatch[1];
 
                 var title   = ankiFieldToPlainText(rawFront);
