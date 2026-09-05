@@ -4134,7 +4134,7 @@ min-height: 0;
 <div class="card-link-picker" id="card-link-picker">
     <div class="sp-section-label" style="margin-bottom:8px;">🔗 カードをリンク</div>
     <input type="text" id="card-link-search-input" class="sp-search-input"
-           placeholder="🔍 タイトル・本文・TAG・シナリオ名で検索…" oninput="cardLinkFilterPicker(this.value)"
+           placeholder="🔍 タイトル・本文・TAG・シナリオ名・URIで検索…" oninput="cardLinkFilterPicker(this.value)"
            onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}"
            oncompositionend="cardLinkFilterPicker(this.value)">
     <div class="clp-divider"></div>
@@ -6667,19 +6667,32 @@ function getActive() { return scenarios.find(function(s){ return s.id === active
 
 // [NEW] 全シナリオを横断して uri からCardを検索する（Qcardの「URI解決レイヤー」の基盤）
 // 戻り値: { scenario, card, cardIndex } または null
+function normalizeCardUri(uri) {
+    if (uri === null || uri === undefined) return '';
+    var text = String(uri);
+    try { text = text.normalize('NFKC'); } catch (e) {}
+    // コピー＆ペーストで混入しやすい不可視文字を除去。
+    text = text.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+    return text;
+}
+
 function findCardByUri(uri) {
-    if (!uri) return null;
+    var targetUri = normalizeCardUri(uri);
+    if (!targetUri) return null;
+    var targetKey = targetUri.toLowerCase();
     for (var si = 0; si < scenarios.length; si++) {
         var s = scenarios[si];
         var data = s.data || [];
         for (var ci = 0; ci < data.length; ci++) {
-            if (data[ci] && data[ci].uri === uri) {
-                return { scenario: s, card: data[ci], cardIndex: ci };
+            var card = data[ci];
+            if (card && normalizeCardUri(card.uri).toLowerCase() === targetKey) {
+                return { scenario: s, card: card, cardIndex: ci };
             }
         }
     }
     return null;
 }
+
 
 // [NEW] 指定uriのCardへ移動する（探して表示するだけ。分岐・履歴等は持たない）
 function navigateToCardByUri(uri) {
@@ -6688,29 +6701,41 @@ function navigateToCardByUri(uri) {
         showToast('⚠ リンク先のカードが見つかりません');
         return;
     }
+    var targetUri = normalizeCardUri(found.card.uri).toLowerCase();
     var doShow = function() {
-        var dataArr = getActive().data || [];
-        // [FIX] body.mob-swipe は画面幅に関わらず常に付与される場合があるため、
-        // 実際にモバイルSwipeのステージが表示されているか（display）で判定する
+        // [FIX v3] 検索絞り込み中はDOM indexと元データindexが一致しないため、
+        // 先に通常表示へ戻してからURIで対象カードを解決する。
+        if (typeof searchFilterActive !== 'undefined' && searchFilterActive) {
+            clearSearchFilterView();
+        }
         var mobStage = document.getElementById('mobile-swipe-wrap') || document.getElementById('mob-stage');
         var isMobSwipeActive = mobStage && getComputedStyle(mobStage).display !== 'none';
         if (isMobSwipeActive && typeof window.mSetIdx === 'function') {
-            window.mSetIdx(found.cardIndex);
+            var currentData = getActive().data || [];
+            var idx = currentData.findIndex(function(card) {
+                return card && normalizeCardUri(card.uri).toLowerCase() === targetUri;
+            });
+            if (idx >= 0) window.mSetIdx(idx);
             return;
         }
-        // PC / モバイルGrid：該当カードのgrid-itemを開く
-        var items = Array.from(grid.querySelectorAll('.grid-item'));
-        var target = items[found.cardIndex];
+        var target = null;
+        if (grid) {
+            target = Array.from(grid.querySelectorAll('.grid-item')).find(function(item) {
+                return normalizeCardUri(item.dataset && item.dataset.uri).toLowerCase() === targetUri;
+            });
+        }
         if (target) {
             var t = target.querySelector('.title-input');
             var c = target.querySelector('.content-textarea');
             isLocked = true;
             showOverlay(t ? t.value : '', c ? c.value : '', target);
+        } else {
+            showToast('⚠ リンク先カードの表示に失敗しました');
         }
     };
     if (found.scenario.id !== activeScenarioId) {
-        switchScenario(found.scenario.id); // 既存関数を再利用（updateGrid/hideOverlay等を内包）
-        setTimeout(doShow, 60); // updateGrid() 完了後にカードを開く
+        switchScenario(found.scenario.id);
+        setTimeout(doShow, 60);
     } else {
         doShow();
     }
@@ -6719,17 +6744,25 @@ function navigateToCardByUri(uri) {
 // [NEW] カードにリンクを追加する（同一targetUriの重複は追加しない）
 function addCardLink(card, targetUri, label) {
     if (!card || !targetUri) return false;
+    var storedUri = normalizeCardUri(targetUri);
+    var key = storedUri.toLowerCase();
+    if (!key) return false;
     if (!Array.isArray(card.links)) card.links = [];
-    if (card.links.some(function(l){ return l.targetUri === targetUri; })) return false;
-    card.links.push({ targetUri: targetUri, label: label || '' });
+    if (card.links.some(function(l) {
+        return normalizeCardUri(l && l.targetUri).toLowerCase() === key;
+    })) return false;
+    card.links.push({ targetUri: storedUri, label: label || '' });
     return true;
 }
 
 // [NEW] カードからリンクを削除する
 function removeCardLink(card, targetUri) {
     if (!card || !Array.isArray(card.links)) return false;
+    var key = normalizeCardUri(targetUri).toLowerCase();
     var before = card.links.length;
-    card.links = card.links.filter(function(l){ return l.targetUri !== targetUri; });
+    card.links = card.links.filter(function(l) {
+        return normalizeCardUri(l && l.targetUri).toLowerCase() !== key;
+    });
     return card.links.length !== before;
 }
 
@@ -6931,33 +6964,22 @@ function cardLinkFilterPicker(query) {
     }
 }
 function cardLinkFilterPickerImpl(query, resultsEl) {
-
-    // カードリンク用検索は「リンク先候補を探す」ことだけを責務とする。
-    // TOP検索とは目的が異なるため、検索対象は
-    //   タイトル / 本文 / TAG / シナリオ名
-    // に限定する。source / URL / note などのメタデータは対象外。
-    // また、DOM index と active.data[index] の対応に依存せず URI を主キーとして扱う。
     var q = normalizeSearchText(query);
     var currentUri = null;
     var currentEditItem = editCardItem;
 
-    // [FIX v2] 検索中に saveCurrentGridData() は実行しない。
-    // 検索は純粋な参照処理にし、DOMの再同期や保存による副作用で
-    // picker の対象カード／検索結果が変化しないようにする。
-
     try {
         var currentMeta = getCardMeta(currentEditItem);
-        currentUri = currentMeta ? currentMeta.uri : null;
+        currentUri = currentMeta ? normalizeCardUri(currentMeta.uri).toLowerCase() : null;
     } catch (err2) {
         console.warn('[cardLinkFilterPicker] 現在カードのURI取得に失敗:', err2);
     }
 
-    // 現在シナリオだけは未保存の title/content を URI で補正する。
     var active = getActive();
     var liveByUri = {};
     if (active && grid) {
         Array.from(grid.querySelectorAll('.grid-item')).forEach(function(item) {
-            var uri = item.dataset.uri;
+            var uri = normalizeCardUri(item.dataset && item.dataset.uri).toLowerCase();
             if (!uri) return;
             var ti = item.querySelector('.title-input');
             var ci = item.querySelector('.content-textarea');
@@ -6975,37 +6997,50 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
         (s.data || []).forEach(function(card, ci) {
             if (!card || !card.uri) return;
 
-            var searchTitle = card.title || '';
-            var searchContent = card.content || '';
-            if (s === active && liveByUri[card.uri]) {
-                if (liveByUri[card.uri].title !== undefined) searchTitle = liveByUri[card.uri].title;
-                if (liveByUri[card.uri].content !== undefined) searchContent = liveByUri[card.uri].content;
-            }
-
-            var title = String(searchTitle || '').trim();
-            var content = String(searchContent || '');
+            var cardUri = normalizeCardUri(card.uri);
+            var live = (s === active) ? liveByUri[cardUri.toLowerCase()] : null;
+            var title = String(live && live.title !== undefined ? live.title : (card.title || '')).trim();
+            var content = String(live && live.content !== undefined ? live.content : (card.content || ''));
             if (!title && !content.trim()) return;
 
+            var titleNorm = normalizeSearchText(title);
+            var contentNorm = normalizeSearchText(content);
             var tagText = Array.isArray(card.tags) ? card.tags.join(' ') : (card.tags || '');
-            var haystack = [title, content, tagText, scenarioNameNorm]
-                .map(normalizeSearchText)
-                .filter(Boolean)
-                .join(' ');
+            var tagNorm = normalizeSearchText(tagText);
+            var uriNorm = normalizeSearchText(cardUri);
+            var haystack = [titleNorm, contentNorm, tagNorm, scenarioNameNorm, uriNorm]
+                .filter(Boolean).join(' ');
 
-            // 空検索は全カード。文字入力時は title/content/TAG/scenario name の部分一致。
-            if (q && haystack.indexOf(q) === -1) return;
+            // [FIX v3] キーワード入力時は候補を絞り込み、関連度の高い順に並べる。
+            // タイトル > TAG > シナリオ名 > 本文 > URI の順で優先。
+            var score = 0;
+            if (q) {
+                if (titleNorm.indexOf(q) !== -1) score += titleNorm === q ? 1000 : 500;
+                if (tagNorm.indexOf(q) !== -1) score += 300;
+                if (scenarioNameNorm.indexOf(q) !== -1) score += 150;
+                if (contentNorm.indexOf(q) !== -1) score += 100;
+                if (uriNorm.indexOf(q) !== -1) score += 50;
+                if (haystack.indexOf(q) === -1) return;
+            }
 
             results.push({
                 scenarioName: scenarioName,
                 scenarioId: s.id,
                 cardTitle: title || '（無題）',
                 uri: card.uri,
-                cardIndex: ci
+                cardIndex: ci,
+                score: score,
+                scenarioIndex: si
             });
         });
     });
 
-    // シナリオごとにグルーピングして表示
+    if (q) {
+        results.sort(function(a, b) {
+            return (b.score - a.score) || (a.scenarioIndex - b.scenarioIndex) || (a.cardIndex - b.cardIndex);
+        });
+    }
+
     var groups = {};
     var order = [];
     results.forEach(function(r) {
@@ -7036,14 +7071,14 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
             var item = document.createElement('div');
             item.className = 'clp-item';
             item.textContent = '└ ' + r.cardTitle;
-            var isSelf = (r.uri === currentUri);
+            item.title = r.uri || '';
+            var isSelf = (normalizeCardUri(r.uri).toLowerCase() === currentUri);
             if (isSelf) {
                 item.classList.add('disabled');
-                item.title = '自分自身へのリンクは作成できません';
+                item.title = '自分自身へのリンクは作成できません\n' + (r.uri || '');
             } else {
                 item.addEventListener('click', function() {
                     try {
-                        // [FIX v2] 検索結果クリック時も保存→再構築を挟まず、URIで現在カードを解決。
                         var freshMeta = getCardMeta(currentEditItem);
                         if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
                             saveScenarios();
@@ -7068,65 +7103,42 @@ function cardLinkAddByUri() {
 
     var input = document.getElementById('card-link-uri-input');
     var status = document.getElementById('card-link-uri-status');
-    var uri = input ? String(input.value || '').trim() : '';
+    var uri = input ? normalizeCardUri(input.value) : '';
 
-    if (status) {
-        status.className = 'clp-uri-status';
-        status.textContent = '';
-    }
-
+    if (status) { status.className = 'clp-uri-status'; status.textContent = ''; }
     if (!/^fig:\/\/[^\s]+$/i.test(uri)) {
-        if (status) {
-            status.className = 'clp-uri-status error';
-            status.textContent = 'fig:// で始まるURIを入力してください';
-        }
-        return;
-    }
-
-    // URI は保存時に小文字化しない。永続識別子そのものを完全一致で解決する。
-    var found = findCardByUri(uri);
-    if (!found) {
-        if (status) {
-            status.className = 'clp-uri-status error';
-            status.textContent = '⚠ このURIのカードが見つかりません';
-        }
+        if (status) { status.className = 'clp-uri-status error'; status.textContent = 'fig:// で始まるURIを入力してください'; }
         return;
     }
 
     try {
-        // [FIX v2] URIベースの getCardMeta() を使うため、ここでも保存によるDOM再構築を挟まない。
+        // [FIX v3] 直接URI指定は「現在のQcard内に存在すること」を必須条件にしない。
+        // URIは永続的な参照キーなので、別ファイル・未読込カードへのリンクも保存できる。
+        // 対象が現在存在すればタイトルをラベルに採用し、存在しなければ未解決リンクとして保持する。
         var freshMeta = getCardMeta(editCardItem);
         if (!freshMeta) throw new Error('現在カードのメタデータを取得できません');
-        if (freshMeta.uri === uri) {
-            if (status) {
-                status.className = 'clp-uri-status error';
-                status.textContent = '自分自身へのリンクは作成できません';
-            }
+        if (normalizeCardUri(freshMeta.uri).toLowerCase() === normalizeCardUri(uri).toLowerCase()) {
+            if (status) { status.className = 'clp-uri-status error'; status.textContent = '自分自身へのリンクは作成できません'; }
             return;
         }
 
-        var label = found.card.title || '（無題）';
+        var found = findCardByUri(uri);
+        var label = found && found.card ? (found.card.title || '（無題）') : '';
         if (!addCardLink(freshMeta, uri, label)) {
-            if (status) {
-                status.className = 'clp-uri-status error';
-                status.textContent = 'このURIはすでにリンクされています';
-            }
+            if (status) { status.className = 'clp-uri-status error'; status.textContent = 'このURIはすでにリンクされています'; }
             return;
         }
         saveScenarios();
         renderCardLinks(editCardItem);
         if (status) {
             status.className = 'clp-uri-status ok';
-            status.textContent = '✓ ' + label + ' をリンクしました';
+            status.textContent = found ? '✓ ' + label + ' をリンクしました' : '✓ URIをリンクしました（現在のデータ内では未解決）';
         }
         if (input) input.value = '';
-        setTimeout(cardLinkClosePicker, 180);
+        setTimeout(cardLinkClosePicker, 350);
     } catch (err) {
         console.warn('[cardLinkAddByUri] リンク追加に失敗:', err);
-        if (status) {
-            status.className = 'clp-uri-status error';
-            status.textContent = 'リンクの追加に失敗しました';
-        }
+        if (status) { status.className = 'clp-uri-status error'; status.textContent = 'リンクの追加に失敗しました'; }
     }
 }
 
@@ -9820,7 +9832,11 @@ async function buildQCF(s) {
             studyCount:   card.studyCount   || 0,
             // サーバー共有フィールド（値がある場合のみ有効、nullはImport時に無視）
             mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL
-            audioUrl:     card.audioUrl     || null   // 音声CDN URL（録音・アップロード共通）
+            audioUrl:     card.audioUrl     || null   // 音声CDN URL（録音・アップロード共通）,
+            // Card Link：リンク先URIを永続化
+            links:        Array.isArray(card.links) ? card.links.map(function(link) {
+                return { targetUri: normalizeCardUri(link && link.targetUri), label: link && link.label ? String(link.label) : '' };
+            }).filter(function(link) { return !!link.targetUri; }) : []
         };
     });
     var hash = await qcfHash(cards);
@@ -10423,7 +10439,10 @@ function qcfToScenario(qcf) {
             studyCount:   card.studyCount   || 0,
             // サーバー共有フィールドの復元（URLがあれば使用、なければnull）
             mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL
-            audioUrl:     card.audioUrl     || null   // 音声CDN URL
+            audioUrl:     card.audioUrl     || null   // 音声CDN URL,
+            links:        Array.isArray(card.links) ? card.links.map(function(link) {
+                return { targetUri: normalizeCardUri(link && link.targetUri), label: link && link.label ? String(link.label) : '' };
+            }).filter(function(link) { return !!link.targetUri; }) : []
         };
     });
     return {
@@ -10495,7 +10514,8 @@ function normalizeImportedScenarios(parsed) {
                         sourceUrl:  card.sourceUrl  || '',
                         note:       card.note       || '',
                         studyStatus: card.studyStatus || '',
-                        studyCount:  card.studyCount  || 0
+                        studyCount:  card.studyCount  || 0,
+                        links:       Array.isArray(card.links) ? card.links : []
                     };
                 })
             };
