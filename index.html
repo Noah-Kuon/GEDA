@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.1                                                   ║
+  ║  Qcard PRO  v3.5.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3615,7 +3615,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.5.1</span>
+    <span class="version-badge">v3.5.2</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4123,7 +4123,8 @@ min-height: 0;
     <div class="sp-section-label" style="margin-bottom:8px;">🔗 カードをリンク</div>
     <input type="text" id="card-link-search-input" class="sp-search-input"
            placeholder="🔍 カードを検索…" oninput="cardLinkFilterPicker(this.value)"
-           onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}">
+           onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}"
+           oncompositionend="cardLinkFilterPicker(this.value)">
     <div id="card-link-results"></div>
 </div>
 <div id="overlay">
