@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2                                                   ║
+  ║  Qcard PRO  v3.5.2     V7                                              ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -877,11 +877,26 @@
             font-family: 'DM Mono', monospace;
         }
         .clp-item {
-            padding: 7px 10px; border-radius: 7px; cursor: pointer;
-            font-size: 0.8rem; color: var(--text);
+            display: block; width: 100%; box-sizing: border-box;
+            margin: 3px 0; padding: 9px 11px;
+            border: 1px solid transparent; border-radius: 9px;
+            background: var(--surface2); color: var(--text);
+            cursor: pointer; text-align: left;
+            font: inherit; font-size: 0.8rem; line-height: 1.35;
+            appearance: none; -webkit-appearance: none;
+            transition: background .15s ease, border-color .15s ease, transform .08s ease;
         }
-        .clp-item:hover { background: var(--surface3); }
-        .clp-item.disabled { opacity: 0.35; cursor: not-allowed; }
+        .clp-item:hover { background: var(--surface3); border-color: var(--border); }
+        .clp-item:active { transform: translateY(1px); }
+        .clp-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .clp-item.disabled { opacity: 0.38; cursor: not-allowed; background: var(--surface); }
+        .clp-group-label { padding: 5px 2px 4px; }
+        .clp-action-status {
+            min-height: 20px; margin-top: 8px; padding: 0 2px;
+            font-size: 0.72rem; line-height: 1.4;
+        }
+        .clp-action-status.ok { color: var(--accent); }
+        .clp-action-status.error { color: var(--danger); }
         .clp-empty-hint { font-size: 0.72rem; color: var(--text-dim); padding: 10px; text-align: center; }
         .clp-divider { height: 1px; background: var(--border); margin: 12px 0; }
         .clp-uri-row { display: flex; gap: 6px; align-items: stretch; margin-top: 6px; }
@@ -4132,7 +4147,8 @@ min-height: 0;
 <!-- Card Link v0.1：カード選択ポップオーバー（.scenario-popover のパターンを流用） -->
 <div id="card-link-picker-backdrop" onclick="cardLinkClosePicker()"></div>
 <div class="card-link-picker" id="card-link-picker">
-    <div class="sp-section-label" style="margin-bottom:8px;">🔗 カードをリンク</div>
+    <div class="sp-section-label" style="margin-bottom:4px;">🔗 カードをリンク</div>
+    <div style="font-size:0.66rem;color:var(--text-dim);margin-bottom:8px;">検索してリンク先のカードを選択</div>
     <input type="text" id="card-link-search-input" class="sp-search-input"
            placeholder="🔍 タイトル・本文・TAG・シナリオ名・URIで検索（全シナリオ）…"
            onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}">
@@ -6858,9 +6874,9 @@ function renderCardLinks(cardItem) {
     var listEl = document.getElementById('meta-links-list');
     if (!listEl || !cardItem) return;
     listEl.innerHTML = '';
-    // [FIX] getCurrentGridData() は入力の度に active.data を再構築するため、
-    // 参照を取得する直前に確定同期し、常に最新の配列要素を参照する
-    saveCurrentGridData();
+    // [FIX v7] Card Linkの表示だけでグリッド全体を再保存しない。
+    // 画像(mediaId)等のDOM由来データを再構築する処理を挟むと、
+    // Anki画像の紐付けを意図せず失う可能性があるため、リンクUIは参照専用にする。
     var meta = getCardMeta(cardItem);
     var links = (meta && Array.isArray(meta.links)) ? meta.links : [];
     links.forEach(function(link) {
@@ -6877,9 +6893,10 @@ function renderCardLinks(cardItem) {
         labelInput.placeholder = 'ラベル';
         labelInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
         labelInput.addEventListener('blur', function() {
-            // [FIX] blur時点で改めて最新のカード参照・リンクを取得してから更新する（参照の陳腐化対策）
-            saveCurrentGridData();
-            var freshMeta = getCardMeta(cardItem);
+            // [FIX v7] DOM再保存を行わず、URIから永続カードを直接解決する。
+            var sourceUri = cardItem && cardItem.dataset ? cardItem.dataset.uri : '';
+            var sourceFound = findCardByUri(sourceUri);
+            var freshMeta = sourceFound ? sourceFound.card : null;
             var freshLink = freshMeta && Array.isArray(freshMeta.links)
                 ? freshMeta.links.find(function(l){ return l.targetUri === link.targetUri; })
                 : null;
@@ -6911,9 +6928,10 @@ function renderCardLinks(cardItem) {
         removeBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
         removeBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            // [FIX] クリック時点で改めて最新のカード参照を取得してから削除する
-            saveCurrentGridData();
-            var freshMeta = getCardMeta(cardItem);
+            // [FIX v7] DOM再保存を行わず、URIから永続カードを直接解決する。
+            var sourceUri = cardItem && cardItem.dataset ? cardItem.dataset.uri : '';
+            var sourceFound = findCardByUri(sourceUri);
+            var freshMeta = sourceFound ? sourceFound.card : null;
             if (freshMeta && removeCardLink(freshMeta, link.targetUri)) {
                 saveScenarios();
                 renderCardLinks(cardItem);
@@ -7565,14 +7583,26 @@ function getCurrentGridData() {
             originCardId: (prev && prev.originCardId) || ''
         };
         // ── メディア・音声・学習ステータス（既存フィールド維持） ──
-        if (item.dataset.mediaId)     entry.mediaId     = item.dataset.mediaId;
-        if (item.dataset.itvId)       entry.itvId       = item.dataset.itvId;
-        if (item.dataset.audioSource) entry.audioSource = item.dataset.audioSource;
+        // [FIX v7] メディア情報はDOMだけを信頼しない。
+        // Card Linkや再描画でdatasetが一時的に空でも、永続データ側を引き継ぐ。
+        if (item.dataset.mediaId || (prev && prev.mediaId)) {
+            entry.mediaId = item.dataset.mediaId || prev.mediaId;
+        }
+        if (item.dataset.itvId || (prev && prev.itvId)) {
+            entry.itvId = item.dataset.itvId || prev.itvId;
+        }
+        if (item.dataset.audioSource || (prev && prev.audioSource)) {
+            entry.audioSource = item.dataset.audioSource || prev.audioSource;
+        }
         if (prev && prev.studyStatus)  entry.studyStatus  = prev.studyStatus;
         if (prev && prev.studyCount)   entry.studyCount   = prev.studyCount;
         // サーバーアップロード後のCDN URLを保持（現時点はnull、将来のShare機能で使用）
-        if (prev && prev.mediaUrl)     entry.mediaUrl    = prev.mediaUrl;
-        if (prev && prev.audioUrl)     entry.audioUrl    = prev.audioUrl;
+        if (item.dataset.mediaUrl || (prev && prev.mediaUrl)) {
+            entry.mediaUrl = item.dataset.mediaUrl || prev.mediaUrl;
+        }
+        if (item.dataset.audioUrl || (prev && prev.audioUrl)) {
+            entry.audioUrl = item.dataset.audioUrl || prev.audioUrl;
+        }
         // ── カードメタデータ（フェーズ1） ──
         entry.tags      = (prev && prev.tags)      || [];
         entry.source    = (prev && prev.source)    || '';
@@ -8714,15 +8744,15 @@ window.updateGrid = function() {
 // [FIX v2] DOM配列のindexではなく、永続URIを主キーとして解決する。
 // 検索フィルタ／並び替え／再描画後も editCardItem と active.data の対応が崩れない。
 function getCardMeta(cardItem) {
-    var active = getActive();
-    if (!active || !cardItem) return null;
+    if (!cardItem) return null;
     var uri = cardItem.dataset ? cardItem.dataset.uri : null;
     if (uri) {
-        var byUri = (active.data || []).find(function(card) {
-            return card && card.uri === uri;
-        });
-        if (byUri) return byUri;
+        // [FIX v7] URIをグローバルな主キーとして解決する。
+        var found = findCardByUri(uri);
+        if (found) return found.card;
     }
+    var active = getActive();
+    if (!active) return null;
     // URIがない旧DOMへのフォールバック（通常は発生しない）
     var items = Array.from(grid.querySelectorAll('.grid-item'));
     var idx = items.indexOf(cardItem);
