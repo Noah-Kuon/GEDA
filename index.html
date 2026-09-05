@@ -6941,12 +6941,9 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
     var currentUri = null;
     var currentEditItem = editCardItem;
 
-    // 現在カードの最新値を保存できる場合だけ同期する。失敗しても検索は止めない。
-    try {
-        saveCurrentGridData();
-    } catch (err) {
-        console.warn('[cardLinkFilterPicker] 検索前の同期に失敗:', err);
-    }
+    // [FIX v2] 検索中に saveCurrentGridData() は実行しない。
+    // 検索は純粋な参照処理にし、DOMの再同期や保存による副作用で
+    // picker の対象カード／検索結果が変化しないようにする。
 
     try {
         var currentMeta = getCardMeta(currentEditItem);
@@ -7046,7 +7043,7 @@ function cardLinkFilterPickerImpl(query, resultsEl) {
             } else {
                 item.addEventListener('click', function() {
                     try {
-                        saveCurrentGridData();
+                        // [FIX v2] 検索結果クリック時も保存→再構築を挟まず、URIで現在カードを解決。
                         var freshMeta = getCardMeta(currentEditItem);
                         if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
                             saveScenarios();
@@ -7097,7 +7094,7 @@ function cardLinkAddByUri() {
     }
 
     try {
-        saveCurrentGridData();
+        // [FIX v2] URIベースの getCardMeta() を使うため、ここでも保存によるDOM再構築を挟まない。
         var freshMeta = getCardMeta(editCardItem);
         if (!freshMeta) throw new Error('現在カードのメタデータを取得できません');
         if (freshMeta.uri === uri) {
@@ -7181,6 +7178,32 @@ function toggleTheme() {
     bindControls();
     bindKeyboard();
     applySpeechClickLockUI();
+
+    // [FIX v2] Card Link picker の検索／URI入力をJSイベントでも確実に接続する。
+    // inline handler が残っていても二重実行は結果が同じなので問題ない。
+    (function bindCardLinkPickerEvents() {
+        var searchInput = document.getElementById('card-link-search-input');
+        if (searchInput && !searchInput.dataset.qcardBound) {
+            searchInput.dataset.qcardBound = '1';
+            searchInput.addEventListener('input', function(e) {
+                cardLinkFilterPicker(e.target.value);
+            });
+            searchInput.addEventListener('compositionend', function(e) {
+                cardLinkFilterPicker(e.target.value);
+            });
+        }
+        var uriInput = document.getElementById('card-link-uri-input');
+        if (uriInput && !uriInput.dataset.qcardBound) {
+            uriInput.dataset.qcardBound = '1';
+            uriInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cardLinkAddByUri();
+                }
+            });
+        }
+    })();
 
     // [NEW] グリッド画像表示トグルの初期状態を反映
     document.body.classList.toggle('media-hidden', !mediaDisplayOn);
@@ -8644,11 +8667,21 @@ window.updateGrid = function() {
 };
 
 // gridItem から対応する card データを取得
+// [FIX v2] DOM配列のindexではなく、永続URIを主キーとして解決する。
+// 検索フィルタ／並び替え／再描画後も editCardItem と active.data の対応が崩れない。
 function getCardMeta(cardItem) {
     var active = getActive();
-    if (!active) return null;
+    if (!active || !cardItem) return null;
+    var uri = cardItem.dataset ? cardItem.dataset.uri : null;
+    if (uri) {
+        var byUri = (active.data || []).find(function(card) {
+            return card && card.uri === uri;
+        });
+        if (byUri) return byUri;
+    }
+    // URIがない旧DOMへのフォールバック（通常は発生しない）
     var items = Array.from(grid.querySelectorAll('.grid-item'));
-    var idx   = items.indexOf(cardItem);
+    var idx = items.indexOf(cardItem);
     return (idx >= 0 && active.data[idx]) ? active.data[idx] : null;
 }
 
