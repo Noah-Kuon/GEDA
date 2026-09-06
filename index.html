@@ -602,11 +602,31 @@
         .content-textarea::-webkit-scrollbar-track { background: transparent; }
         .content-textarea::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .content-textarea::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-        /* グリッドラッパー全体の控えめスクロールバー */
-        .grid-wrapper::-webkit-scrollbar { width: 3px; }
+        /* [V11] スマートスクロールバー
+           通常時はUIの邪魔にならないよう透明。右端へマウスを近づけた時だけ表示する。
+           スクロール自体は従来どおりマウスホイール等で常時可能。 */
+        .grid-wrapper {
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+        }
+        .grid-wrapper::-webkit-scrollbar { width: 6px; }
         .grid-wrapper::-webkit-scrollbar-track { background: transparent; }
-        .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-        .grid-wrapper::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+        .grid-wrapper::-webkit-scrollbar-thumb {
+            background: transparent;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            background-clip: padding-box;
+        }
+        .grid-wrapper.scrollbar-active {
+            scrollbar-color: var(--border2) transparent;
+        }
+        .grid-wrapper.scrollbar-active::-webkit-scrollbar-thumb {
+            background: var(--border2);
+            border-color: transparent;
+        }
+        .grid-wrapper.scrollbar-active::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
         .grid-item:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.3); transform: translateY(-1px); }
         .grid-item.shortcut-active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(45,212,164,0.25); }
         .grid-item.dragging { opacity: 0.35; transform: scale(0.95); border-style: dashed; }
@@ -7735,7 +7755,7 @@ function applyCardRatio() {
     if (cardRatioMode === 'fit') {
         // フィット：grid-wrapperをflex列にし、grid-containerをflex:1で引き伸ばす。
         styleEl.textContent =
-            'body:not(.mob-grid1):not(.mob-grid2):not(.mob-swipe) .grid-wrapper { padding: 6px !important; overflow: hidden !important; }' +
+            'body:not(.mob-grid1):not(.mob-grid2):not(.mob-swipe) .grid-wrapper { padding: 6px !important; overflow-y: auto !important; overflow-x: hidden !important; }' +
             'body:not(.mob-grid1):not(.mob-grid2) .grid-container { flex: 1 !important; min-height: 0 !important; align-content: stretch !important; }' +
             'body:not(.mob-grid1):not(.mob-grid2) .grid-item { height: auto !important; aspect-ratio: auto !important; min-height: 0 !important; }' +
             '.grid-container.single-card-mode { padding: 0 !important; flex: 1 !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; align-items: stretch !important; justify-content: stretch !important; }' +
@@ -15825,5 +15845,53 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
     };
 })();
 </script>
+
+    <script>
+    /* [V12] Smart scrollbar for the main card-list area.
+       - The list itself remains the scroll container.
+       - The scrollbar is normally invisible.
+       - Moving the pointer near the viewport's right edge reveals it only while
+         the pointer is vertically inside the list area.
+       - Scrolling also keeps it visible briefly.
+    */
+    (function initSmartListScrollbar(){
+        function setup(){
+            const wrap = document.querySelector('.grid-wrapper');
+            if(!wrap || wrap.dataset.smartListScrollbarReady === '1') return;
+            wrap.dataset.smartListScrollbarReady = '1';
+            let hideTimer = null;
+            const EDGE_ZONE = 28;
+            const KEEP_MS = 1000;
+            const hide = (delay=250) => {
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => wrap.classList.remove('scrollbar-active'), delay);
+            };
+            const show = () => {
+                if (wrap.scrollHeight <= wrap.clientHeight + 1) return;
+                wrap.classList.add('scrollbar-active');
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => wrap.classList.remove('scrollbar-active'), KEEP_MS);
+            };
+            const pointerInList = (e) => {
+                const r = wrap.getBoundingClientRect();
+                return e.clientY >= r.top && e.clientY <= r.bottom;
+            };
+            document.addEventListener('mousemove', (e) => {
+                if (!pointerInList(e)) { hide(250); return; }
+                if (window.innerWidth - e.clientX <= EDGE_ZONE) show();
+            }, {passive:true});
+            wrap.addEventListener('scroll', show, {passive:true});
+            wrap.addEventListener('mouseenter', (e) => {
+                if (window.innerWidth - e.clientX <= EDGE_ZONE) show();
+            }, {passive:true});
+            wrap.addEventListener('mouseleave', () => hide(250), {passive:true});
+            window.addEventListener('resize', () => {
+                if (wrap.scrollHeight <= wrap.clientHeight + 1) hide(0);
+            }, {passive:true});
+        }
+        if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup, {once:true});
+        else setup();
+    })();
+    </script>
 </body>
 </html>
