@@ -3856,8 +3856,8 @@ min-height: 0;
             <div class="ds-row" id="ratioCtrlGroup">
                 <label data-i18n="label_ratio">比率</label>
                 <select id="cardRatioSelect" onchange="onCardRatioChange(this.value)">
-                    <option value="auto"  data-i18n="ratio_auto">自動</option>
-                    <option value="fit" selected data-i18n="ratio_fit">フィット（画面に合わせる）</option>
+                    <option value="auto" selected data-i18n="ratio_auto">自動</option>
+                    <option value="fit" data-i18n="ratio_fit">フィット（画面に合わせる）</option>
                     <option value="1:1"   data-i18n="ratio_1x1">1:1（正方形）</option>
                     <option value="1:1.4" data-i18n="ratio_1x14">1:1.4（カード）</option>
                     <option value="custom" data-i18n="ratio_custom">カスタム…</option>
@@ -7691,19 +7691,15 @@ document.addEventListener('click', function(e) {
 
 // [NEW] カード縦横比設定
 // 'auto' = 既存仕様（height: 160px固定）/ それ以外は aspect-ratio で「横幅に対する高さの比率」を適用
-// [v2.5.5] デフォルト比率を 'fit' に変更。未移行ユーザーは強制的に 'fit' へリセット
-if (!localStorage.getItem('kp_ratio_migrated_v255')) {
-    localStorage.setItem('kp_card_ratio_mode', 'fit');
-    localStorage.setItem('kp_ratio_migrated_v255', '1');
-}
-
-// [v2.6.2] 全ユーザー向けにデフォルトを 'fit' へリセット
-if (!localStorage.getItem('kp_ratio_migrated_v262')) {
-    localStorage.setItem('kp_card_ratio_mode', 'fit');
-    localStorage.setItem('kp_ratio_migrated_v262', '1');
+// [V10] デフォルト比率を「自動」に変更。
+// 旧バージョンのマイグレーションで fit が保存されている利用環境については、
+// V10初回起動時に一度だけ auto へ移行する。以後、ユーザーが選択した値は尊重する。
+if (!localStorage.getItem('kp_ratio_migrated_v310')) {
+    localStorage.setItem('kp_card_ratio_mode', 'auto');
+    localStorage.setItem('kp_ratio_migrated_v310', '1');
 }
 // ⭕ 一本化（キー名は一貫して 'kp_card_ratio_mode' を使用）
-var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
+var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'auto';
 var cardRatioCustomValue = parseFloat(localStorage.getItem('kp_card_ratio_custom')) || 1.4;
 
 function applyCardRatio() {
@@ -7827,7 +7823,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function updateGrid() {
-    cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
+    cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'auto';
 
     var cols = getActiveCols();
     var rows = getActiveRows();
@@ -11035,7 +11031,7 @@ function ankiSaveImageBlob(mediaId, bytes, filename) {
 }
 
 
-// ===== ANKI IMPORT SAFE MODE (V9) =====
+// ===== ANKI IMPORT SAFE MODE (V10) =====
 // インポート中の状態競合を防ぎつつ、画像は個別に画面へ反映する。
 // UI全体を停止するのではなく「データを変更する操作」だけを一時的に遮断する。
 var ankiImportBusy = false;
@@ -11043,10 +11039,10 @@ var ankiImportOverlay = null;
 (function(){
     if (document.getElementById('anki-v9-import-css')) return;
     var st=document.createElement('style');
-    st.id='anki-v9-import-css';
+    st.id='anki-v10-import-css';
     st.textContent=
-      '#anki-import-progress{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.48);backdrop-filter:blur(2px);}' +
-      '#anki-import-progress .aip-box{width:min(460px,calc(100vw - 40px));box-sizing:border-box;padding:24px;border-radius:16px;background:var(--surface,#fff);color:var(--text,#111);box-shadow:0 16px 50px rgba(0,0,0,.28);text-align:center;}' +
+      '#anki-import-progress{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.08);backdrop-filter:none;}' +
+      '#anki-import-progress .aip-box{width:min(440px,calc(100vw - 40px));box-sizing:border-box;padding:18px 20px;border-radius:14px;background:var(--surface,#fff);color:var(--text,#111);box-shadow:0 16px 50px rgba(0,0,0,.28);text-align:center;}' +
       '#anki-import-progress .aip-title{font-size:18px;font-weight:700;margin-bottom:10px;}' +
       '#anki-import-progress .aip-message{font-size:14px;margin-bottom:12px;}' +
       '#anki-import-progress .aip-track{height:8px;border-radius:999px;background:rgba(127,127,127,.25);overflow:hidden;}' +
@@ -11308,14 +11304,14 @@ function importAnki(e) {
             if (mediaBtnMobAfterAnki) mediaBtnMobAfterAnki.textContent = '🖼 画像: ON';
 
             showToast('カードを保存しました。画像を処理中… (0/' + pendingImages.length + ')');
-            // [v8 DIAGNOSTIC] まず原因を特定するため、画像を1枚ずつ順番に処理する。
+            // [v10 SAFE/FAST] まず原因を特定するため、画像を1枚ずつ順番に処理する。
             // 旧V7の「5枚並列」では、どの段階で失敗したか分からなかった。
             // 成功時だけ card.mediaId を確定し、失敗したカードには壊れたmediaIdを残さない。
             var done = 0;
             var failed = 0;
             var finished = 0;
             var startedAt = Date.now();
-            var CONCURRENCY = 2; // 速度とメモリ安全性のバランス。Canvas同時処理は2枚まで。
+            var CONCURRENCY = 3; // 速度とメモリ安全性のバランス。Canvas同時処理は3枚まで。
             var SAVE_EVERY = 10;
             var sessionId = 'anki_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 
@@ -11357,7 +11353,7 @@ function importAnki(e) {
                 window.__qcardAnkiImageDiag.finishedAt = new Date().toISOString();
                 window.__qcardAnkiImageDiag.elapsedSec = Number(elapsed);
                 console.log('[AnkiImage SUMMARY]', window.__qcardAnkiImageDiag);
-                showToast('画像処理完了：成功 ' + done + ' / 失敗 ' + failed +
+                showToast('ANKI画像処理完了：成功 ' + done + ' / 失敗 ' + failed +
                           '（' + pendingImages.length + '枚、' + elapsed + '秒）');
                 ankiSetImportBusy(false);
                 if (failed) {
