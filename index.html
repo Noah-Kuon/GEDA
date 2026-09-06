@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2     V7                                              ║
+  ║  Qcard PRO  v3.5.2    V8                                               ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -10992,6 +10992,7 @@ function ankiBuildContentFromFields(fields, fldNames) {
 // （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
 function ankiSaveImageBlob(mediaId, bytes, filename) {
     var blob = new Blob([bytes], { type: ankiGuessMime(filename) });
+    var started = Date.now();
     return optimizeImageToWebP(blob).then(function(result) {
         var record = {
             cardId: mediaId,
@@ -11012,8 +11013,19 @@ function ankiSaveImageBlob(mediaId, bytes, filename) {
             hash: null,
             mediaUrl: null
         };
-        return mediaDB.save(record);
-    }).catch(function(err) { console.error('[ankiSaveImageBlob]', err); });
+        return mediaDB.save(record).then(function(){
+            console.log('[AnkiImage OK]', filename, {
+                originalSize: blob.size,
+                savedSize: result.optimizedSize,
+                mime: result.mimeType,
+                ms: Date.now() - started
+            });
+            return record;
+        });
+    }).catch(function(err) {
+        console.error('[AnkiImage FAIL]', filename, err);
+        throw err;
+    });
 }
 
 function importAnki(e) {
@@ -11221,40 +11233,88 @@ function importAnki(e) {
             if (mediaBtnMobAfterAnki) mediaBtnMobAfterAnki.textContent = '🖼 画像: ON';
 
             showToast('カードを保存しました。画像を処理中… (0/' + pendingImages.length + ')');
-            var BATCH_SIZE = 5;
+            // [v8 DIAGNOSTIC] まず原因を特定するため、画像を1枚ずつ順番に処理する。
+            // 旧V7の「5枚並列」では、どの段階で失敗したか分からなかった。
+            // 成功時だけ card.mediaId を確定し、失敗したカードには壊れたmediaIdを残さない。
             var done = 0;
+            var failed = 0;
+            var startedAt = Date.now();
+            window.__qcardAnkiImageDiag = {
+                total: pendingImages.length,
+                success: 0,
+                failed: 0,
+                failures: [],
+                startedAt: new Date().toISOString()
+            };
 
-            function processImageBatch(startIdx) {
-                var batch = pendingImages.slice(startIdx, startIdx + BATCH_SIZE);
-                if (!batch.length) {
-                    // 全画像処理が完了。最後にもう一度保存して画面へ反映する。
+            function processImageOne(index) {
+                if (index >= pendingImages.length) {
                     saveScenarios();
                     updateGrid();
-                    showToast('画像の読み込みが完了しました（' + done + '/' + pendingImages.length + '枚）');
+                    var elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+                    console.log('[AnkiImage SUMMARY]', window.__qcardAnkiImageDiag);
+                    showToast('画像処理完了：成功 ' + done + ' / 失敗 ' + failed +
+                              '（' + pendingImages.length + '枚、' + elapsed + '秒）');
+                    if (failed) {
+                        setTimeout(function(){
+                            alert(
+                                'ANKI画像の診断結果\\n\\n' +
+                                '画像候補：' + pendingImages.length + '枚\\n' +
+                                '保存成功：' + done + '枚\\n' +
+                                '保存失敗：' + failed + '枚\\n\\n' +
+                                '失敗した画像の詳細はブラウザの開発者ツール Console に ' +
+                                '[AnkiImage FAIL] として表示されています。'
+                            );
+                        }, 100);
+                    }
                     return;
                 }
-                var batchPromises = batch.map(function(item) {
-                    var entry = zip.file(item.numName);
-                    if (!entry) return Promise.resolve();
-                    return entry.async('uint8array').then(function(bytes) {
-                        var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+
+                var item = pendingImages[index];
+                var entry = zip.file(item.numName);
+                if (!entry) {
+                    failed++;
+                    window.__qcardAnkiImageDiag.failed++;
+                    window.__qcardAnkiImageDiag.failures.push({
+                        index: index + 1,
+                        filename: item.filename,
+                        stage: 'ZIP',
+                        error: 'ZIP entry not found: ' + item.numName
+                    });
+                    console.error('[AnkiImage FAIL]', item.filename, 'ZIP entry not found:', item.numName);
+                    setTimeout(function(){ processImageOne(index + 1); }, 20);
+                    return;
+                }
+
+                entry.async('uint8array').then(function(bytes) {
+                    var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                    return ankiSaveImageBlob(mediaId, bytes, item.filename).then(function() {
                         item.card.mediaId = mediaId;
-                        return ankiSaveImageBlob(mediaId, bytes, item.filename);
-                    }).catch(function(){ /* 1枚失敗しても全体は続行する */ });
-                });
-                Promise.all(batchPromises).then(function() {
-                    done += batch.length;
-                    // バッチごとに保存・再描画し、少しずつ画像が反映されていく様子を見せる
-                    saveScenarios();
-                    if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
-                        updateGrid();
+                        done++;
+                        window.__qcardAnkiImageDiag.success++;
+                    });
+                }).catch(function(err) {
+                    failed++;
+                    window.__qcardAnkiImageDiag.failed++;
+                    window.__qcardAnkiImageDiag.failures.push({
+                        index: index + 1,
+                        filename: item.filename,
+                        stage: 'READ/CONVERT/IDB',
+                        error: String(err && (err.message || err.name) || err)
+                    });
+                }).then(function() {
+                    if ((index + 1) % 5 === 0 || index === pendingImages.length - 1) {
+                        saveScenarios();
+                        if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
+                            updateGrid();
+                        }
                     }
-                    showToast('画像を処理中… (' + done + '/' + pendingImages.length + ')');
-                    // メインスレッドを一度解放してから次のバッチへ（UIが固まって見えるのを防ぐ）
-                    setTimeout(function() { processImageBatch(startIdx + BATCH_SIZE); }, 30);
+                    var current = index + 1;
+                    showToast('画像を処理中… (' + current + '/' + pendingImages.length + ') 成功:' + done + ' 失敗:' + failed);
+                    setTimeout(function(){ processImageOne(index + 1); }, 30);
                 });
             }
-            processImageBatch(0);
+            processImageOne(0);
         });
     }).catch(function(err) {
         console.error('[importAnki]', err);
