@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2    V8                                               ║
+  ║  Qcard PRO  v3.5.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -7460,6 +7460,7 @@ function renderScenarioTabs() {
 }
 
 function switchScenario(id) {
+    if (ankiImportGuard()) return;
     saveCurrentGridData();
     // [NEW] シナリオを切り替えたら、絞り込みビューは自動解除する
     // （別シナリオのデータに対して古い絞り込み状態を引き継がないようにする）
@@ -7487,6 +7488,7 @@ function switchScenario(id) {
 }
 
 function addScenario() {
+    if (ankiImportGuard()) return;
     saveCurrentGridData();
     var s = newScenarioMeta('');
     s.cols = getActiveCols();
@@ -7505,6 +7507,7 @@ function scenarioDragClearIndicators() {
 }
 
 function reorderScenarios(srcId, targetId, zone) {
+    if (ankiImportGuard()) return;
     var srcIdx = scenarios.findIndex(function(s){ return s.id === srcId; });
     var tgtIdx = scenarios.findIndex(function(s){ return s.id === targetId; });
     if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return;
@@ -7522,6 +7525,7 @@ function reorderScenarios(srcId, targetId, zone) {
 }
 
 function deleteScenario(id) {
+    if (ankiImportGuard()) return;
     if (scenarios.length <= 1) { showToast(t('toast_no_del_last')); return; }
     var target = scenarios.find(function(s){ return s.id === id; });
     if (!confirm((target ? target.name : '') + t('confirm_del_scenario'))) return;
@@ -7617,6 +7621,7 @@ function getCurrentGridData() {
 }
 
 function saveCurrentGridData() {
+    if (ankiImportBusy) return;
     // [FIX] 検索の絞り込みビュー中は、画面に見えているのは一致カードだけの部分集合。
     // ここで通常通り保存すると、シナリオの全データが「見えている分だけ」に
     // 上書きされてしまい、他のカードが消える重大なデータ損失につながる。
@@ -7630,6 +7635,7 @@ function saveCurrentGridData() {
 }
 
 function saveCurrentGridDataWithIndicator() {
+    if (ankiImportBusy) return;
     // [FIX] 同上の理由で、絞り込みビュー中の保存は行わない。
     if (typeof searchFilterActive !== 'undefined' && searchFilterActive) return;
     setSaveState('unsaved');
@@ -11028,11 +11034,79 @@ function ankiSaveImageBlob(mediaId, bytes, filename) {
     });
 }
 
+
+// ===== ANKI IMPORT SAFE MODE (V9) =====
+// インポート中の状態競合を防ぎつつ、画像は個別に画面へ反映する。
+// UI全体を停止するのではなく「データを変更する操作」だけを一時的に遮断する。
+var ankiImportBusy = false;
+var ankiImportOverlay = null;
+(function(){
+    if (document.getElementById('anki-v9-import-css')) return;
+    var st=document.createElement('style');
+    st.id='anki-v9-import-css';
+    st.textContent=
+      '#anki-import-progress{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.48);backdrop-filter:blur(2px);}' +
+      '#anki-import-progress .aip-box{width:min(460px,calc(100vw - 40px));box-sizing:border-box;padding:24px;border-radius:16px;background:var(--surface,#fff);color:var(--text,#111);box-shadow:0 16px 50px rgba(0,0,0,.28);text-align:center;}' +
+      '#anki-import-progress .aip-title{font-size:18px;font-weight:700;margin-bottom:10px;}' +
+      '#anki-import-progress .aip-message{font-size:14px;margin-bottom:12px;}' +
+      '#anki-import-progress .aip-track{height:8px;border-radius:999px;background:rgba(127,127,127,.25);overflow:hidden;}' +
+      '#anki-import-progress .aip-bar{height:100%;width:0%;background:currentColor;border-radius:999px;transition:width .12s ease;}' +
+      '#anki-import-progress .aip-detail{font-size:13px;margin-top:9px;}' +
+      '#anki-import-progress .aip-note{font-size:12px;opacity:.7;line-height:1.55;margin-top:15px;}';
+    document.head.appendChild(st);
+})();
+
+
+function ankiSetImportBusy(busy, message) {
+    ankiImportBusy = !!busy;
+    if (busy) {
+        if (!ankiImportOverlay) {
+            ankiImportOverlay = document.createElement('div');
+            ankiImportOverlay.id = 'anki-import-progress';
+            ankiImportOverlay.innerHTML =
+                '<div class="aip-box">' +
+                  '<div class="aip-title">ANKIを取り込んでいます</div>' +
+                  '<div class="aip-message"></div>' +
+                  '<div class="aip-track"><div class="aip-bar"></div></div>' +
+                  '<div class="aip-detail"></div>' +
+                  '<div class="aip-note">処理中はシナリオ切替・編集・削除などの操作を一時停止しています。<br>この画面はそのままにしてお待ちください。</div>' +
+                '</div>';
+            ankiImportOverlay.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); });
+            ankiImportOverlay.addEventListener('mousedown', function(e){ e.preventDefault(); e.stopPropagation(); });
+            document.body.appendChild(ankiImportOverlay);
+        }
+        ankiImportOverlay.style.display = 'flex';
+        ankiUpdateImportProgress(message || '', 0, 0, 0);
+    } else if (ankiImportOverlay) {
+        ankiImportOverlay.style.display = 'none';
+    }
+}
+
+function ankiUpdateImportProgress(message, current, total, success) {
+    if (!ankiImportOverlay) return;
+    var msg = ankiImportOverlay.querySelector('.aip-message');
+    var detail = ankiImportOverlay.querySelector('.aip-detail');
+    var bar = ankiImportOverlay.querySelector('.aip-bar');
+    if (msg) msg.textContent = message || '処理中…';
+    if (detail) detail.textContent = total ? (current + ' / ' + total + '　成功 ' + success) : '';
+    if (bar) bar.style.width = total ? Math.min(100, (current / total) * 100) + '%' : '0%';
+}
+
+function ankiImportGuard() {
+    if (ankiImportBusy) {
+        showToast('ANKI画像の処理中です。完了までお待ちください。');
+        return true;
+    }
+    return false;
+}
+
 function importAnki(e) {
+    if (ankiImportGuard()) { e.target.value = ''; return; }
     var file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
 
+    ankiSetImportBusy(true, 'ANKIデータを読み込んでいます…');
     showToast('Ankiデータを読み込み中…');
 
     ankiLoadLibs().then(function() {
@@ -11215,6 +11289,7 @@ function importAnki(e) {
             var hasRemoteImages = importedScenarios.some(function(sc) { return (sc.data || []).some(function(c) { return !!c.mediaUrl; }); });
             if (!pendingImages.length && !hasRemoteImages) {
                 showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
+                ankiSetImportBusy(false);
                 return;
             }
 
@@ -11238,85 +11313,124 @@ function importAnki(e) {
             // 成功時だけ card.mediaId を確定し、失敗したカードには壊れたmediaIdを残さない。
             var done = 0;
             var failed = 0;
+            var finished = 0;
             var startedAt = Date.now();
+            var CONCURRENCY = 2; // 速度とメモリ安全性のバランス。Canvas同時処理は2枚まで。
+            var SAVE_EVERY = 10;
+            var sessionId = 'anki_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
             window.__qcardAnkiImageDiag = {
                 total: pendingImages.length,
                 success: 0,
                 failed: 0,
                 failures: [],
-                startedAt: new Date().toISOString()
+                startedAt: new Date().toISOString(),
+                sessionId: sessionId
             };
 
-            function processImageOne(index) {
-                if (index >= pendingImages.length) {
-                    saveScenarios();
-                    updateGrid();
-                    var elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-                    console.log('[AnkiImage SUMMARY]', window.__qcardAnkiImageDiag);
-                    showToast('画像処理完了：成功 ' + done + ' / 失敗 ' + failed +
-                              '（' + pendingImages.length + '枚、' + elapsed + '秒）');
-                    if (failed) {
-                        setTimeout(function(){
-                            alert(
-                                'ANKI画像の診断結果\\n\\n' +
-                                '画像候補：' + pendingImages.length + '枚\\n' +
-                                '保存成功：' + done + '枚\\n' +
-                                '保存失敗：' + failed + '枚\\n\\n' +
-                                '失敗した画像の詳細はブラウザの開発者ツール Console に ' +
-                                '[AnkiImage FAIL] として表示されています。'
-                            );
-                        }, 100);
+            function showImportedCardImage(card) {
+                // updateGrid() で全カードを作り直さず、保存済み画像だけを該当DOMへ反映する。
+                // これにより処理中の再描画競合と、151枚全体の再構築コストを避ける。
+                if (!card || !card.uri || typeof getActive !== 'function') return;
+                if (getActive() !== importedScenarios[0]) return;
+                var items = document.querySelectorAll('.grid-item[data-uri]');
+                for (var i = 0; i < items.length; i++) {
+                    if ((items[i].dataset.uri || '') === card.uri) {
+                        var img = items[i].querySelector('.card-media-layer img');
+                        if (img) mediaLoadForCard(card.mediaId, items[i], img);
+                        return;
                     }
-                    return;
                 }
+            }
 
+            function persistProgress(force) {
+                if (force || finished % SAVE_EVERY === 0) {
+                    saveScenarios();
+                }
+            }
+
+            function finishImport() {
+                // ここだけは全体を完全再描画。全画像のmediaIdが確定してから行う。
+                saveScenarios();
+                updateGrid();
+                var elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+                window.__qcardAnkiImageDiag.finishedAt = new Date().toISOString();
+                window.__qcardAnkiImageDiag.elapsedSec = Number(elapsed);
+                console.log('[AnkiImage SUMMARY]', window.__qcardAnkiImageDiag);
+                showToast('画像処理完了：成功 ' + done + ' / 失敗 ' + failed +
+                          '（' + pendingImages.length + '枚、' + elapsed + '秒）');
+                ankiSetImportBusy(false);
+                if (failed) {
+                    setTimeout(function(){
+                        alert(
+                            'ANKI画像の診断結果\n\n' +
+                            '画像候補：' + pendingImages.length + '枚\n' +
+                            '保存成功：' + done + '枚\n' +
+                            '保存失敗：' + failed + '枚\n\n' +
+                            '失敗した画像の詳細はブラウザの開発者ツール Console に ' +
+                            '[AnkiImage FAIL] として表示されています。'
+                        );
+                    }, 100);
+                }
+            }
+
+            function processOne(index) {
                 var item = pendingImages[index];
                 var entry = zip.file(item.numName);
                 if (!entry) {
                     failed++;
                     window.__qcardAnkiImageDiag.failed++;
                     window.__qcardAnkiImageDiag.failures.push({
-                        index: index + 1,
-                        filename: item.filename,
-                        stage: 'ZIP',
-                        error: 'ZIP entry not found: ' + item.numName
+                        index: index + 1, filename: item.filename,
+                        stage: 'ZIP', error: 'ZIP entry not found: ' + item.numName
                     });
                     console.error('[AnkiImage FAIL]', item.filename, 'ZIP entry not found:', item.numName);
-                    setTimeout(function(){ processImageOne(index + 1); }, 20);
-                    return;
+                    finished++;
+                    return Promise.resolve();
                 }
 
-                entry.async('uint8array').then(function(bytes) {
+                return entry.async('uint8array').then(function(bytes) {
                     var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
                     return ankiSaveImageBlob(mediaId, bytes, item.filename).then(function() {
+                        // 保存成功後だけカード本体へmediaIdを確定。
                         item.card.mediaId = mediaId;
                         done++;
                         window.__qcardAnkiImageDiag.success++;
+                        showImportedCardImage(item.card);
                     });
                 }).catch(function(err) {
                     failed++;
                     window.__qcardAnkiImageDiag.failed++;
                     window.__qcardAnkiImageDiag.failures.push({
-                        index: index + 1,
-                        filename: item.filename,
+                        index: index + 1, filename: item.filename,
                         stage: 'READ/CONVERT/IDB',
                         error: String(err && (err.message || err.name) || err)
                     });
+                    console.error('[AnkiImage FAIL]', item.filename, err);
                 }).then(function() {
-                    if ((index + 1) % 5 === 0 || index === pendingImages.length - 1) {
-                        saveScenarios();
-                        if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
-                            updateGrid();
-                        }
-                    }
-                    var current = index + 1;
-                    showToast('画像を処理中… (' + current + '/' + pendingImages.length + ') 成功:' + done + ' 失敗:' + failed);
-                    setTimeout(function(){ processImageOne(index + 1); }, 30);
+                    finished++;
+                    persistProgress(false);
+                    ankiUpdateImportProgress('画像を処理しています…', finished, pendingImages.length, done);
                 });
             }
-            processImageOne(0);
+
+            // 固定2ワーカー。全件Promise.all()にはせず、同時実行数を制限してメモリ使用量を安定させる。
+            var nextIndex = 0;
+            function worker() {
+                if (nextIndex >= pendingImages.length) return Promise.resolve();
+                var idx = nextIndex++;
+                return processOne(idx).then(worker);
+            }
+            ankiUpdateImportProgress('画像を処理しています…', 0, pendingImages.length, 0);
+            Promise.all([worker(), worker()]).then(finishImport).catch(function(err) {
+                console.error('[AnkiImage WORKER]', err);
+                saveScenarios();
+                ankiSetImportBusy(false);
+                alert('ANKI画像処理中に予期しないエラーが発生しました。\n' + (err && err.message ? err.message : err));
+            });
         });
     }).catch(function(err) {
+        ankiSetImportBusy(false);
         console.error('[importAnki]', err);
         alert('Ankiデータの読み込みに失敗しました。\n' + (err && err.message ? err.message : '') + '\n\nファイルが破損しているか、対応していない形式の可能性があります。');
     });
