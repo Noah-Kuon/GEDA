@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2   Footer                                                ║
+  ║  Qcard PRO  v3.5.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3627,8 +3627,9 @@ min-height: 0;
            ═══════════════════════════════════════════════════════════════ */
         #geda-footer {
             position: fixed;
-            right: 12px;
-            bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(7px + env(safe-area-inset-bottom, 0px));
             z-index: 80;
             pointer-events: none;
             font-family: 'DM Mono', monospace;
@@ -3636,44 +3637,28 @@ min-height: 0;
         }
         #geda-footer-trigger {
             pointer-events: auto;
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            height: 24px;
-            padding: 0 9px;
-            border: 1px solid color-mix(in srgb, var(--border2) 65%, transparent);
-            border-radius: 5px;
-            background: color-mix(in srgb, var(--surface) 88%, transparent);
-            color: var(--text-dim);
-            cursor: pointer;
-            user-select: none;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-            transition: border-color .18s, color .18s, background .18s, box-shadow .18s;
-        }
-        #geda-footer-trigger:hover,
-        #geda-footer.open #geda-footer-trigger {
-            border-color: var(--border2);
-            color: var(--text-muted);
-            background: color-mix(in srgb, var(--surface2) 92%, transparent);
-            box-shadow: 0 4px 18px rgba(0,0,0,0.14);
-        }
-        .geda-mark {
-            width: 10px;
-            height: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 1px solid currentColor;
-            font-size: 6px;
-            line-height: 1;
-            transform: rotate(45deg);
-            opacity: .72;
+            gap: 7px;
+            height: 20px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+            font: inherit;
+            box-shadow: none;
+            transition: color .18s, opacity .18s;
         }
-        .geda-mark::after { content: '·'; transform: rotate(-45deg); }
+        #geda-footer-trigger:hover,
+        #geda-footer.open #geda-footer-trigger {
+            color: var(--text-muted);
+        }
+        .geda-mark { display: none; }
         .geda-footer-short {
-            font-size: 0.52rem;
+            font-size: 0.50rem;
             letter-spacing: .075em;
             white-space: nowrap;
         }
@@ -3685,8 +3670,9 @@ min-height: 0;
         #geda-footer-panel {
             display: none;
             position: absolute;
-            right: 0;
-            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 28px;
             width: min(330px, calc(100vw - 24px));
             padding: 15px 16px 14px;
             box-sizing: border-box;
@@ -3760,6 +3746,30 @@ min-height: 0;
             color: var(--text-muted);
             letter-spacing: .045em;
         }
+        .geda-observation {
+            padding: 9px 0 10px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .geda-observation-label {
+            font-size: 0.43rem;
+            letter-spacing: .12em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .geda-observation-time {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.57rem;
+            color: var(--text-muted);
+            letter-spacing: .045em;
+            white-space: nowrap;
+        }
+        .geda-observation-note {
+            margin-top: 3px;
+            font-size: 0.42rem;
+            color: var(--text-dim);
+            letter-spacing: .05em;
+        }
         .geda-panel-notice {
             padding-top: 10px;
             border-top: 1px solid var(--border);
@@ -3776,13 +3786,15 @@ min-height: 0;
         }
         @media (max-width: 640px) {
             #geda-footer {
-                right: 8px;
+                left: 50%;
+                right: auto;
                 bottom: calc(5px + env(safe-area-inset-bottom, 0px));
+                max-width: calc(100vw - 24px);
             }
-            #geda-footer-trigger { height: 22px; padding: 0 7px; gap: 6px; }
-            .geda-footer-short { font-size: 0.47rem; }
+            #geda-footer-trigger { height: 20px; gap: 0; }
+            .geda-footer-short { font-size: 0.46rem; letter-spacing: .065em; }
             .geda-footer-year { display: none; }
-            #geda-footer-panel { bottom: 29px; padding: 13px 14px 12px; }
+            #geda-footer-panel { bottom: 27px; width: min(330px, calc(100vw - 24px)); padding: 13px 14px 12px; }
         }
 
     </style>
@@ -4887,6 +4899,11 @@ min-height: 0;
                 <div class="geda-panel-title">GLOBAL EXISTENTIAL DEEP ARCHIVE</div>
                 <div class="geda-panel-ja">広域実存深層記憶機構</div>
             </div>
+        </div>
+        <div class="geda-observation" aria-live="polite">
+            <div class="geda-observation-label">SYSTEM OBSERVATION / LOCAL TIMESTAMP</div>
+            <div class="geda-observation-time" id="geda-observation-time">----/--/-- --:--:--.---</div>
+            <div class="geda-observation-note">SYSTEM CLOCK OBSERVED IN REAL TIME · LOCAL ENVIRONMENT</div>
         </div>
         <div class="geda-panel-grid">
             <div>
@@ -15896,6 +15913,32 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
 
 // ===== G.E.D.A. FOOTER =====
 (function() {
+    var gedaClockTimer = null;
+
+    function updateGedaObservationTime() {
+        var el = document.getElementById('geda-observation-time');
+        if (!el) return;
+        var d = new Date();
+        var pad = function(n, len) { return String(n).padStart(len || 2, '0'); };
+        var value = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate())
+            + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+            + '.' + pad(d.getMilliseconds(), 3);
+        el.textContent = value;
+    }
+
+    function startGedaObservationClock() {
+        updateGedaObservationTime();
+        if (gedaClockTimer) clearInterval(gedaClockTimer);
+        gedaClockTimer = setInterval(updateGedaObservationTime, 37);
+    }
+
+    function stopGedaObservationClock() {
+        if (gedaClockTimer) {
+            clearInterval(gedaClockTimer);
+            gedaClockTimer = null;
+        }
+    }
+
     window.toggleGedaFooter = function(e) {
         if (e) e.stopPropagation();
         var footer = document.getElementById('geda-footer');
@@ -15903,7 +15946,10 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (!footer) return;
         var open = footer.classList.toggle('open');
         if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) startGedaObservationClock();
+        else stopGedaObservationClock();
     };
+
     document.addEventListener('click', function(e) {
         var footer = document.getElementById('geda-footer');
         var trigger = document.getElementById('geda-footer-trigger');
@@ -15912,8 +15958,10 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (!e.target.closest('#geda-footer-panel')) {
             footer.classList.remove('open');
             if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            stopGedaObservationClock();
         }
     });
+
     document.addEventListener('keydown', function(e) {
         if (e.key !== 'Escape') return;
         var footer = document.getElementById('geda-footer');
@@ -15921,6 +15969,7 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (footer && footer.classList.contains('open')) {
             footer.classList.remove('open');
             if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            stopGedaObservationClock();
         }
     });
 })();
