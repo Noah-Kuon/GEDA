@@ -2,5 +2,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
     "stripe": "^14.25.0"
+  },
+  "scripts": {
+    "build": "mkdir -p dist && cp -r html/* dist/ && npx html-minifier-terser html/index.html -o dist/index.html --collapse-whitespace --remove-comments --minify-js '{\"compress\":true,\"mangle\":true}'"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0"
   }
 }
