@@ -4,9 +4,10 @@
     "stripe": "^14.25.0"
   },
   "scripts": {
-    "build": "mkdir -p dist && npx html-minifier-terser index.html -o dist/index.html --collapse-whitespace --remove-comments --minify-js \"{\\\"compress\\\":true,\\\"mangle\\\":true}\""
+    "build": "node obfuscate.js"
   },
   "devDependencies": {
-    "html-minifier-terser": "^7.2.0"
+    "cheerio": "^1.0.0-rc.12",
+    "javascript-obfuscator": "^4.1.0"
   }
 }
