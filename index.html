@@ -1711,7 +1711,7 @@
         /* ─── HINT BAR ─── */
         .hint-bar {
             background: var(--surface); border-top: 1px solid var(--border);
-            padding: 5px 14px; display: flex; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+            padding: 5px 300px 5px 14px; display: flex; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
         }
         .hint-item {
             display: flex; align-items: center; gap: 4px;
@@ -3627,8 +3627,9 @@ min-height: 0;
            ═══════════════════════════════════════════════════════════════ */
         #geda-footer {
             position: fixed;
-            left: 50%;
-            transform: translateX(-50%);
+            left: auto;
+            right: 14px;
+            transform: none;
             bottom: calc(7px + env(safe-area-inset-bottom, 0px));
             z-index: 80;
             pointer-events: none;
@@ -3670,8 +3671,9 @@ min-height: 0;
         #geda-footer-panel {
             display: none;
             position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
+            left: auto;
+            right: 0;
+            transform: none;
             bottom: 28px;
             width: min(330px, calc(100vw - 24px));
             padding: 15px 16px 14px;
@@ -3785,9 +3787,11 @@ min-height: 0;
             letter-spacing: .05em;
         }
         @media (max-width: 640px) {
+            .hint-bar { padding-right: 14px; }
             #geda-footer {
                 left: 50%;
                 right: auto;
+                transform: translateX(-50%);
                 bottom: calc(5px + env(safe-area-inset-bottom, 0px));
                 max-width: calc(100vw - 24px);
             }
