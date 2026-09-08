@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2 / Camera v14                                                   ║
+  ║  Qcard PRO  v3.5.2 / Camera v16                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5005,11 +5005,11 @@ min-height: 0;
         </div>
     </div>
 </div>
-<!-- Qcard Camera v14: direct getUserMedia experimental camera -->
+<!-- Qcard Camera v16: direct getUserMedia experimental camera -->
 <div id="qcard-camera-modal" aria-hidden="true">
   <div class="qcard-camera-panel">
     <div class="qcard-camera-head">
-      <div class="qcard-camera-title">📷 Qcardカメラ（試験）</div>
+      <div class="qcard-camera-title">📷 Qcardカメラ（試験・v16）</div>
       <div id="qcard-camera-status" class="qcard-camera-status">カメラを準備しています…</div>
     </div>
     <div id="qcard-camera-video-wrap">
@@ -5796,9 +5796,9 @@ function mediaEnsureSourceSheet() {
     sheet.innerHTML =
         '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
             '<div class="media-source-title">画像を追加</div>' +
-            '<button type="button" class="media-source-option" id="media-source-camera" onclick="qcardCameraV15Open(mediaPickerTarget); return false;">' +
+            '<button type="button" class="media-source-option" id="media-source-camera" >' +
                 '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>Qcardカメラ（試験）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
+                '<span class="media-source-copy"><span>Qcardカメラ（試験・v16）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
@@ -5814,9 +5814,10 @@ function mediaEnsureSourceSheet() {
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
 
     document.getElementById('media-source-camera').addEventListener('click', function(e) {
+        e.preventDefault();
         e.stopPropagation();
         closeSheet();
-        qcardCameraV14Open(mediaPickerTarget);
+        qcardCameraV16Open(mediaPickerTarget);
     });
     document.getElementById('media-source-gallery').addEventListener('click', function(e) {
         e.stopPropagation();
@@ -5927,191 +5928,135 @@ if (typeof window !== 'undefined') {
 
 mediaPickerDebugV12Restore();
 
-// ===== Qcard Camera v15: robust launch diagnostics =====
-// v14で「ボタンを押しても何も起きない」場合を切り分けるため、
-// ボタン自体から直接呼び出せる公開関数を用意する。
-function qcardCameraV15Open(target) {
-    try {
-        var t = target || (typeof mediaPickerTarget !== 'undefined' ? mediaPickerTarget : null);
-        var status = document.getElementById('qcard-camera-status');
-        var modal = document.getElementById('qcard-camera-modal');
-        if (typeof showToast === 'function') showToast('📷 Qcardカメラを起動します…');
-        console.log('[QcardCamera v15] BUTTON CLICK', t ? 'target=OK' : 'target=NONE');
-        if (!t || !t.item) {
-            console.warn('[QcardCamera v15] target is missing');
-            if (status) status.textContent = '対象カードを取得できませんでした';
-            return;
-        }
-        if (!modal) {
-            console.error('[QcardCamera v15] modal not found');
-            if (typeof showToast === 'function') showToast('⚠️ カメラ画面が見つかりません。');
-            return;
-        }
-        if (typeof qcardCameraV14Open === 'function') {
-            qcardCameraV14Open(t);
-        } else {
-            console.error('[QcardCamera v15] camera function not found');
-            if (typeof showToast === 'function') showToast('⚠️ カメラ機能の読み込みに失敗しました。');
-        }
-    } catch (e) {
-        console.error('[QcardCamera v15] BUTTON ERROR', e);
-        if (typeof showToast === 'function') showToast('⚠️ カメラ起動エラー: ' + (e.message || e));
-    }
-}
-
-// ===== Qcard Camera v14: direct getUserMedia experimental path =====
-var QCARD_CAMERA_V14 = {
+// ===== Qcard Camera v16: direct camera with visible diagnostics =====
+var QCARD_CAMERA_V16 = {
     stream: null,
     facingMode: 'environment',
     target: null,
-    openedAt: 0,
     busy: false
 };
 
-function qcardCameraV14Log(type, detail) {
-    var msg = (detail ? type + ' | ' + detail : type);
-    try { mediaPickerDebugV12Event('QCAMERA ' + type, detail || ''); } catch (_) {}
-    console.log('[QcardCamera v14] ' + msg);
+function qcardCameraV16Diag(msg) {
+    var status = document.getElementById('qcard-camera-status');
+    if (status) status.textContent = msg;
+    try { console.log('[QcardCamera v16] ' + msg); } catch (_) {}
+    try { mediaPickerDebugV12Event('QCAMERA ' + msg); } catch (_) {}
 }
 
-function qcardCameraV14SetStatus(text, isError) {
-    var el = document.getElementById('qcard-camera-status');
-    if (el) { el.textContent = text; el.style.color = isError ? 'var(--danger)' : ''; }
-}
-
-function qcardCameraV14Stop() {
-    var video = document.getElementById('qcard-camera-video');
-    if (QCARD_CAMERA_V14.stream) {
-        try {
-            QCARD_CAMERA_V14.stream.getTracks().forEach(function(track){ try { track.stop(); } catch (_) {} });
-        } catch (_) {}
+function qcardCameraV16Stop() {
+    var v = document.getElementById('qcard-camera-video');
+    var st = QCARD_CAMERA_V16.stream;
+    if (st) {
+        try { st.getTracks().forEach(function(t){ t.stop(); }); } catch (_) {}
     }
-    QCARD_CAMERA_V14.stream = null;
-    if (video) {
-        try { video.pause(); } catch (_) {}
-        try { video.srcObject = null; } catch (_) {}
-    }
-    QCARD_CAMERA_V14.busy = false;
+    QCARD_CAMERA_V16.stream = null;
+    if (v) { try { v.pause(); } catch (_) {} try { v.srcObject = null; } catch (_) {} }
+    QCARD_CAMERA_V16.busy = false;
 }
 
-function qcardCameraV14Close() {
-    qcardCameraV14Stop();
+function qcardCameraV16Close() {
+    qcardCameraV16Stop();
     var modal = document.getElementById('qcard-camera-modal');
     if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
-    qcardCameraV14Log('CLOSE', 'camera stream stopped');
+    qcardCameraV16Diag('閉じました');
 }
 
-async function qcardCameraV14StartStream() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('このブラウザではカメラAPIが利用できません。HTTPS接続かどうかも確認してください。');
-    }
-    qcardCameraV14Stop();
-    qcardCameraV14Log('GETUSERMEDIA START', 'facingMode=' + QCardCameraV14Facing());
-    var stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: { ideal: QCardCameraV14Facing() },
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 1280, max: 1920 }
-        },
-        audio: false
-    });
-    QCardCameraV14SetStream(stream);
-    var video = document.getElementById('qcard-camera-video');
-    video.srcObject = stream;
-    await video.play();
-    qcardCameraV14Log('CAMERA READY', video.videoWidth + 'x' + video.videoHeight);
-    qcardCameraV14SetStatus(video.videoWidth + ' × ' + video.videoHeight);
-}
-
-function QCardCameraV14Facing() { return QCardCameraV14FacingValue(); }
-function QCardCameraV14FacingValue() { return QCardCameraV14State().facingMode; }
-function QCardCameraV14State() { return QcardCameraV14State; }
-function QCardCameraV14SetState(v) { QcardCameraV14State = v; }
-var QcardCameraV14State = QCARD_CAMERA_V14;
-function QCardCameraV14SetStream(stream) { QcardCameraV14State.stream = stream; }
-
-async function qcardCameraV14Open(target) {
-    if (!target || !target.item) return;
-    QcardCameraV14SetState(QCARD_CAMERA_V14);
-    QCardCameraV14State().target = target;
-    QCardCameraV14State().openedAt = Date.now();
+async function qcardCameraV16Open(target) {
     var modal = document.getElementById('qcard-camera-modal');
-    if (!modal) return;
-    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
-    qcardCameraV14SetStatus('カメラを準備しています…');
-    qcardCameraV14Log('OPEN', 'direct camera path');
-    try {
-        await qcardCameraV14StartStream();
-    } catch (err) {
-        qcardCameraV14Log('ERROR', err && err.name ? err.name + ': ' + err.message : String(err));
-        qcardCameraV14SetStatus('カメラを起動できませんでした', true);
-        if (typeof showToast === 'function') showToast('⚠️ カメラを起動できませんでした。カメラの許可とHTTPS接続を確認してください。');
-    }
-}
-
-async function qcardCameraV14Switch() {
-    QcardCameraV14State().facingMode = QcardCameraV14State().facingMode === 'environment' ? 'user' : 'environment';
-    try {
-        qcardCameraV14SetStatus('カメラを切り替えています…');
-        await qcardCameraV14StartStream();
-    } catch (err) {
-        qcardCameraV14Log('SWITCH ERROR', err && err.message ? err.message : String(err));
-        qcardCameraV14SetStatus('切替できませんでした', true);
-    }
-}
-
-async function qcardCameraV14Capture() {
-    var state = QcardCameraV14State();
     var video = document.getElementById('qcard-camera-video');
-    var canvas = document.getElementById('qcard-camera-canvas');
-    if (!video || !canvas || !state.stream || state.busy || !state.target) return;
-    if (!video.videoWidth || !video.videoHeight) return;
-    state.busy = true;
+    var t = target || window.mediaPickerTarget || null;
+    if (typeof showToast === 'function') showToast('📷 Qcardカメラを起動します…');
+    qcardCameraV16Diag('起動処理開始');
+
+    if (!t || !t.item) {
+        qcardCameraV16Diag('ERROR: 対象カードを取得できませんでした');
+        return;
+    }
+    if (!modal || !video) {
+        qcardCameraV16Diag('ERROR: カメラ画面DOMがありません');
+        return;
+    }
+    QCARD_CAMERA_V16.target = t;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden','false');
+    qcardCameraV16Diag('カメラ画面を表示しました');
+
+    if (!window.isSecureContext) {
+        qcardCameraV16Diag('ERROR: HTTPSではありません（isSecureContext=false）');
+        return;
+    }
+    if (!navigator.mediaDevices) {
+        qcardCameraV16Diag('ERROR: navigator.mediaDevices がありません');
+        return;
+    }
+    if (!navigator.mediaDevices.getUserMedia) {
+        qcardCameraV16Diag('ERROR: getUserMedia が利用できません');
+        return;
+    }
+
+    qcardCameraV16Diag('カメラ許可を確認しています…');
     try {
-        qcardCameraV14Log('CAPTURE START', video.videoWidth + 'x' + video.videoHeight);
-        // ここでは原寸キャンバスを作らず、最終保存サイズへ直接描画する。
-        var maxEdge = 1024;
-        var srcW = video.videoWidth, srcH = video.videoHeight;
-        var scale = Math.min(1, maxEdge / Math.max(srcW, srcH));
-        var w = Math.max(1, Math.round(srcW * scale));
-        var h = Math.max(1, Math.round(srcH * scale));
-        canvas.width = w; canvas.height = h;
-        var ctx = canvas.getContext('2d', { alpha:false });
-        if (!ctx) throw new Error('Canvas context unavailable');
-        ctx.drawImage(video, 0, 0, w, h);
-        qcardCameraV14Log('RESIZE', w + 'x' + h);
-        var blob = await new Promise(function(resolve, reject) {
-            canvas.toBlob(function(b){ b ? resolve(b) : reject(new Error('WebP生成に失敗しました')); }, 'image/webp', 0.80);
-        });
-        qcardCameraV14Log('WEBP', blob.size + ' bytes');
-        var file = new File([blob], 'qcard-camera-' + Date.now() + '.webp', {type:'image/webp', lastModified:Date.now()});
-        var target = state.target;
-        qcardCameraV14Log('FILE CREATED', file.size + ' bytes');
-        qcardCameraV14Stop();
-        var modal = document.getElementById('qcard-camera-modal');
-        if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
-        qcardCameraV14Log('MEDIA SAVE START', 'existing mediaSaveImageFile()');
-        mediaSaveImageFile(target.cardId, target.item, file);
+        qcardCameraV16Stop();
+        var constraints = {
+            audio: false,
+            video: { facingMode: { ideal: QCARD_CAMERA_V16.facingMode } }
+        };
+        qcardCameraV16Diag('getUserMedia を呼び出します');
+        var stream = await navigator.mediaDevices.getUserMedia(constraints);
+        QCARD_CAMERA_V16.stream = stream;
+        video.srcObject = stream;
+        video.setAttribute('playsinline','');
+        video.muted = true;
+        await video.play();
+        qcardCameraV16Diag('カメラ準備完了 ' + (video.videoWidth || '?') + '×' + (video.videoHeight || '?'));
     } catch (err) {
-        qcardCameraV14Log('CAPTURE ERROR', err && err.message ? err.message : String(err));
-        if (typeof showToast === 'function') showToast('⚠️ 撮影画像を作成できませんでした。');
-    } finally {
-        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
-        state.busy = false;
+        var name = err && err.name ? err.name : 'Error';
+        var msg = err && err.message ? err.message : String(err);
+        qcardCameraV16Diag('ERROR: ' + name + ' / ' + msg);
+        if (typeof showToast === 'function') showToast('⚠️ カメラ起動失敗: ' + name);
     }
 }
 
-(function qcardCameraV14Bind(){
-    function bind() {
-        var close = document.getElementById('qcard-camera-close');
-        var shoot = document.getElementById('qcard-camera-shoot');
-        var sw = document.getElementById('qcard-camera-switch');
-        if (close) close.addEventListener('click', qcardCameraV14Close);
-        if (shoot) shoot.addEventListener('click', qcardCameraV14Capture);
-        if (sw) sw.addEventListener('click', qcardCameraV14Switch);
+async function qcardCameraV16Switch() {
+    QCARD_CAMERA_V16.facingMode = QCARD_CAMERA_V16.facingMode === 'environment' ? 'user' : 'environment';
+    await qcardCameraV16Open(QCARD_CAMERA_V16.target);
+}
+
+async function qcardCameraV16Capture() {
+    var st = QCARD_CAMERA_V16, v = document.getElementById('qcard-camera-video'), c = document.getElementById('qcard-camera-canvas');
+    if (!st.stream || !st.target || !v || !c || st.busy || !v.videoWidth) return;
+    st.busy = true;
+    try {
+        qcardCameraV16Diag('撮影しています…');
+        var maxEdge=1024, sw=v.videoWidth, sh=v.videoHeight, scale=Math.min(1,maxEdge/Math.max(sw,sh));
+        c.width=Math.max(1,Math.round(sw*scale)); c.height=Math.max(1,Math.round(sh*scale));
+        var ctx=c.getContext('2d',{alpha:false});
+        ctx.drawImage(v,0,0,c.width,c.height);
+        var blob=await new Promise(function(resolve,reject){c.toBlob(function(b){b?resolve(b):reject(new Error('WebP生成失敗'));},'image/webp',0.80);});
+        var file=new File([blob],'qcard-camera-'+Date.now()+'.webp',{type:'image/webp',lastModified:Date.now()});
+        var target=st.target;
+        qcardCameraV16Diag('撮影画像作成完了 ' + Math.round(file.size/1024) + 'KB');
+        qcardCameraV16Stop();
+        var modal=document.getElementById('qcard-camera-modal');
+        if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+        mediaSaveImageFile(target.cardId,target.item,file);
+    } catch(err) {
+        qcardCameraV16Diag('ERROR: 撮影失敗 / ' + (err.message||err));
+        if(typeof showToast==='function') showToast('⚠️ 撮影画像を作成できませんでした');
+    } finally { try{c.width=1;c.height=1;}catch(_){} st.busy=false; }
+}
+
+(function qcardCameraV16Bind(){
+    function bind(){
+        var close=document.getElementById('qcard-camera-close'), shoot=document.getElementById('qcard-camera-shoot'), sw=document.getElementById('qcard-camera-switch');
+        if(close) close.onclick=qcardCameraV16Close;
+        if(shoot) shoot.onclick=qcardCameraV16Capture;
+        if(sw) sw.onclick=qcardCameraV16Switch;
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind); else bind();
 })();
+
+function qcardCameraV15Open(target) { return qcardCameraV16Open(target); }
 
 function mediaOpenNativePicker(useCamera) {
     var target = mediaPickerTarget;
