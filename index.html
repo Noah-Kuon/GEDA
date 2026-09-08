@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2 / Camera v18  Left　ラバーバンド          ║
+  ║  Qcard PRO  v3.5.2 / Camera v18   swipe                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2949,6 +2949,21 @@ min-height: 0;
         }
         body.edit-mode-active .mob-edit-done-btn { display:inline-flex; align-items:center; justify-content:center; }
         .mob-edit-done-btn:active { transform:scale(0.96); }
+        .mob-edit-done-btn:disabled { cursor:default; opacity:0.72; }
+        /* 編集状態を色と文言で明確化：入力中=確定待ち、確定後=保存済み */
+        .mob-edit-done-btn.is-dirty {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--surface);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+        .mob-edit-done-btn.is-saved {
+            background: var(--surface3);
+            border-color: var(--border2);
+            color: var(--text-muted);
+            box-shadow: none;
+        }
+        .mob-edit-done-btn.is-saved:active { background: var(--surface2); }
 
         /* ── スワイプステージ ── */
         #mob-stage {
@@ -7574,7 +7589,15 @@ function setAppMode(mode) {
     var resolvedMode = VALID_MODES[mode] ? mode : 'edit';
 
     // [FIX v5] 編集画面を離れたら、カード送りロックも解除して次回編集に備える。
-    if (resolvedMode !== 'edit' && typeof mobEditingActive !== 'undefined') mobEditingActive = false;
+    if (typeof mobEditingActive !== 'undefined') {
+        if (resolvedMode !== 'edit') {
+            mobEditingActive = false;
+            mobEditCommitState = 'idle';
+        } else if (appMode !== 'edit') {
+            mobEditingActive = false;
+            mobEditCommitState = 'idle';
+        }
+    }
 
     appMode = resolvedMode;
     localStorage.setItem('kp_mode', resolvedMode);
@@ -13758,7 +13781,8 @@ function rdSaveRate(v) {
         var clipDoneBtn = document.createElement('button');
         clipDoneBtn.type = 'button';
         clipDoneBtn.className = 'mob-edit-done-btn';
-        clipDoneBtn.textContent = '✓ 編集を確定';
+        clipDoneBtn.textContent = '編集待機中';
+        clipDoneBtn.setAttribute('aria-label', '編集待機中');
         clipDoneBtn.title = '現在の編集内容を保存して編集ロックを解除';
         var clipMenu = document.createElement('div');
         clipMenu.className = 'mob-clip-menu';
@@ -13946,6 +13970,7 @@ function rdSaveRate(v) {
     // [FIX v5] 実際にカード入力欄を編集している間だけカード送りをロック。
     // 編集モードそのものは維持し、「確定」でロック解除して同じ編集画面から次カードへ進める。
     var mobEditingActive = false;
+    var mobEditCommitState = 'idle'; // idle / dirty / saved
 
     // ── データアクセス（直接参照・コピーなし） ──
     // 学習モード中は studyCards（出題順・シャッフル済み）を優先使用
@@ -14174,6 +14199,37 @@ function rdSaveRate(v) {
         }
     }
 
+    function updateMobEditCommitButton() {
+        var buttons = document.querySelectorAll('.mob-edit-done-btn');
+        if (!buttons.length) return;
+        var inEditMode = (appMode === 'edit');
+        var dirty = inEditMode && mobEditCommitState === 'dirty';
+        var saved = inEditMode && mobEditCommitState === 'saved';
+        buttons.forEach(function(btn) {
+            btn.classList.toggle('is-dirty', dirty);
+            btn.classList.toggle('is-saved', saved);
+            btn.disabled = !dirty;
+            btn.setAttribute('aria-disabled', dirty ? 'false' : 'true');
+            if (!inEditMode) {
+                btn.textContent = '✓ 編集を確定';
+                btn.title = '編集モードではありません';
+                btn.setAttribute('aria-label', '編集を確定');
+            } else if (dirty) {
+                btn.textContent = '✓ 編集を確定';
+                btn.title = '現在の編集内容を保存してカード移動を再開';
+                btn.setAttribute('aria-label', '編集内容を確定');
+            } else if (saved) {
+                btn.textContent = '✓ 保存済み';
+                btn.title = '保存済みです。入力すると再び確定待ちになります';
+                btn.setAttribute('aria-label', '編集内容は保存済み');
+            } else {
+                btn.textContent = '編集待機中';
+                btn.title = '入力欄を編集すると確定待ちになります';
+                btn.setAttribute('aria-label', '編集待機中');
+            }
+        });
+    }
+
     // ── 3スライド全描画 ──
     function mRenderAll() {
         // 学習モード中はstudyIdx（出題順インデックス）でスワイプ位置を同期
@@ -14197,6 +14253,7 @@ function rdSaveRate(v) {
             mCounter.textContent = (len ? mIdx + 1 : 0) + ' / ' + len;
             mCounter.classList.toggle('editing', mobEditingActive);
         }
+        updateMobEditCommitButton();
 
         // [FIX] 端（1枚目/最後）では矢印ボタンを無効化表示し、
         // 「これ以上カードが無い」ことを常に視覚的にわかるようにする
@@ -14290,7 +14347,7 @@ function rdSaveRate(v) {
     }
     function goPrev() {
         // [FIX v4] 編集中はカード送りを完全ロック。
-        if (appMode === 'edit') return;
+        if (mobEditingActive) return;
         if (mIdx <= 0) return;
         if (appMode === 'study' && typeof window.studyNav === 'function') {
             window.studyNav(-1);
@@ -14306,10 +14363,12 @@ function rdSaveRate(v) {
     // 同じ編集画面から前後カードへ移動して続けて編集できる。
     window.mobFinishEditing = function() {
         if (appMode !== 'edit') return;
+        if (mobEditCommitState !== 'dirty') return;
         if (typeof saveCurrentGridData === 'function') {
             try { saveCurrentGridData(); } catch (e) {}
         }
         mobEditingActive = false;
+        mobEditCommitState = 'saved';
         if (mCounter) mCounter.classList.remove('editing');
         if (typeof showToast === 'function') showToast('✓ 編集内容を保存しました');
         mRenderAll();
@@ -14365,7 +14424,9 @@ function rdSaveRate(v) {
         if (mobEditingActive) {
             isSwiping = false;
             swipeAxis = null;
-            stage.classList.remove('mob-animating');
+            touchDeltaX = 0;
+            stage.classList.remove('mob-animating', 'mob-edge-bounce');
+            stage.style.transform = 'translateX(-33.3333%)';
             return;
         }
         touchStartX = e.touches[0].clientX;
@@ -14491,6 +14552,7 @@ function rdSaveRate(v) {
             titleEl.addEventListener('input', function() {
                 if (titleEl.contentEditable !== 'true') return;
                 mobEditingActive = true;
+                mobEditCommitState = 'dirty';
                 if (mCounter) mCounter.classList.add('editing');
                 syncToGrid('title', titleEl.textContent);
                 // [FIX v4] 入力中の再描画を行わない。カーソルとカード位置を安定させる。
@@ -14506,6 +14568,7 @@ function rdSaveRate(v) {
             contentEl.addEventListener('input', function() {
                 if (contentEl.contentEditable !== 'true') return;
                 mobEditingActive = true;
+                mobEditCommitState = 'dirty';
                 if (mCounter) mCounter.classList.add('editing');
                 syncToGrid('content', contentEl.textContent);
             });
