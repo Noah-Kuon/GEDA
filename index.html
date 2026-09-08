@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2 / Camera v16                                                   ║
+  ║  Qcard PRO  v3.5.2 / Camera v18                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5005,11 +5005,11 @@ min-height: 0;
         </div>
     </div>
 </div>
-<!-- Qcard Camera v17: direct getUserMedia; hide debug overlay while shooting -->
+<!-- Qcard Camera v18: direct getUserMedia -->
 <div id="qcard-camera-modal" aria-hidden="true">
   <div class="qcard-camera-panel">
     <div class="qcard-camera-head">
-      <div class="qcard-camera-title">📷 Qcardカメラ（試験・v17）</div>
+      <div class="qcard-camera-title">📷 Qcardカメラ</div>
       <div id="qcard-camera-status" class="qcard-camera-status">カメラを準備しています…</div>
     </div>
     <div id="qcard-camera-video-wrap">
@@ -5303,11 +5303,11 @@ var itvDB = (function() {
     return { save: save, getByCardId: getByCardId, remove: remove };
 })();
 
-// ===== MOBILE IMAGE DIAGNOSTICS (v12) =====
+// ===== MOBILE IMAGE DIAGNOSTICS (development only) =====
 // スマートフォン実機だけで、画像処理の各STEP・所要時間・取得可能なJSヒープ値を確認するための診断モード。
 // 本機能は画像保存ロジックそのものを変更せず、観測情報を追加する。
 var MEDIA_DEBUG_V11 = {
-    enabled: true,
+    enabled: false,
     seq: 0,
     current: null,
     history: [],
@@ -5357,7 +5357,7 @@ function mediaDebugV11EnsurePanel() {
 
     var head = document.createElement('div');
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;';
-    head.innerHTML = '<strong>Qcard Image Debug v12</strong>';
+    head.innerHTML = '<strong>Qcard Image Debug</strong>';
 
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:4px;';
@@ -5393,6 +5393,7 @@ function mediaDebugV11EnsurePanel() {
 }
 
 function mediaDebugV11Show() {
+    if (!MEDIA_DEBUG_V11.enabled) return;
     mediaDebugV11EnsurePanel();
     if (MEDIA_DEBUG_V11.panel) MEDIA_DEBUG_V11.panel.style.display = 'block';
 }
@@ -5430,7 +5431,7 @@ function mediaDebugV11Restore() {
 }
 
 function mediaDebugV11Export() {
-    var out = ['Qcard Image Debug v12', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
+    var out = ['Qcard Image Debug', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
     MEDIA_DEBUG_V11.history.forEach(function(item) {
         out.push('', '#' + item.id + '  ' + item.fileName + '  ' + mediaDebugV11FormatBytes(item.fileSize));
         item.steps.forEach(function(st) {
@@ -5798,7 +5799,7 @@ function mediaEnsureSourceSheet() {
             '<div class="media-source-title">画像を追加</div>' +
             '<button type="button" class="media-source-option" id="media-source-camera" >' +
                 '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>Qcardカメラ（試験・v17）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
+                '<span class="media-source-copy"><span>Qcardカメラ</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
@@ -5857,6 +5858,7 @@ function mediaPickerDebugV12Restore() {
 }
 
 function mediaPickerDebugV12Event(type, detail) {
+    if (!MEDIA_DEBUG_V11.enabled) return;
     var ev = {
         id: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.id : null,
         mode: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.mode : null,
@@ -5928,7 +5930,7 @@ if (typeof window !== 'undefined') {
 
 mediaPickerDebugV12Restore();
 
-// ===== Qcard Camera v17: direct camera; diagnostics hidden while camera is open =====
+// ===== Qcard Camera v18: direct camera =====
 var QCARD_CAMERA_V16 = {
     stream: null,
     facingMode: 'environment',
@@ -5939,8 +5941,10 @@ var QCARD_CAMERA_V16 = {
 function qcardCameraV16Diag(msg) {
     var status = document.getElementById('qcard-camera-status');
     if (status) status.textContent = msg;
-    try { console.log('[QcardCamera v16] ' + msg); } catch (_) {}
-    try { mediaPickerDebugV12Event('QCAMERA ' + msg); } catch (_) {}
+    if (MEDIA_DEBUG_V11.enabled) {
+        try { console.log('[QcardCamera] ' + msg); } catch (_) {}
+        try { mediaPickerDebugV12Event('QCAMERA ' + msg); } catch (_) {}
+    }
 }
 
 function qcardCameraV16Stop() {
