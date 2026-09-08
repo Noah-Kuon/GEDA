@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2  PLAN-B                                                 ║
+  ║  Qcard PRO  v3.5.2 / Camera v14                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2197,6 +2197,28 @@
             margin: 4px 0;
         }
 
+        /* ===== Qcard Camera (getUserMedia) v14 ===== */
+        #qcard-camera-modal {
+            display:none; position:fixed; inset:0; z-index:1200;
+            background:rgba(0,0,0,0.92); align-items:center; justify-content:center;
+        }
+        #qcard-camera-modal.open { display:flex; }
+        .qcard-camera-panel {
+            width:min(96vw,720px); max-height:96dvh; background:var(--surface);
+            border:1px solid var(--border2); border-radius:16px; overflow:hidden;
+            box-shadow:0 24px 80px rgba(0,0,0,.6); display:flex; flex-direction:column;
+        }
+        .qcard-camera-head { padding:10px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+        .qcard-camera-title { font-weight:700; font-size:.82rem; flex:1; }
+        .qcard-camera-status { font-size:.66rem; color:var(--text-dim); }
+        #qcard-camera-video-wrap { background:#000; position:relative; width:100%; aspect-ratio:3/4; max-height:72dvh; }
+        #qcard-camera-video { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+        .qcard-camera-controls { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); }
+        .qcard-camera-controls button { flex:1; min-height:44px; border:1px solid var(--border); border-radius:9px; background:var(--surface2); color:var(--text); font:inherit; cursor:pointer; }
+        #qcard-camera-shoot { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+        #qcard-camera-switch { flex:0 0 auto; width:88px; }
+        #qcard-camera-close { flex:0 0 auto; width:70px; }
+        #qcard-camera-canvas { display:none; }
         /* ===== PIP CAPTURE WINDOW ===== */
 #pip-capture {
   position: fixed;
@@ -4983,6 +5005,25 @@ min-height: 0;
         </div>
     </div>
 </div>
+<!-- Qcard Camera v14: direct getUserMedia experimental camera -->
+<div id="qcard-camera-modal" aria-hidden="true">
+  <div class="qcard-camera-panel">
+    <div class="qcard-camera-head">
+      <div class="qcard-camera-title">📷 Qcardカメラ（試験）</div>
+      <div id="qcard-camera-status" class="qcard-camera-status">カメラを準備しています…</div>
+    </div>
+    <div id="qcard-camera-video-wrap">
+      <video id="qcard-camera-video" autoplay playsinline muted></video>
+    </div>
+    <canvas id="qcard-camera-canvas"></canvas>
+    <div class="qcard-camera-controls">
+      <button type="button" id="qcard-camera-close">閉じる</button>
+      <button type="button" id="qcard-camera-switch">↔ 切替</button>
+      <button type="button" id="qcard-camera-shoot">● 撮影</button>
+    </div>
+  </div>
+</div>
+
 <div id="timer-flash"></div>
 
 <!-- PIP CAPTURE WINDOW -->
@@ -5262,7 +5303,7 @@ var itvDB = (function() {
     return { save: save, getByCardId: getByCardId, remove: remove };
 })();
 
-// ===== MOBILE IMAGE DIAGNOSTICS (v13) =====
+// ===== MOBILE IMAGE DIAGNOSTICS (v12) =====
 // スマートフォン実機だけで、画像処理の各STEP・所要時間・取得可能なJSヒープ値を確認するための診断モード。
 // 本機能は画像保存ロジックそのものを変更せず、観測情報を追加する。
 var MEDIA_DEBUG_V11 = {
@@ -5316,7 +5357,7 @@ function mediaDebugV11EnsurePanel() {
 
     var head = document.createElement('div');
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;';
-    head.innerHTML = '<strong>Qcard Image Debug v13</strong>';
+    head.innerHTML = '<strong>Qcard Image Debug v12</strong>';
 
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:4px;';
@@ -5336,7 +5377,7 @@ function mediaDebugV11EnsurePanel() {
     clearBtn.type = 'button';
     clearBtn.textContent = '消去';
     clearBtn.style.cssText = copyBtn.style.cssText;
-    clearBtn.onclick = function() { MEDIA_DEBUG_V11.history = []; MEDIA_DEBUG_V11.current = null; MEDIA_PICKER_DEBUG_V13.events = []; MEDIA_PICKER_DEBUG_V13.active = null; mediaDebugV11Render(); mediaDebugV11Persist(); mediaPickerDebugV13Persist(); mediaDebugV12Render(); };
+    clearBtn.onclick = function() { MEDIA_DEBUG_V11.history = []; MEDIA_DEBUG_V11.current = null; MEDIA_PICKER_DEBUG_V12.events = []; MEDIA_PICKER_DEBUG_V12.active = null; mediaDebugV11Render(); mediaDebugV11Persist(); mediaPickerDebugV12Persist(); mediaDebugV12Render(); };
     actions.appendChild(copyBtn);
     actions.appendChild(clearBtn);
     head.appendChild(actions);
@@ -5372,24 +5413,24 @@ function mediaDebugV11Render() {
     });
     MEDIA_DEBUG_V11.body.textContent = lines.join('\n');
     MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
-    if (typeof MEDIA_PICKER_DEBUG_V13 !== 'undefined') mediaDebugV12Render();
+    if (typeof MEDIA_PICKER_DEBUG_V12 !== 'undefined') mediaDebugV12Render();
 }
 
 function mediaDebugV11Persist() {
     try {
-        sessionStorage.setItem('qcard_media_debug_v13', JSON.stringify(MEDIA_DEBUG_V11.history));
+        sessionStorage.setItem('qcard_media_debug_v12', JSON.stringify(MEDIA_DEBUG_V11.history));
     } catch (_) {}
 }
 
 function mediaDebugV11Restore() {
     try {
-        var raw = sessionStorage.getItem('qcard_media_debug_v13');
+        var raw = sessionStorage.getItem('qcard_media_debug_v12');
         if (raw) MEDIA_DEBUG_V11.history = JSON.parse(raw) || [];
     } catch (_) {}
 }
 
 function mediaDebugV11Export() {
-    var out = ['Qcard Image Debug v13', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
+    var out = ['Qcard Image Debug v12', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
     MEDIA_DEBUG_V11.history.forEach(function(item) {
         out.push('', '#' + item.id + '  ' + item.fileName + '  ' + mediaDebugV11FormatBytes(item.fileSize));
         item.steps.forEach(function(st) {
@@ -5399,8 +5440,8 @@ function mediaDebugV11Export() {
         if (item.totalMs != null) out.push('TOTAL | ' + item.totalMs + 'ms');
         out.push('END MEMORY | ' + (item.endMemoryText || 'n/a'));
     });
-    out.push('', '--- PICKER / CAMERA BOUNDARY v13 ---');
-    MEDIA_PICKER_DEBUG_V13.events.forEach(function(ev) {
+    out.push('', '--- PICKER / CAMERA BOUNDARY v12 ---');
+    MEDIA_PICKER_DEBUG_V12.events.forEach(function(ev) {
         var prefix = ev.id ? '[' + ev.id + '] ' : '';
         var mode = ev.mode ? ev.mode + ' ' : '';
         out.push(prefix + mode + ev.type + ' | ' + (ev.detail || ''));
@@ -5757,11 +5798,11 @@ function mediaEnsureSourceSheet() {
             '<div class="media-source-title">画像を追加</div>' +
             '<button type="button" class="media-source-option" id="media-source-camera">' +
                 '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
+                '<span class="media-source-copy"><span>Qcardカメラ（試験）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
-                '<span class="media-source-copy"><span>画像を選択（OS標準UI）</span><span class="media-source-sub">表示されたメニューで「カメラ」を選んで撮影</span></span>' +
+                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
         '</div>';
@@ -5775,7 +5816,7 @@ function mediaEnsureSourceSheet() {
     document.getElementById('media-source-camera').addEventListener('click', function(e) {
         e.stopPropagation();
         closeSheet();
-        mediaOpenNativePicker(true);
+        qcardCameraV14Open(mediaPickerTarget);
     });
     document.getElementById('media-source-gallery').addEventListener('click', function(e) {
         e.stopPropagation();
@@ -5785,11 +5826,11 @@ function mediaEnsureSourceSheet() {
     return sheet;
 }
 
-// ===== CAMERA / FILE PICKER BOUNDARY DIAGNOSTICS (v13) =====
+// ===== CAMERA / FILE PICKER BOUNDARY DIAGNOSTICS (v12) =====
 // v11で「2枚目のカメラ撮影時はSTARTログすら出ない」ケースを切り分けるため、
 // ネイティブカメラ／ファイルピッカーの起動前後とFile受信までを記録する。
 // 画像処理ロジックそのものは変更しない。
-var MEDIA_PICKER_DEBUG_V13 = {
+var MEDIA_PICKER_DEBUG_V12 = {
     seq: 0,
     active: null,
     events: [],
@@ -5797,48 +5838,48 @@ var MEDIA_PICKER_DEBUG_V13 = {
     lastVisibility: document.visibilityState || 'unknown'
 };
 
-function mediaPickerDebugV13Now() {
+function mediaPickerDebugV12Now() {
     try { return Math.round(performance.now()); } catch (_) { return 0; }
 }
 
-function mediaPickerDebugV13Persist() {
+function mediaPickerDebugV12Persist() {
     try {
-        sessionStorage.setItem('qcard_media_picker_debug_v13', JSON.stringify(MEDIA_PICKER_DEBUG_V13.events));
+        sessionStorage.setItem('qcard_media_picker_debug_v12', JSON.stringify(MEDIA_PICKER_DEBUG_V12.events));
     } catch (_) {}
 }
 
-function mediaPickerDebugV13Restore() {
+function mediaPickerDebugV12Restore() {
     try {
-        var raw = sessionStorage.getItem('qcard_media_picker_debug_v13');
-        if (raw) MEDIA_PICKER_DEBUG_V13.events = JSON.parse(raw) || [];
+        var raw = sessionStorage.getItem('qcard_media_picker_debug_v12');
+        if (raw) MEDIA_PICKER_DEBUG_V12.events = JSON.parse(raw) || [];
     } catch (_) {}
 }
 
-function mediaPickerDebugV13Event(type, detail) {
+function mediaPickerDebugV12Event(type, detail) {
     var ev = {
-        id: MEDIA_PICKER_DEBUG_V13.active ? MEDIA_PICKER_DEBUG_V13.active.id : null,
-        mode: MEDIA_PICKER_DEBUG_V13.active ? MEDIA_PICKER_DEBUG_V13.active.mode : null,
+        id: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.id : null,
+        mode: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.mode : null,
         type: type,
         detail: detail || '',
         at: new Date().toISOString(),
-        perf: mediaPickerDebugV13Now()
+        perf: mediaPickerDebugV12Now()
     };
-    MEDIA_PICKER_DEBUG_V13.events.push(ev);
-    if (MEDIA_PICKER_DEBUG_V13.events.length > MEDIA_PICKER_DEBUG_V13.maxEvents) {
-        MEDIA_PICKER_DEBUG_V13.events.shift();
+    MEDIA_PICKER_DEBUG_V12.events.push(ev);
+    if (MEDIA_PICKER_DEBUG_V12.events.length > MEDIA_PICKER_DEBUG_V12.maxEvents) {
+        MEDIA_PICKER_DEBUG_V12.events.shift();
     }
     mediaDebugV11Show();
-    mediaPickerDebugV13Persist();
+    mediaPickerDebugV12Persist();
     mediaDebugV12Render();
-    console.log('[Media v13]', type, detail || '');
+    console.log('[Media v12]', type, detail || '');
 }
 
 function mediaDebugV12Render() {
     if (!MEDIA_DEBUG_V11.body) return;
     // 画像処理ログ(v11形式)の下に、カメラ境界イベントを追加表示する。
     var base = MEDIA_DEBUG_V11.body.textContent || '';
-    var lines = base ? [base, '', '--- PICKER / CAMERA BOUNDARY v13 ---'] : ['--- PICKER / CAMERA BOUNDARY v13 ---'];
-    MEDIA_PICKER_DEBUG_V13.events.slice(-40).forEach(function(ev) {
+    var lines = base ? [base, '', '--- PICKER / CAMERA BOUNDARY v12 ---'] : ['--- PICKER / CAMERA BOUNDARY v12 ---'];
+    MEDIA_PICKER_DEBUG_V12.events.slice(-40).forEach(function(ev) {
         var prefix = ev.id ? '[' + ev.id + '] ' : '';
         var mode = ev.mode ? ev.mode + ' ' : '';
         lines.push(prefix + mode + ev.type + (ev.detail ? ' | ' + ev.detail : ''));
@@ -5847,21 +5888,21 @@ function mediaDebugV12Render() {
     MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
 }
 
-function mediaPickerDebugV13Start(useCamera) {
-    var id = ++MEDIA_PICKER_DEBUG_V13.seq;
-    MEDIA_PICKER_DEBUG_V13.active = {
+function mediaPickerDebugV12Start(useCamera) {
+    var id = ++MEDIA_PICKER_DEBUG_V12.seq;
+    MEDIA_PICKER_DEBUG_V12.active = {
         id: id,
         mode: useCamera ? 'CAMERA' : 'GALLERY',
-        startedAt: mediaPickerDebugV13Now()
+        startedAt: mediaPickerDebugV12Now()
     };
     mediaDebugV11Show();
-    mediaPickerDebugV13Event('PICKER START', useCamera ? 'camera' : 'gallery');
-    return MEDIA_PICKER_DEBUG_V13.active;
+    mediaPickerDebugV12Event('PICKER START', useCamera ? 'camera' : 'gallery');
+    return MEDIA_PICKER_DEBUG_V12.active;
 }
 
-function mediaPickerDebugV13End() {
-    MEDIA_PICKER_DEBUG_V13.active = null;
-    mediaPickerDebugV13Persist();
+function mediaPickerDebugV12End() {
+    MEDIA_PICKER_DEBUG_V12.active = null;
+    mediaPickerDebugV12Persist();
 }
 
 // ネイティブピッカーから戻ったことを、visibility/focus/pageshowの変化として観測する。
@@ -5869,28 +5910,182 @@ function mediaPickerDebugV13End() {
 if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', function() {
         var state = document.visibilityState || 'unknown';
-        if (MEDIA_PICKER_DEBUG_V13.active) {
-            mediaPickerDebugV13Event('VISIBILITY', state);
+        if (MEDIA_PICKER_DEBUG_V12.active) {
+            mediaPickerDebugV12Event('VISIBILITY', state);
         }
-        MEDIA_PICKER_DEBUG_V13.lastVisibility = state;
+        MEDIA_PICKER_DEBUG_V12.lastVisibility = state;
     });
 }
 if (typeof window !== 'undefined') {
     window.addEventListener('focus', function() {
-        if (MEDIA_PICKER_DEBUG_V13.active) mediaPickerDebugV13Event('FOCUS', 'window');
+        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('FOCUS', 'window');
     });
     window.addEventListener('pageshow', function() {
-        if (MEDIA_PICKER_DEBUG_V13.active) mediaPickerDebugV13Event('PAGESHOW', 'window');
+        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('PAGESHOW', 'window');
     });
 }
 
-mediaPickerDebugV13Restore();
+mediaPickerDebugV12Restore();
+
+// ===== Qcard Camera v14: direct getUserMedia experimental path =====
+var QCARD_CAMERA_V14 = {
+    stream: null,
+    facingMode: 'environment',
+    target: null,
+    openedAt: 0,
+    busy: false
+};
+
+function qcardCameraV14Log(type, detail) {
+    var msg = (detail ? type + ' | ' + detail : type);
+    try { mediaPickerDebugV12Event('QCAMERA ' + type, detail || ''); } catch (_) {}
+    console.log('[QcardCamera v14] ' + msg);
+}
+
+function qcardCameraV14SetStatus(text, isError) {
+    var el = document.getElementById('qcard-camera-status');
+    if (el) { el.textContent = text; el.style.color = isError ? 'var(--danger)' : ''; }
+}
+
+function qcardCameraV14Stop() {
+    var video = document.getElementById('qcard-camera-video');
+    if (QCARD_CAMERA_V14.stream) {
+        try {
+            QCARD_CAMERA_V14.stream.getTracks().forEach(function(track){ try { track.stop(); } catch (_) {} });
+        } catch (_) {}
+    }
+    QCARD_CAMERA_V14.stream = null;
+    if (video) {
+        try { video.pause(); } catch (_) {}
+        try { video.srcObject = null; } catch (_) {}
+    }
+    QCARD_CAMERA_V14.busy = false;
+}
+
+function qcardCameraV14Close() {
+    qcardCameraV14Stop();
+    var modal = document.getElementById('qcard-camera-modal');
+    if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+    qcardCameraV14Log('CLOSE', 'camera stream stopped');
+}
+
+async function qcardCameraV14StartStream() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('このブラウザではカメラAPIが利用できません。HTTPS接続かどうかも確認してください。');
+    }
+    qcardCameraV14Stop();
+    qcardCameraV14Log('GETUSERMEDIA START', 'facingMode=' + QCardCameraV14Facing());
+    var stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+            facingMode: { ideal: QCardCameraV14Facing() },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 1280, max: 1920 }
+        },
+        audio: false
+    });
+    QCardCameraV14SetStream(stream);
+    var video = document.getElementById('qcard-camera-video');
+    video.srcObject = stream;
+    await video.play();
+    qcardCameraV14Log('CAMERA READY', video.videoWidth + 'x' + video.videoHeight);
+    qcardCameraV14SetStatus(video.videoWidth + ' × ' + video.videoHeight);
+}
+
+function QCardCameraV14Facing() { return QCardCameraV14FacingValue(); }
+function QCardCameraV14FacingValue() { return QCardCameraV14State().facingMode; }
+function QCardCameraV14State() { return QcardCameraV14State; }
+function QCardCameraV14SetState(v) { QcardCameraV14State = v; }
+var QcardCameraV14State = QCARD_CAMERA_V14;
+function QCardCameraV14SetStream(stream) { QcardCameraV14State.stream = stream; }
+
+async function qcardCameraV14Open(target) {
+    if (!target || !target.item) return;
+    QcardCameraV14SetState(QCARD_CAMERA_V14);
+    QCardCameraV14State().target = target;
+    QCardCameraV14State().openedAt = Date.now();
+    var modal = document.getElementById('qcard-camera-modal');
+    if (!modal) return;
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+    qcardCameraV14SetStatus('カメラを準備しています…');
+    qcardCameraV14Log('OPEN', 'direct camera path');
+    try {
+        await qcardCameraV14StartStream();
+    } catch (err) {
+        qcardCameraV14Log('ERROR', err && err.name ? err.name + ': ' + err.message : String(err));
+        qcardCameraV14SetStatus('カメラを起動できませんでした', true);
+        if (typeof showToast === 'function') showToast('⚠️ カメラを起動できませんでした。カメラの許可とHTTPS接続を確認してください。');
+    }
+}
+
+async function qcardCameraV14Switch() {
+    QcardCameraV14State().facingMode = QcardCameraV14State().facingMode === 'environment' ? 'user' : 'environment';
+    try {
+        qcardCameraV14SetStatus('カメラを切り替えています…');
+        await qcardCameraV14StartStream();
+    } catch (err) {
+        qcardCameraV14Log('SWITCH ERROR', err && err.message ? err.message : String(err));
+        qcardCameraV14SetStatus('切替できませんでした', true);
+    }
+}
+
+async function qcardCameraV14Capture() {
+    var state = QcardCameraV14State();
+    var video = document.getElementById('qcard-camera-video');
+    var canvas = document.getElementById('qcard-camera-canvas');
+    if (!video || !canvas || !state.stream || state.busy || !state.target) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+    state.busy = true;
+    try {
+        qcardCameraV14Log('CAPTURE START', video.videoWidth + 'x' + video.videoHeight);
+        // ここでは原寸キャンバスを作らず、最終保存サイズへ直接描画する。
+        var maxEdge = 1024;
+        var srcW = video.videoWidth, srcH = video.videoHeight;
+        var scale = Math.min(1, maxEdge / Math.max(srcW, srcH));
+        var w = Math.max(1, Math.round(srcW * scale));
+        var h = Math.max(1, Math.round(srcH * scale));
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d', { alpha:false });
+        if (!ctx) throw new Error('Canvas context unavailable');
+        ctx.drawImage(video, 0, 0, w, h);
+        qcardCameraV14Log('RESIZE', w + 'x' + h);
+        var blob = await new Promise(function(resolve, reject) {
+            canvas.toBlob(function(b){ b ? resolve(b) : reject(new Error('WebP生成に失敗しました')); }, 'image/webp', 0.80);
+        });
+        qcardCameraV14Log('WEBP', blob.size + ' bytes');
+        var file = new File([blob], 'qcard-camera-' + Date.now() + '.webp', {type:'image/webp', lastModified:Date.now()});
+        var target = state.target;
+        qcardCameraV14Log('FILE CREATED', file.size + ' bytes');
+        qcardCameraV14Stop();
+        var modal = document.getElementById('qcard-camera-modal');
+        if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+        qcardCameraV14Log('MEDIA SAVE START', 'existing mediaSaveImageFile()');
+        mediaSaveImageFile(target.cardId, target.item, file);
+    } catch (err) {
+        qcardCameraV14Log('CAPTURE ERROR', err && err.message ? err.message : String(err));
+        if (typeof showToast === 'function') showToast('⚠️ 撮影画像を作成できませんでした。');
+    } finally {
+        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+        state.busy = false;
+    }
+}
+
+(function qcardCameraV14Bind(){
+    function bind() {
+        var close = document.getElementById('qcard-camera-close');
+        var shoot = document.getElementById('qcard-camera-shoot');
+        var sw = document.getElementById('qcard-camera-switch');
+        if (close) close.addEventListener('click', qcardCameraV14Close);
+        if (shoot) shoot.addEventListener('click', qcardCameraV14Capture);
+        if (sw) sw.addEventListener('click', qcardCameraV14Switch);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
 
 function mediaOpenNativePicker(useCamera) {
     var target = mediaPickerTarget;
     if (!target || !target.item) return;
 
-    var debugSession = mediaPickerDebugV13Start(!!useCamera);
+    var debugSession = mediaPickerDebugV12Start(!!useCamera);
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -5903,7 +6098,7 @@ function mediaOpenNativePicker(useCamera) {
     input.style.opacity = '0';
     document.body.appendChild(input);
 
-    mediaPickerDebugV13Event('INPUT CREATED',
+    mediaPickerDebugV12Event('INPUT CREATED',
         'accept=' + input.accept + (useCamera ? ' capture=environment' : ''));
 
     var cleaned = false;
@@ -5912,39 +6107,39 @@ function mediaOpenNativePicker(useCamera) {
     function cleanup(reason) {
         if (cleaned) return;
         cleaned = true;
-        mediaPickerDebugV13Event('CLEANUP', reason || 'unknown');
+        mediaPickerDebugV12Event('CLEANUP', reason || 'unknown');
         if (input.parentNode) input.parentNode.removeChild(input);
         if (mediaPickerTarget === target) mediaPickerTarget = null;
-        if (MEDIA_PICKER_DEBUG_V13.active === debugSession) mediaPickerDebugV13End();
+        if (MEDIA_PICKER_DEBUG_V12.active === debugSession) mediaPickerDebugV12End();
     }
 
     function logReturn(source) {
         if (returnLogged) return;
         returnLogged = true;
-        mediaPickerDebugV13Event('PICKER RETURN', source || 'unknown');
+        mediaPickerDebugV12Event('PICKER RETURN', source || 'unknown');
     }
 
     input.addEventListener('change', function() {
         logReturn('change');
         var fileCount = input.files ? input.files.length : 0;
-        mediaPickerDebugV13Event('FILE CHANGE', 'count=' + fileCount);
+        mediaPickerDebugV12Event('FILE CHANGE', 'count=' + fileCount);
         var file = input.files && input.files[0];
         if (file) {
             settled = true;
-            mediaPickerDebugV13Event('FILE RECEIVED',
+            mediaPickerDebugV12Event('FILE RECEIVED',
                 (file.name || '(unnamed)') + ' ' + mediaDebugV11FormatBytes(file.size) + ' ' + (file.type || '(no type)'));
-            mediaPickerDebugV13Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
+            mediaPickerDebugV12Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
             mediaSaveImageFile(target.cardId, target.item, file);
             cleanup('change handled');
         } else {
             settled = true;
-            mediaPickerDebugV13Event('FILE EMPTY', 'change event without file');
+            mediaPickerDebugV12Event('FILE EMPTY', 'change event without file');
             cleanup('empty change');
         }
     });
     input.addEventListener('cancel', function() {
         logReturn('cancel');
-        mediaPickerDebugV13Event('CANCEL', 'native picker cancel');
+        mediaPickerDebugV12Event('CANCEL', 'native picker cancel');
         settled = true;
         cleanup('cancel');
     });
@@ -5952,37 +6147,37 @@ function mediaOpenNativePicker(useCamera) {
     var opened = false;
     try {
         if (typeof input.showPicker === 'function') {
-            mediaPickerDebugV13Event('SHOWPICKER CALL', 'before');
+            mediaPickerDebugV12Event('SHOWPICKER CALL', 'before');
             input.showPicker();
             opened = true;
-            mediaPickerDebugV13Event('SHOWPICKER RETURN', 'success');
+            mediaPickerDebugV12Event('SHOWPICKER RETURN', 'success');
         }
     } catch (err) {
-        mediaPickerDebugV13Event('SHOWPICKER ERROR', err && err.message ? err.message : String(err));
+        mediaPickerDebugV12Event('SHOWPICKER ERROR', err && err.message ? err.message : String(err));
         console.warn('[Media] showPicker fallback:', err);
     }
     if (!opened) {
         try {
-            mediaPickerDebugV13Event('CLICK CALL', 'before');
+            mediaPickerDebugV12Event('CLICK CALL', 'before');
             input.click();
             opened = true;
-            mediaPickerDebugV13Event('CLICK RETURN', 'success');
+            mediaPickerDebugV12Event('CLICK RETURN', 'success');
         }
         catch (err2) {
-            mediaPickerDebugV13Event('CLICK ERROR', err2 && err2.message ? err2.message : String(err2));
+            mediaPickerDebugV12Event('CLICK ERROR', err2 && err2.message ? err2.message : String(err2));
             console.error('[Media] file picker failed:', err2);
             cleanup('open failed');
         }
     }
 
-    if (opened) mediaPickerDebugV13Event('PICKER OPENED', useCamera ? 'camera requested' : 'gallery requested');
+    if (opened) mediaPickerDebugV12Event('PICKER OPENED', useCamera ? 'camera requested' : 'gallery requested');
 
     // cancelイベントを発火しないブラウザ向けの保険。
     // 60秒後にまだFileが来ていなければ、待機中であることを明示する。
     setTimeout(function() {
         if (cleaned) return;
         if (!input.files || !input.files.length) {
-            mediaPickerDebugV13Event('PICKER WAITING', 'no file after 60s');
+            mediaPickerDebugV12Event('PICKER WAITING', 'no file after 60s');
             setTimeout(function() {
                 if (!cleaned && !settled) cleanup('timeout');
             }, 1000);
