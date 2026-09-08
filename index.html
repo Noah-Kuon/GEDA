@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2                                                   ║
+  ║  Qcard PRO  v3.5.2    camera+                                  ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2937,6 +2937,58 @@ min-height: 0;
             color: var(--text); cursor: pointer;
         }
         .mob-clip-copy-btn:active { background: var(--surface2); }
+
+        /* [NEW] スワイプ表示：画像追加ボタン。編集モード時だけ表示し、コピー等の既存操作と同じバーに収める。 */
+        .mob-clip-media-btn {
+            background: var(--surface3); border: 1px solid var(--border);
+            border-radius: 50%; width: 44px; height: 44px; font-size: 1rem;
+            color: var(--text-dim); cursor: pointer; line-height: 1;
+            flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+        }
+        .mob-clip-media-btn:active { background: var(--surface2); }
+        .mob-clip-media-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+        .mob-clip-bar .mob-clip-media-btn { display: none; }
+        body.edit-mode-active .mob-clip-bar .mob-clip-media-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+        /* [NEW] 画像ソース選択シート（スマホ） */
+        #media-source-sheet {
+            display: none; position: fixed; inset: 0; z-index: 10020;
+            background: rgba(0,0,0,0.48); align-items: flex-end; justify-content: center;
+            padding: 12px; box-sizing: border-box;
+        }
+        #media-source-sheet.open { display: flex; }
+        .media-source-panel {
+            width: min(100%, 430px); background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.45); padding: 10px;
+            transform: translateY(8px); animation: mediaSourceIn 0.16s ease-out forwards;
+        }
+        @keyframes mediaSourceIn { to { transform: translateY(0); } }
+        .media-source-title {
+            font-size: 0.72rem; color: var(--text-dim); text-align: center;
+            padding: 4px 4px 8px; letter-spacing: 0.04em;
+        }
+        .media-source-option {
+            width: 100%; display: flex; align-items: center; gap: 12px;
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); border-radius: 11px; padding: 13px 14px;
+            margin-top: 6px; text-align: left; cursor: pointer;
+            font-size: 0.82rem; -webkit-tap-highlight-color: transparent;
+        }
+        .media-source-option:active { background: var(--surface3); transform: scale(0.99); }
+        .media-source-option .media-source-icon { font-size: 1.25rem; width: 28px; text-align: center; }
+        .media-source-option .media-source-copy { display: flex; flex-direction: column; gap: 2px; }
+        .media-source-option .media-source-sub { font-size: 0.65rem; color: var(--text-dim); }
+        .media-source-cancel {
+            width: 100%; background: transparent; border: none; color: var(--text-dim);
+            border-radius: 10px; padding: 11px 8px 7px; margin-top: 2px; font-size: 0.74rem; cursor: pointer;
+        }
+        .media-source-cancel:active { background: var(--surface2); }
+        @media (min-width: 641px) {
+            #media-source-sheet { display: none !important; }
+        }
+
         .mob-clip-more-btn {
             background: var(--surface3); border: 1px solid var(--border);
             border-radius: 50%; width: 44px; height: 44px; font-size: 1.1rem;
@@ -5289,18 +5341,102 @@ function mediaSaveImageFile(cardId, item, file) {
     });
 }
 
-// ファイル選択ダイアログを開いて画像登録
-function mediaOpenFilePicker(cardId, item) {
+// ── 画像入力ソース選択（スマホ：カメラ / 写真から選択） ──
+var mediaPickerTarget = null; // { cardId, item }
+
+function mediaIsMobile() {
+    return window.innerWidth <= 640;
+}
+
+function mediaEnsureSourceSheet() {
+    var sheet = document.getElementById('media-source-sheet');
+    if (sheet) return sheet;
+
+    sheet = document.createElement('div');
+    sheet.id = 'media-source-sheet';
+    sheet.innerHTML =
+        '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
+            '<div class="media-source-title">画像を追加</div>' +
+            '<button type="button" class="media-source-option" id="media-source-camera">' +
+                '<span class="media-source-icon">📷</span>' +
+                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-option" id="media-source-gallery">' +
+                '<span class="media-source-icon">🖼</span>' +
+                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
+        '</div>';
+    document.body.appendChild(sheet);
+
+    function closeSheet() { sheet.classList.remove('open'); }
+    document.getElementById('media-source-cancel').addEventListener('click', function(e){ e.stopPropagation(); closeSheet(); });
+    sheet.addEventListener('click', function(e){ if (e.target === sheet) closeSheet(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
+
+    document.getElementById('media-source-camera').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(true);
+    });
+    document.getElementById('media-source-gallery').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(false);
+    });
+    return sheet;
+}
+
+function mediaOpenNativePicker(useCamera) {
+    var target = mediaPickerTarget;
+    if (!target || !target.item) return;
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    if (useCamera) input.setAttribute('capture', 'environment');
     input.addEventListener('change', function() {
         if (input.files && input.files[0]) {
-            mediaSaveImageFile(cardId, item, input.files[0]);
+            mediaSaveImageFile(target.cardId, target.item, input.files[0]);
         }
+        mediaPickerTarget = null;
     });
+    // キャンセル時にも参照を解放
+    setTimeout(function(){
+        if (!input.files || !input.files.length) mediaPickerTarget = null;
+    }, 60000);
     input.click();
 }
+
+// ファイル選択ダイアログを開いて画像登録
+// PC：従来どおり直接ファイル選択。スマホ：カメラ / 写真の2択を表示。
+function mediaOpenFilePicker(cardId, item) {
+    mediaPickerTarget = { cardId: cardId, item: item };
+    if (mediaIsMobile()) {
+        var sheet = mediaEnsureSourceSheet();
+        sheet.classList.add('open');
+        return;
+    }
+    mediaOpenNativePicker(false);
+}
+
+// スワイプ画面から現在カードの画像追加を開始
+function mobOpenMediaSourcePicker(idx) {
+    if (typeof appMode !== 'undefined' && appMode !== 'edit') return;
+    var data = (typeof getActive === 'function' && getActive()) ? (getActive().data || []) : [];
+    var d = data[idx];
+    if (!d) return;
+    var items = Array.from(document.querySelectorAll('.grid-item'));
+    var item = items[idx] || null;
+    if (!item) return;
+    var cardId = item.dataset.mediaId || d.mediaId;
+    if (!cardId) {
+        cardId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+        d.mediaId = cardId;
+        item.dataset.mediaId = cardId;
+    }
+    mediaOpenFilePicker(cardId, item);
+}
+window.mobOpenMediaSourcePicker = mobOpenMediaSourcePicker;
 
 // カードの既存画像を読み込んで表示
 function mediaLoadForCard(cardId, item, imgEl) {
@@ -12790,6 +12926,14 @@ function rdSaveRate(v) {
         clipStatus.className = 'mob-clip-status';
         // [FIX] 「🔗 カードをリンク」を独立行から、コピー行右側のアイコンボタンに統合し
         //       縦スペースを1行分削減する（左右カード送りボタンの見切れ対策）
+        // [NEW] スワイプ表示：編集モード時の画像追加導線。小さなアイコンだけを既存バーに追加する。
+        var clipMediaBtn = document.createElement('button');
+        clipMediaBtn.type = 'button';
+        clipMediaBtn.className = 'mob-clip-media-btn';
+        clipMediaBtn.innerHTML = '🖼';
+        clipMediaBtn.title = '画像を追加';
+        clipMediaBtn.setAttribute('aria-label', '画像を追加');
+
         var clipLinkBtn = document.createElement('button');
         clipLinkBtn.type = 'button';
         clipLinkBtn.className = 'mob-clip-link-btn';
@@ -12797,6 +12941,7 @@ function rdSaveRate(v) {
         clipLinkBtn.title = 'カードをリンク';
         clipBar.appendChild(clipCopyBtn);
         clipBar.appendChild(clipStatus);
+        clipBar.appendChild(clipMediaBtn);
         clipBar.appendChild(clipLinkBtn);
         clipBar.appendChild(clipMoreBtn);
         clipBar.appendChild(clipMenu);
@@ -12816,6 +12961,14 @@ function rdSaveRate(v) {
         clipMoreBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             clipMenu.classList.toggle('open');
+        });
+        clipMediaBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        clipMediaBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
+        clipMediaBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var idx = parseInt(clipBar.dataset.idx, 10);
+            if (isNaN(idx)) return;
+            if (typeof mobOpenMediaSourcePicker === 'function') mobOpenMediaSourcePicker(idx);
         });
         clipPasteNewBtn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -12997,6 +13150,8 @@ function rdSaveRate(v) {
             var showClipBar = !!(d && (appMode === 'view' || appMode === 'edit'));
             clipBar.style.display = showClipBar ? 'flex' : 'none';
             var pasteAllowed = (appMode === 'edit');
+            var mediaAddBtnMob = clipBar.querySelector('.mob-clip-media-btn');
+            if (mediaAddBtnMob) mediaAddBtnMob.style.display = pasteAllowed ? 'inline-flex' : 'none';
             var pasteNewBtn  = clipBar.querySelector('.mob-clip-paste-new');
             var pasteOverBtn = clipBar.querySelector('.mob-clip-paste-over');
             // 閲覧モードでは「⋯」に貼り付け項目自体を出さない（無効化ではなく非表示）
