@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.6.0              swipe-02           ║
+  ║  Qcard PRO  v3.7.0    swipe-number                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -3251,6 +3251,25 @@ min-height: 0;
         /* [FIX] 先頭/末尾では矢印を無効化表示し、「これ以上カードが無い」ことを常時視覚的に示す */
         .mob-nav-btn.disabled { opacity: 0.28; pointer-events: none; }
         #mobile-counter { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-dim); }
+        /* [NEW] 件数表示をタップしてカード番号を直接入力できるようにする */
+        #mobile-counter.mob-counter-editable {
+            cursor: pointer; border-radius: 6px; padding: 2px 8px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #mobile-counter.mob-counter-editable:active { background: var(--surface2); }
+        .mob-counter-input {
+            width: 46px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.72rem; font-weight: 700;
+            color: var(--accent);
+            background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 6px; text-align: center;
+            padding: 1px 2px;
+            outline: none;
+        }
+        .mob-counter-input::-webkit-outer-spin-button,
+        .mob-counter-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .mob-counter-input[type=number] { -moz-appearance: textfield; }
 
         /* [FIX] 端（1枚目より前 / 最後より後）へスワイプした際の「これ以上進めない」フィードバック */
         @keyframes mobEdgeBounce {
@@ -4017,7 +4036,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.6.0</span>
+    <span class="version-badge">v3.7.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -14368,6 +14387,107 @@ function rdSaveRate(v) {
     window.mobGoNext = goNext;
     window.mobGoPrev = goPrev;
 
+    // [NEW] 矢印ボタン長押し用の「即時版」。通常のスライドアニメーション（0.38秒）は
+    // 高速連打には遅すぎて重なってしまうため、長押し中の連続送りはアニメーション無しで
+    // 即座に切り替える。1回タップした時の見た目（滑らかなスライド）はそのまま維持する。
+    function goNextInstant() {
+        if (mobEditingActive) mobCommitPendingEdit();
+        var data = getData();
+        if (mIdx >= data.length - 1) return;
+        if (appMode === 'study' && typeof window.studyNav === 'function') { window.studyNav(1); return; }
+        mIdx++;
+        mRenderAll();
+    }
+    function goPrevInstant() {
+        if (mobEditingActive) mobCommitPendingEdit();
+        if (mIdx <= 0) return;
+        if (appMode === 'study' && typeof window.studyNav === 'function') { window.studyNav(-1); return; }
+        mIdx--;
+        mRenderAll();
+    }
+
+    // [NEW] 長押しで加速しながら連続送りするための共通ヘルパー。
+    // 短いタップ＝1回だけ通常操作（アニメーション付き）、450ms以上の長押し＝
+    // 即時切り替えでの連続送りに切り替わり、押し続けるほど速くなる。
+    function setupHoldToRepeat(btn, tapAction, repeatAction) {
+        if (!btn) return;
+        var holdTimer = null, repeatTimer = null, engaged = false, speed = 320;
+        function stopRepeating() {
+            clearTimeout(holdTimer); clearTimeout(repeatTimer);
+            holdTimer = null; repeatTimer = null; speed = 320;
+        }
+        function scheduleRepeat() {
+            repeatTimer = setTimeout(function() {
+                repeatAction();
+                speed = Math.max(70, speed - 25); // だんだん速く（下限あり）
+                scheduleRepeat();
+            }, speed);
+        }
+        btn.addEventListener('pointerdown', function(e) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            stopRepeating();
+            engaged = false;
+            holdTimer = setTimeout(function() {
+                engaged = true;
+                repeatAction();
+                scheduleRepeat();
+            }, 450);
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function(evt) {
+            btn.addEventListener(evt, stopRepeating);
+        });
+        btn.addEventListener('click', function(e) {
+            if (engaged) {
+                // 長押し操作の後に発生するclickは無視する（連続送り分と二重にしないため）
+                e.preventDefault(); e.stopPropagation();
+                engaged = false;
+                return;
+            }
+            tapAction();
+        });
+    }
+
+    // [NEW] 件数表示（例: 10 / 90）をタップすると、カード番号を直接入力してジャンプできる。
+    if (mCounter) {
+        mCounter.classList.add('mob-counter-editable');
+        mCounter.title = 'タップしてカード番号を直接入力';
+        mCounter.addEventListener('click', function() {
+            if (mCounter.querySelector('input')) return;
+            var data = getData();
+            var total = data.length;
+            if (!total) return;
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.min = 1; input.max = total;
+            input.value = mIdx + 1;
+            input.className = 'mob-counter-input';
+            ['click', 'pointerdown', 'mousedown', 'touchstart'].forEach(function(evt) {
+                input.addEventListener(evt, function(e) { e.stopPropagation(); });
+            });
+            var committed = false;
+            function commit() {
+                if (committed) return;
+                committed = true;
+                var v = parseInt(input.value, 10);
+                if (!isNaN(v)) {
+                    if (mobEditingActive) mobCommitPendingEdit();
+                    window.mSetIdx(v - 1);
+                } else {
+                    mRenderAll(); // 数値でなければ元の表示に戻す
+                }
+            }
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') input.blur();
+                e.stopPropagation();
+            });
+            input.addEventListener('blur', commit);
+            mCounter.textContent = '';
+            mCounter.appendChild(input);
+            input.focus();
+            input.select();
+        });
+    }
+
     // [FIX v5] 編集内容を確定してロックを解除するが、編集モード自体は維持する。
     // ボタンからの手動確定は任意の操作として残す（送りボタン・スワイプでも
     // 自動的に確定されるようになったため、必須ではなくなった）。
@@ -14510,8 +14630,8 @@ function rdSaveRate(v) {
     // ── ナビボタン ──
     var prevBtn = document.getElementById('mob-prev');
     var nextBtn = document.getElementById('mob-next');
-    if (prevBtn) prevBtn.addEventListener('click', goPrev);
-    if (nextBtn) nextBtn.addEventListener('click', goNext);
+    setupHoldToRepeat(prevBtn, goPrev, goPrevInstant);
+    setupHoldToRepeat(nextBtn, goNext, goNextInstant);
 
     // ── 編集モード：タイトル・本文の入力 → グリッド実体に反映 ──
     slides.forEach(function(sl) {
