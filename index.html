@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2                                                   ║
+  ║  Qcard PRO  v3.5.2  PLAN-B                                                 ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5262,7 +5262,7 @@ var itvDB = (function() {
     return { save: save, getByCardId: getByCardId, remove: remove };
 })();
 
-// ===== MOBILE IMAGE DIAGNOSTICS (v12) =====
+// ===== MOBILE IMAGE DIAGNOSTICS (v13) =====
 // スマートフォン実機だけで、画像処理の各STEP・所要時間・取得可能なJSヒープ値を確認するための診断モード。
 // 本機能は画像保存ロジックそのものを変更せず、観測情報を追加する。
 var MEDIA_DEBUG_V11 = {
@@ -5316,7 +5316,7 @@ function mediaDebugV11EnsurePanel() {
 
     var head = document.createElement('div');
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;';
-    head.innerHTML = '<strong>Qcard Image Debug v12</strong>';
+    head.innerHTML = '<strong>Qcard Image Debug v13</strong>';
 
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:4px;';
@@ -5336,7 +5336,7 @@ function mediaDebugV11EnsurePanel() {
     clearBtn.type = 'button';
     clearBtn.textContent = '消去';
     clearBtn.style.cssText = copyBtn.style.cssText;
-    clearBtn.onclick = function() { MEDIA_DEBUG_V11.history = []; MEDIA_DEBUG_V11.current = null; MEDIA_PICKER_DEBUG_V12.events = []; MEDIA_PICKER_DEBUG_V12.active = null; mediaDebugV11Render(); mediaDebugV11Persist(); mediaPickerDebugV12Persist(); mediaDebugV12Render(); };
+    clearBtn.onclick = function() { MEDIA_DEBUG_V11.history = []; MEDIA_DEBUG_V11.current = null; MEDIA_PICKER_DEBUG_V13.events = []; MEDIA_PICKER_DEBUG_V13.active = null; mediaDebugV11Render(); mediaDebugV11Persist(); mediaPickerDebugV13Persist(); mediaDebugV12Render(); };
     actions.appendChild(copyBtn);
     actions.appendChild(clearBtn);
     head.appendChild(actions);
@@ -5372,24 +5372,24 @@ function mediaDebugV11Render() {
     });
     MEDIA_DEBUG_V11.body.textContent = lines.join('\n');
     MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
-    if (typeof MEDIA_PICKER_DEBUG_V12 !== 'undefined') mediaDebugV12Render();
+    if (typeof MEDIA_PICKER_DEBUG_V13 !== 'undefined') mediaDebugV12Render();
 }
 
 function mediaDebugV11Persist() {
     try {
-        sessionStorage.setItem('qcard_media_debug_v12', JSON.stringify(MEDIA_DEBUG_V11.history));
+        sessionStorage.setItem('qcard_media_debug_v13', JSON.stringify(MEDIA_DEBUG_V11.history));
     } catch (_) {}
 }
 
 function mediaDebugV11Restore() {
     try {
-        var raw = sessionStorage.getItem('qcard_media_debug_v12');
+        var raw = sessionStorage.getItem('qcard_media_debug_v13');
         if (raw) MEDIA_DEBUG_V11.history = JSON.parse(raw) || [];
     } catch (_) {}
 }
 
 function mediaDebugV11Export() {
-    var out = ['Qcard Image Debug v12', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
+    var out = ['Qcard Image Debug v13', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
     MEDIA_DEBUG_V11.history.forEach(function(item) {
         out.push('', '#' + item.id + '  ' + item.fileName + '  ' + mediaDebugV11FormatBytes(item.fileSize));
         item.steps.forEach(function(st) {
@@ -5399,8 +5399,8 @@ function mediaDebugV11Export() {
         if (item.totalMs != null) out.push('TOTAL | ' + item.totalMs + 'ms');
         out.push('END MEMORY | ' + (item.endMemoryText || 'n/a'));
     });
-    out.push('', '--- PICKER / CAMERA BOUNDARY v12 ---');
-    MEDIA_PICKER_DEBUG_V12.events.forEach(function(ev) {
+    out.push('', '--- PICKER / CAMERA BOUNDARY v13 ---');
+    MEDIA_PICKER_DEBUG_V13.events.forEach(function(ev) {
         var prefix = ev.id ? '[' + ev.id + '] ' : '';
         var mode = ev.mode ? ev.mode + ' ' : '';
         out.push(prefix + mode + ev.type + ' | ' + (ev.detail || ''));
@@ -5761,7 +5761,7 @@ function mediaEnsureSourceSheet() {
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
-                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
+                '<span class="media-source-copy"><span>画像を選択（OS標準UI）</span><span class="media-source-sub">表示されたメニューで「カメラ」を選んで撮影</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
         '</div>';
@@ -5785,11 +5785,11 @@ function mediaEnsureSourceSheet() {
     return sheet;
 }
 
-// ===== CAMERA / FILE PICKER BOUNDARY DIAGNOSTICS (v12) =====
+// ===== CAMERA / FILE PICKER BOUNDARY DIAGNOSTICS (v13) =====
 // v11で「2枚目のカメラ撮影時はSTARTログすら出ない」ケースを切り分けるため、
 // ネイティブカメラ／ファイルピッカーの起動前後とFile受信までを記録する。
 // 画像処理ロジックそのものは変更しない。
-var MEDIA_PICKER_DEBUG_V12 = {
+var MEDIA_PICKER_DEBUG_V13 = {
     seq: 0,
     active: null,
     events: [],
@@ -5797,48 +5797,48 @@ var MEDIA_PICKER_DEBUG_V12 = {
     lastVisibility: document.visibilityState || 'unknown'
 };
 
-function mediaPickerDebugV12Now() {
+function mediaPickerDebugV13Now() {
     try { return Math.round(performance.now()); } catch (_) { return 0; }
 }
 
-function mediaPickerDebugV12Persist() {
+function mediaPickerDebugV13Persist() {
     try {
-        sessionStorage.setItem('qcard_media_picker_debug_v12', JSON.stringify(MEDIA_PICKER_DEBUG_V12.events));
+        sessionStorage.setItem('qcard_media_picker_debug_v13', JSON.stringify(MEDIA_PICKER_DEBUG_V13.events));
     } catch (_) {}
 }
 
-function mediaPickerDebugV12Restore() {
+function mediaPickerDebugV13Restore() {
     try {
-        var raw = sessionStorage.getItem('qcard_media_picker_debug_v12');
-        if (raw) MEDIA_PICKER_DEBUG_V12.events = JSON.parse(raw) || [];
+        var raw = sessionStorage.getItem('qcard_media_picker_debug_v13');
+        if (raw) MEDIA_PICKER_DEBUG_V13.events = JSON.parse(raw) || [];
     } catch (_) {}
 }
 
-function mediaPickerDebugV12Event(type, detail) {
+function mediaPickerDebugV13Event(type, detail) {
     var ev = {
-        id: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.id : null,
-        mode: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.mode : null,
+        id: MEDIA_PICKER_DEBUG_V13.active ? MEDIA_PICKER_DEBUG_V13.active.id : null,
+        mode: MEDIA_PICKER_DEBUG_V13.active ? MEDIA_PICKER_DEBUG_V13.active.mode : null,
         type: type,
         detail: detail || '',
         at: new Date().toISOString(),
-        perf: mediaPickerDebugV12Now()
+        perf: mediaPickerDebugV13Now()
     };
-    MEDIA_PICKER_DEBUG_V12.events.push(ev);
-    if (MEDIA_PICKER_DEBUG_V12.events.length > MEDIA_PICKER_DEBUG_V12.maxEvents) {
-        MEDIA_PICKER_DEBUG_V12.events.shift();
+    MEDIA_PICKER_DEBUG_V13.events.push(ev);
+    if (MEDIA_PICKER_DEBUG_V13.events.length > MEDIA_PICKER_DEBUG_V13.maxEvents) {
+        MEDIA_PICKER_DEBUG_V13.events.shift();
     }
     mediaDebugV11Show();
-    mediaPickerDebugV12Persist();
+    mediaPickerDebugV13Persist();
     mediaDebugV12Render();
-    console.log('[Media v12]', type, detail || '');
+    console.log('[Media v13]', type, detail || '');
 }
 
 function mediaDebugV12Render() {
     if (!MEDIA_DEBUG_V11.body) return;
     // 画像処理ログ(v11形式)の下に、カメラ境界イベントを追加表示する。
     var base = MEDIA_DEBUG_V11.body.textContent || '';
-    var lines = base ? [base, '', '--- PICKER / CAMERA BOUNDARY v12 ---'] : ['--- PICKER / CAMERA BOUNDARY v12 ---'];
-    MEDIA_PICKER_DEBUG_V12.events.slice(-40).forEach(function(ev) {
+    var lines = base ? [base, '', '--- PICKER / CAMERA BOUNDARY v13 ---'] : ['--- PICKER / CAMERA BOUNDARY v13 ---'];
+    MEDIA_PICKER_DEBUG_V13.events.slice(-40).forEach(function(ev) {
         var prefix = ev.id ? '[' + ev.id + '] ' : '';
         var mode = ev.mode ? ev.mode + ' ' : '';
         lines.push(prefix + mode + ev.type + (ev.detail ? ' | ' + ev.detail : ''));
@@ -5847,21 +5847,21 @@ function mediaDebugV12Render() {
     MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
 }
 
-function mediaPickerDebugV12Start(useCamera) {
-    var id = ++MEDIA_PICKER_DEBUG_V12.seq;
-    MEDIA_PICKER_DEBUG_V12.active = {
+function mediaPickerDebugV13Start(useCamera) {
+    var id = ++MEDIA_PICKER_DEBUG_V13.seq;
+    MEDIA_PICKER_DEBUG_V13.active = {
         id: id,
         mode: useCamera ? 'CAMERA' : 'GALLERY',
-        startedAt: mediaPickerDebugV12Now()
+        startedAt: mediaPickerDebugV13Now()
     };
     mediaDebugV11Show();
-    mediaPickerDebugV12Event('PICKER START', useCamera ? 'camera' : 'gallery');
-    return MEDIA_PICKER_DEBUG_V12.active;
+    mediaPickerDebugV13Event('PICKER START', useCamera ? 'camera' : 'gallery');
+    return MEDIA_PICKER_DEBUG_V13.active;
 }
 
-function mediaPickerDebugV12End() {
-    MEDIA_PICKER_DEBUG_V12.active = null;
-    mediaPickerDebugV12Persist();
+function mediaPickerDebugV13End() {
+    MEDIA_PICKER_DEBUG_V13.active = null;
+    mediaPickerDebugV13Persist();
 }
 
 // ネイティブピッカーから戻ったことを、visibility/focus/pageshowの変化として観測する。
@@ -5869,28 +5869,28 @@ function mediaPickerDebugV12End() {
 if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', function() {
         var state = document.visibilityState || 'unknown';
-        if (MEDIA_PICKER_DEBUG_V12.active) {
-            mediaPickerDebugV12Event('VISIBILITY', state);
+        if (MEDIA_PICKER_DEBUG_V13.active) {
+            mediaPickerDebugV13Event('VISIBILITY', state);
         }
-        MEDIA_PICKER_DEBUG_V12.lastVisibility = state;
+        MEDIA_PICKER_DEBUG_V13.lastVisibility = state;
     });
 }
 if (typeof window !== 'undefined') {
     window.addEventListener('focus', function() {
-        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('FOCUS', 'window');
+        if (MEDIA_PICKER_DEBUG_V13.active) mediaPickerDebugV13Event('FOCUS', 'window');
     });
     window.addEventListener('pageshow', function() {
-        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('PAGESHOW', 'window');
+        if (MEDIA_PICKER_DEBUG_V13.active) mediaPickerDebugV13Event('PAGESHOW', 'window');
     });
 }
 
-mediaPickerDebugV12Restore();
+mediaPickerDebugV13Restore();
 
 function mediaOpenNativePicker(useCamera) {
     var target = mediaPickerTarget;
     if (!target || !target.item) return;
 
-    var debugSession = mediaPickerDebugV12Start(!!useCamera);
+    var debugSession = mediaPickerDebugV13Start(!!useCamera);
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -5903,7 +5903,7 @@ function mediaOpenNativePicker(useCamera) {
     input.style.opacity = '0';
     document.body.appendChild(input);
 
-    mediaPickerDebugV12Event('INPUT CREATED',
+    mediaPickerDebugV13Event('INPUT CREATED',
         'accept=' + input.accept + (useCamera ? ' capture=environment' : ''));
 
     var cleaned = false;
@@ -5912,39 +5912,39 @@ function mediaOpenNativePicker(useCamera) {
     function cleanup(reason) {
         if (cleaned) return;
         cleaned = true;
-        mediaPickerDebugV12Event('CLEANUP', reason || 'unknown');
+        mediaPickerDebugV13Event('CLEANUP', reason || 'unknown');
         if (input.parentNode) input.parentNode.removeChild(input);
         if (mediaPickerTarget === target) mediaPickerTarget = null;
-        if (MEDIA_PICKER_DEBUG_V12.active === debugSession) mediaPickerDebugV12End();
+        if (MEDIA_PICKER_DEBUG_V13.active === debugSession) mediaPickerDebugV13End();
     }
 
     function logReturn(source) {
         if (returnLogged) return;
         returnLogged = true;
-        mediaPickerDebugV12Event('PICKER RETURN', source || 'unknown');
+        mediaPickerDebugV13Event('PICKER RETURN', source || 'unknown');
     }
 
     input.addEventListener('change', function() {
         logReturn('change');
         var fileCount = input.files ? input.files.length : 0;
-        mediaPickerDebugV12Event('FILE CHANGE', 'count=' + fileCount);
+        mediaPickerDebugV13Event('FILE CHANGE', 'count=' + fileCount);
         var file = input.files && input.files[0];
         if (file) {
             settled = true;
-            mediaPickerDebugV12Event('FILE RECEIVED',
+            mediaPickerDebugV13Event('FILE RECEIVED',
                 (file.name || '(unnamed)') + ' ' + mediaDebugV11FormatBytes(file.size) + ' ' + (file.type || '(no type)'));
-            mediaPickerDebugV12Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
+            mediaPickerDebugV13Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
             mediaSaveImageFile(target.cardId, target.item, file);
             cleanup('change handled');
         } else {
             settled = true;
-            mediaPickerDebugV12Event('FILE EMPTY', 'change event without file');
+            mediaPickerDebugV13Event('FILE EMPTY', 'change event without file');
             cleanup('empty change');
         }
     });
     input.addEventListener('cancel', function() {
         logReturn('cancel');
-        mediaPickerDebugV12Event('CANCEL', 'native picker cancel');
+        mediaPickerDebugV13Event('CANCEL', 'native picker cancel');
         settled = true;
         cleanup('cancel');
     });
@@ -5952,37 +5952,37 @@ function mediaOpenNativePicker(useCamera) {
     var opened = false;
     try {
         if (typeof input.showPicker === 'function') {
-            mediaPickerDebugV12Event('SHOWPICKER CALL', 'before');
+            mediaPickerDebugV13Event('SHOWPICKER CALL', 'before');
             input.showPicker();
             opened = true;
-            mediaPickerDebugV12Event('SHOWPICKER RETURN', 'success');
+            mediaPickerDebugV13Event('SHOWPICKER RETURN', 'success');
         }
     } catch (err) {
-        mediaPickerDebugV12Event('SHOWPICKER ERROR', err && err.message ? err.message : String(err));
+        mediaPickerDebugV13Event('SHOWPICKER ERROR', err && err.message ? err.message : String(err));
         console.warn('[Media] showPicker fallback:', err);
     }
     if (!opened) {
         try {
-            mediaPickerDebugV12Event('CLICK CALL', 'before');
+            mediaPickerDebugV13Event('CLICK CALL', 'before');
             input.click();
             opened = true;
-            mediaPickerDebugV12Event('CLICK RETURN', 'success');
+            mediaPickerDebugV13Event('CLICK RETURN', 'success');
         }
         catch (err2) {
-            mediaPickerDebugV12Event('CLICK ERROR', err2 && err2.message ? err2.message : String(err2));
+            mediaPickerDebugV13Event('CLICK ERROR', err2 && err2.message ? err2.message : String(err2));
             console.error('[Media] file picker failed:', err2);
             cleanup('open failed');
         }
     }
 
-    if (opened) mediaPickerDebugV12Event('PICKER OPENED', useCamera ? 'camera requested' : 'gallery requested');
+    if (opened) mediaPickerDebugV13Event('PICKER OPENED', useCamera ? 'camera requested' : 'gallery requested');
 
     // cancelイベントを発火しないブラウザ向けの保険。
     // 60秒後にまだFileが来ていなければ、待機中であることを明示する。
     setTimeout(function() {
         if (cleaned) return;
         if (!input.files || !input.files.length) {
-            mediaPickerDebugV12Event('PICKER WAITING', 'no file after 60s');
+            mediaPickerDebugV13Event('PICKER WAITING', 'no file after 60s');
             setTimeout(function() {
                 if (!cleaned && !settled) cleanup('timeout');
             }, 1000);
