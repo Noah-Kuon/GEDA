@@ -5005,11 +5005,11 @@ min-height: 0;
         </div>
     </div>
 </div>
-<!-- Qcard Camera v16: direct getUserMedia experimental camera -->
+<!-- Qcard Camera v17: direct getUserMedia; hide debug overlay while shooting -->
 <div id="qcard-camera-modal" aria-hidden="true">
   <div class="qcard-camera-panel">
     <div class="qcard-camera-head">
-      <div class="qcard-camera-title">📷 Qcardカメラ（試験・v16）</div>
+      <div class="qcard-camera-title">📷 Qcardカメラ（試験・v17）</div>
       <div id="qcard-camera-status" class="qcard-camera-status">カメラを準備しています…</div>
     </div>
     <div id="qcard-camera-video-wrap">
@@ -5798,7 +5798,7 @@ function mediaEnsureSourceSheet() {
             '<div class="media-source-title">画像を追加</div>' +
             '<button type="button" class="media-source-option" id="media-source-camera" >' +
                 '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>Qcardカメラ（試験・v16）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
+                '<span class="media-source-copy"><span>Qcardカメラ（試験・v17）</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
@@ -5928,7 +5928,7 @@ if (typeof window !== 'undefined') {
 
 mediaPickerDebugV12Restore();
 
-// ===== Qcard Camera v16: direct camera with visible diagnostics =====
+// ===== Qcard Camera v17: direct camera; diagnostics hidden while camera is open =====
 var QCARD_CAMERA_V16 = {
     stream: null,
     facingMode: 'environment',
@@ -5954,8 +5954,26 @@ function qcardCameraV16Stop() {
     QCARD_CAMERA_V16.busy = false;
 }
 
+function qcardCameraV16SetDebugPanelHidden(hidden) {
+    // 診断パネルは z-index:2147483647 のため、カメラ画面上に重なって
+    // 撮影ボタンを覆ってしまう。カメラ使用中だけ一時的に非表示にし、
+    // カメラを閉じたら元の表示状態へ戻す。
+    try {
+        var panel = document.getElementById('qcardMediaDebugV11');
+        if (!panel) return;
+        if (hidden) {
+            panel.dataset.qcardCameraHidden = panel.style.display || '';
+            panel.style.display = 'none';
+        } else if (panel.dataset.qcardCameraHidden !== undefined) {
+            panel.style.display = panel.dataset.qcardCameraHidden || 'block';
+            delete panel.dataset.qcardCameraHidden;
+        }
+    } catch (_) {}
+}
+
 function qcardCameraV16Close() {
     qcardCameraV16Stop();
+    qcardCameraV16SetDebugPanelHidden(false);
     var modal = document.getElementById('qcard-camera-modal');
     if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
     qcardCameraV16Diag('閉じました');
@@ -5977,6 +5995,7 @@ async function qcardCameraV16Open(target) {
         return;
     }
     QCARD_CAMERA_V16.target = t;
+    qcardCameraV16SetDebugPanelHidden(true);
     modal.classList.add('open');
     modal.setAttribute('aria-hidden','false');
     qcardCameraV16Diag('カメラ画面を表示しました');
@@ -6037,6 +6056,7 @@ async function qcardCameraV16Capture() {
         var target=st.target;
         qcardCameraV16Diag('撮影画像作成完了 ' + Math.round(file.size/1024) + 'KB');
         qcardCameraV16Stop();
+        qcardCameraV16SetDebugPanelHidden(false);
         var modal=document.getElementById('qcard-camera-modal');
         if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
         mediaSaveImageFile(target.cardId,target.item,file);
