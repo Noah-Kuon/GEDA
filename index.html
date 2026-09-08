@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2   UI                                       ║
+  ║  Qcard PRO  v3.5.2                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5267,85 +5267,178 @@ var itvDB = (function() {
 // 画像を WebP（→ JPEG → 元ファイル）3段階フォールバックで最適化する
 // 呼び出し元は mediaSaveImageFile() のみ。他の保存フローには影響しない。
 var IMG_OPT = {
-    maxEdge:      1600,   // px: 長辺の上限（これ以下はリサイズしない）
-    webpQuality:  0.80,   // WebP 品質
-    jpegQuality:  0.85,   // JPEG フォールバック品質
+    // スマホのカメラ写真は非常に大きいことがあるため、
+    // 保存用画像は長辺1280pxを基本上限とする。
+    maxEdge:       1280,
+    desktopMaxEdge:1600,
+    webpQuality:   0.80,
+    jpegQuality:   0.82,
+    // これを超える元画像は、プレビューにも元Blobを直接使わない。
+    // （Androidで巨大なカメラ画像をDOMに載せたままにするのを避ける）
+    previewMaxBytes: 12 * 1024 * 1024
 };
 
 /**
- * File / Blob を受け取り、リサイズ + WebP変換 した Blob を返す Promise。
- * 変換に失敗した場合は JPEG → 元ファイルの順にフォールバックする。
- * @returns {Promise<{blob: Blob, mimeType: string, width: number, height: number}>}
+ * 画像を「巨大な元画像を何枚もメモリ上に保持しない」方式で軽量化する。
+ *
+ * 重要な変更点：
+ *  1. WebPとJPEGを同時に作らず、まずWebPだけ生成する。
+ *  2. createImageBitmap() が使える端末では、デコード時リサイズを優先する。
+ *  3. 処理終了時に Image / ImageBitmap / Canvas / ObjectURL を明示的に解放する。
+ *  4. 変換に失敗しても元ファイルへ無条件フォールバックせず、可能なら小さなJPEGを試す。
  */
-function optimizeImageToWebP(file) {
-    return new Promise(function(resolve) {
+async function optimizeImageToWebP(file) {
+    var isMobile = (typeof mediaIsMobileDevice === 'function') && mediaIsMobileDevice();
+    var maxEdge = isMobile ? IMG_OPT.maxEdge : IMG_OPT.desktopMaxEdge;
+    var originalSize = file && file.size ? file.size : 0;
 
-        // Image デコード
+    function makeResult(blob, mimeType, width, height, originalWidth, originalHeight) {
+        return {
+            blob: blob,
+            mimeType: mimeType || file.type || 'image/jpeg',
+            optimizedMimeType: mimeType || file.type || 'image/jpeg',
+            width: width || 0,
+            height: height || 0,
+            originalWidth: originalWidth || 0,
+            originalHeight: originalHeight || 0,
+            originalSize: originalSize,
+            optimizedSize: blob && blob.size ? blob.size : originalSize
+        };
+    }
+
+    // まず「デコード時リサイズ」が可能か試す。
+    // Android Chromeでは、巨大な12MP/48MP画像をフルサイズCanvasへ描画するより
+    // ピークメモリを抑えられる可能性が高い。
+    if (typeof createImageBitmap === 'function') {
+        var bitmap = null;
+        var canvas = null;
+        try {
+            // まず自然サイズを取得して目標サイズを計算するため、
+            // ImageBitmap自体は最大サイズで生成するのではなく、EXIF向きを考慮した
+            // resize指定を利用する。ブラウザが対応しないオプションはcatchで通常経路へ。
+            var probe = await createImageBitmap(file);
+            var ow = probe.width;
+            var oh = probe.height;
+            probe.close();
+            probe = null;
+
+            var scale = Math.min(1, maxEdge / Math.max(ow, oh));
+            var tw = Math.max(1, Math.round(ow * scale));
+            var th = Math.max(1, Math.round(oh * scale));
+
+            try {
+                bitmap = await createImageBitmap(file, {
+                    resizeWidth: tw,
+                    resizeHeight: th,
+                    resizeQuality: 'high'
+                });
+            } catch (resizeErr) {
+                // 一部ブラウザでは resize オプション非対応。
+                bitmap = await createImageBitmap(file);
+                tw = bitmap.width;
+                th = bitmap.height;
+                if (Math.max(tw, th) > maxEdge) {
+                    scale = maxEdge / Math.max(tw, th);
+                    tw = Math.max(1, Math.round(tw * scale));
+                    th = Math.max(1, Math.round(th * scale));
+                }
+            }
+
+            canvas = document.createElement('canvas');
+            canvas.width = tw;
+            canvas.height = th;
+            var ctx = canvas.getContext('2d', { alpha: false });
+            if (!ctx) throw new Error('Canvas context unavailable');
+            ctx.drawImage(bitmap, 0, 0, tw, th);
+
+            // WebPを1回だけ生成。JPEGとのサイズ比較はメモリピークを上げるため廃止。
+            var webpBlob = await new Promise(function(resolve) {
+                canvas.toBlob(resolve, 'image/webp', IMG_OPT.webpQuality);
+            });
+
+            if (webpBlob) {
+                return makeResult(webpBlob, 'image/webp', tw, th, ow, oh);
+            }
+
+            // WebP非対応時だけJPEGを生成。
+            var jpegBlob = await new Promise(function(resolve) {
+                canvas.toBlob(resolve, 'image/jpeg', IMG_OPT.jpegQuality);
+            });
+            if (jpegBlob) {
+                return makeResult(jpegBlob, 'image/jpeg', tw, th, ow, oh);
+            }
+
+            // 最後の安全弁。ただしここまで来るケースは極めて限定的。
+            return makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh);
+        } catch (e) {
+            console.warn('[Media] createImageBitmap optimization failed:', e);
+        } finally {
+            if (bitmap && typeof bitmap.close === 'function') {
+                try { bitmap.close(); } catch (_) {}
+            }
+            if (canvas) {
+                try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+            }
+        }
+    }
+
+    // createImageBitmap非対応ブラウザ用フォールバック。
+    // ここでもWebP→JPEGの順に1回ずつだけ生成し、巨大な元画像URLを保持し続けない。
+    return await new Promise(function(resolve) {
         var url = URL.createObjectURL(file);
         var img = new Image();
+        var settled = false;
+
+        function finish(result) {
+            if (settled) return;
+            settled = true;
+            try { URL.revokeObjectURL(url); } catch (_) {}
+            img.onload = null;
+            img.onerror = null;
+            img.src = '';
+            resolve(result);
+        }
 
         img.onerror = function() {
-            // デコード失敗 → 元ファイルをそのまま返す
-            URL.revokeObjectURL(url);
-            resolve({ blob: file, mimeType: file.type,
-                      width: 0, height: 0,
-                      originalSize: file.size, optimizedSize: file.size });
+            finish(makeResult(file, file.type || 'image/jpeg', 0, 0, 0, 0));
         };
 
         img.onload = function() {
-            URL.revokeObjectURL(url);
-
             var ow = img.naturalWidth;
             var oh = img.naturalHeight;
+            var scale = Math.min(1, maxEdge / Math.max(ow, oh));
+            var tw = Math.max(1, Math.round(ow * scale));
+            var th = Math.max(1, Math.round(oh * scale));
+            var canvas = null;
+            try {
+                canvas = document.createElement('canvas');
+                canvas.width = tw;
+                canvas.height = th;
+                var ctx = canvas.getContext('2d', { alpha: false });
+                if (!ctx) throw new Error('Canvas context unavailable');
+                ctx.drawImage(img, 0, 0, tw, th);
 
-            // リサイズ計算（長辺が maxEdge を超える場合のみ縮小）
-            var scale = 1;
-            if (Math.max(ow, oh) > IMG_OPT.maxEdge) {
-                scale = IMG_OPT.maxEdge / Math.max(ow, oh);
+                canvas.toBlob(function(blob) {
+                    if (blob) {
+                        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+                        finish(makeResult(blob, 'image/webp', tw, th, ow, oh));
+                        return;
+                    }
+                    canvas.toBlob(function(jpeg) {
+                        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+                        finish(jpeg
+                            ? makeResult(jpeg, 'image/jpeg', tw, th, ow, oh)
+                            : makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
+                    }, 'image/jpeg', IMG_OPT.jpegQuality);
+                }, 'image/webp', IMG_OPT.webpQuality);
+            } catch (e) {
+                console.warn('[Media] fallback optimization failed:', e);
+                if (canvas) { try { canvas.width = 1; canvas.height = 1; } catch (_) {} }
+                finish(makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
             }
-            var tw = Math.round(ow * scale);
-            var th = Math.round(oh * scale);
-
-            // Canvas に描画
-            var canvas = document.createElement('canvas');
-            canvas.width  = tw;
-            canvas.height = th;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, tw, th);
-
-            // ① WebP 変換
-            canvas.toBlob(function(webpBlob) {
-
-                // ② JPEG 変換（WebP と比較するために必ず生成）
-                canvas.toBlob(function(jpegBlob) {
-
-                    // 最も小さいものを選択（元ファイル含む3択）
-                    // 「軽量化」が目的なので、大きくなるなら元ファイルを採用する
-                    var candidates = [];
-                    if (webpBlob) candidates.push({ blob: webpBlob, mimeType: 'image/webp', size: webpBlob.size });
-                    if (jpegBlob) candidates.push({ blob: jpegBlob, mimeType: 'image/jpeg', size: jpegBlob.size });
-                    candidates.push({ blob: file, mimeType: file.type, size: file.size });
-
-                    // サイズが最小のものを採用
-                    candidates.sort(function(a, b) { return a.size - b.size; });
-                    var best = candidates[0];
-
-                    resolve({
-                        blob:          best.blob,
-                        mimeType:      best.mimeType,
-                        optimizedMimeType: best.mimeType,   // 明示フィールドとして保持
-                        width:         tw,
-                        height:        th,
-                        originalWidth:  ow,
-                        originalHeight: oh,
-                        originalSize:  file.size,
-                        optimizedSize: best.size
-                    });
-
-                }, 'image/jpeg', IMG_OPT.jpegQuality);
-            }, 'image/webp', IMG_OPT.webpQuality);
         };
 
+        img.decoding = 'async';
         img.src = url;
     });
 }
@@ -5353,20 +5446,36 @@ function optimizeImageToWebP(file) {
 function mediaSaveImageFile(cardId, item, file) {
     if (!file) return;
 
-    // 即時プレビュー（最適化前の元ファイルで表示 → UX に影響なし）
-    var img = item.querySelector('.card-media-layer img');
-    if (img) img.src = URL.createObjectURL(file);
+    var img = item && item.querySelector('.card-media-layer img');
+    var previewUrl = null;
+
+    // まずカードを画像状態にして、ユーザーには即時フィードバックを返す。
+    // ただし巨大なカメラ画像そのものを長時間DOMに保持しない。
     item.classList.add('has-media');
     showToast(t('toast_img_added'));
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
 
-    // 最適化 → IndexedDB 保存（バックグラウンドで処理。表示フローをブロックしない）
-    optimizeImageToWebP(file).then(function(result) {
+    // 低容量ファイルだけ元画像を一時プレビューに使用。
+    // 巨大画像では、最適化済みBlobができるまで画像要素へセットしない。
+    if (img && file.size <= IMG_OPT.previewMaxBytes) {
+        previewUrl = URL.createObjectURL(file);
+        img.src = previewUrl;
+    }
 
-        // プレビューを最適化後 Blob に差し替え（変わったか見た目では分からない）
-        if (img) img.src = URL.createObjectURL(result.blob);
+    optimizeImageToWebP(file).then(function(result) {
+        // 最適化済みBlobだけを最終プレビューとして使用。
+        if (img) {
+            if (previewUrl) {
+                try { URL.revokeObjectURL(previewUrl); } catch (_) {}
+                previewUrl = null;
+            }
+            var optimizedUrl = URL.createObjectURL(result.blob);
+            img.src = optimizedUrl;
+            // 画像要素から不要になったObjectURLを安全に解放。
+            img.dataset.mediaObjectUrl = optimizedUrl;
+        }
 
         var record = {
             cardId:           cardId,
@@ -5375,10 +5484,9 @@ function mediaSaveImageFile(cardId, item, file) {
             mimeType:         result.mimeType,
             optimizedMimeType: result.optimizedMimeType || result.mimeType,
             size:             result.optimizedSize,
-            // 元画像情報（メタとして保持）
-            originalFilename: file.name        || '',
-            originalMimeType: file.type        || '',
-            originalWidth:    result.originalWidth  || 0,
+            originalFilename: file.name || '',
+            originalMimeType: file.type || '',
+            originalWidth:    result.originalWidth || 0,
             originalHeight:   result.originalHeight || 0,
             originalSize:     result.originalSize,
             optimizedWidth:   result.width,
@@ -5389,134 +5497,40 @@ function mediaSaveImageFile(cardId, item, file) {
             mediaUrl:         null
         };
 
-        // 保存 → SHA-256 ハッシュを非同期で算出して更新
-        mediaDB.save(record).then(function() {
-            if (!crypto || !crypto.subtle) return;
-            result.blob.arrayBuffer().then(function(buf) {
+        return mediaDB.save(record).then(function() {
+            // ハッシュ計算は保存成功後に実施。
+            // 最適化Blobは小さいため、元画像をarrayBuffer化することはない。
+            if (typeof crypto === 'undefined' || !crypto.subtle) return;
+            return result.blob.arrayBuffer().then(function(buf) {
                 return crypto.subtle.digest('SHA-256', buf);
             }).then(function(hashBuf) {
                 var hex = Array.from(new Uint8Array(hashBuf))
                     .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
                 record.hash = hex;
-                mediaDB.save(record);
-            }).catch(function() { /* hash算出失敗は無視 */ });
+                return mediaDB.save(record);
+            });
         });
-    });
-}
-
-// ── 画像入力ソース選択（スマホ：カメラ / 写真から選択） ──
-var mediaPickerTarget = null; // { cardId, item }
-
-// 画面幅ではなく「実際のモバイル端末」かどうかを判定。
-// これにより、PCブラウザをスマホ幅に縮めてスマホUIを検証しても、
-// カメラ専用の入力導線には入らず、通常のファイル選択を利用できる。
-function mediaIsMobileDevice() {
-    var ua = navigator.userAgent || '';
-    var uaDataMobile = !!(navigator.userAgentData && navigator.userAgentData.mobile);
-    var mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(ua);
-    // iPadOSのデスクトップ風UAにも対応
-    var iPadLike = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
-    return uaDataMobile || mobileUA || iPadLike;
-}
-
-function mediaEnsureSourceSheet() {
-    var sheet = document.getElementById('media-source-sheet');
-    if (sheet) return sheet;
-
-    sheet = document.createElement('div');
-    sheet.id = 'media-source-sheet';
-    sheet.innerHTML =
-        '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
-            '<div class="media-source-title">画像を追加</div>' +
-            '<button type="button" class="media-source-option" id="media-source-camera">' +
-                '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
-            '</button>' +
-            '<button type="button" class="media-source-option" id="media-source-gallery">' +
-                '<span class="media-source-icon">🖼</span>' +
-                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
-            '</button>' +
-            '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
-        '</div>';
-    document.body.appendChild(sheet);
-
-    function closeSheet() { sheet.classList.remove('open'); }
-    document.getElementById('media-source-cancel').addEventListener('click', function(e){ e.stopPropagation(); closeSheet(); });
-    sheet.addEventListener('click', function(e){ if (e.target === sheet) closeSheet(); });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
-
-    document.getElementById('media-source-camera').addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeSheet();
-        mediaOpenNativePicker(true);
-    });
-    document.getElementById('media-source-gallery').addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeSheet();
-        mediaOpenNativePicker(false);
-    });
-    return sheet;
-}
-
-function mediaOpenNativePicker(useCamera) {
-    var target = mediaPickerTarget;
-    if (!target || !target.item) return;
-
-    // [v6] デスクトップChromeの狭いウィンドウ／DevToolsエミュレーションでも
-    // ファイル選択が確実に開くよう、inputをDOMへ接続した状態で
-    // showPicker() → click() の順にフォールバックする。
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    if (useCamera) input.setAttribute('capture', 'environment');
-    input.style.position = 'fixed';
-    input.style.left = '-9999px';
-    input.style.width = '1px';
-    input.style.height = '1px';
-    input.style.opacity = '0';
-    document.body.appendChild(input);
-
-    var cleaned = false;
-    function cleanup() {
-        if (cleaned) return;
-        cleaned = true;
-        mediaPickerTarget = null;
-        if (input.parentNode) input.parentNode.removeChild(input);
-    }
-
-    input.addEventListener('change', function() {
-        if (input.files && input.files[0]) {
-            mediaSaveImageFile(target.cardId, target.item, input.files[0]);
+    }).catch(function(err) {
+        console.error('[Media] image save failed:', err);
+        if (previewUrl) {
+            try { URL.revokeObjectURL(previewUrl); } catch (_) {}
         }
-        cleanup();
+        // 保存失敗時に「見た目だけ画像あり」が残らないよう戻す。
+        item.classList.remove('has-media');
+        if (img) {
+            var oldUrl = img.dataset.mediaObjectUrl;
+            if (oldUrl) {
+                try { URL.revokeObjectURL(oldUrl); } catch (_) {}
+                delete img.dataset.mediaObjectUrl;
+            }
+            img.removeAttribute('src');
+        }
+        if (typeof showToast === 'function') {
+            showToast('⚠️ 画像を保存できませんでした。画像サイズを小さくして再度お試しください。');
+        }
     });
-
-    input.addEventListener('cancel', cleanup);
-
-    var opened = false;
-    try {
-        if (typeof input.showPicker === 'function') {
-            input.showPicker();
-            opened = true;
-        }
-    } catch (err) {
-        // showPicker が利用できない／許可されない場合は click() へ
-    }
-    if (!opened) {
-        try { input.click(); } catch (err2) { cleanup(); }
-    }
-
-    // キャンセルイベントを実装しないブラウザ向けの保険。
-    setTimeout(function(){
-        if (!input.files || !input.files.length) {
-            // ここではすぐ削除せず、OSダイアログが長く開いているケースを考慮。
-            setTimeout(cleanup, 1000);
-        }
-    }, 60000);
 }
 
-// ファイル選択ダイアログを開いて画像登録
-// 実機スマホ：カメラ / 写真の2択。PC（画面をスマホ幅にしていても）：通常のファイル選択。
 function mediaOpenFilePicker(cardId, item) {
     mediaPickerTarget = { cardId: cardId, item: item };
     if (mediaIsMobileDevice()) {
