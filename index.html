@@ -5267,15 +5267,13 @@ var itvDB = (function() {
 // 画像を WebP（→ JPEG → 元ファイル）3段階フォールバックで最適化する
 // 呼び出し元は mediaSaveImageFile() のみ。他の保存フローには影響しない。
 var IMG_OPT = {
-    // スマホのカメラ写真は非常に大きいことがあるため、
-    // 保存用画像は長辺1280pxを基本上限とする。
-    maxEdge:       1280,
+    // スマホ保存用は長辺1024pxを上限とする。
+    maxEdge:       1024,
+    // probeは原寸デコードせず、長辺1536pxに制限する。
+    probeMaxEdge:  1536,
     desktopMaxEdge:1600,
     webpQuality:   0.80,
-    jpegQuality:   0.82,
-    // これを超える元画像は、プレビューにも元Blobを直接使わない。
-    // （Androidで巨大なカメラ画像をDOMに載せたままにするのを避ける）
-    previewMaxBytes: 12 * 1024 * 1024
+    jpegQuality:   0.82
 };
 
 /**
@@ -5290,7 +5288,14 @@ var IMG_OPT = {
 async function optimizeImageToWebP(file) {
     var isMobile = (typeof mediaIsMobileDevice === 'function') && mediaIsMobileDevice();
     var maxEdge = isMobile ? IMG_OPT.maxEdge : IMG_OPT.desktopMaxEdge;
+    var probeMaxEdge = Math.max(maxEdge, IMG_OPT.probeMaxEdge || 1536);
     var originalSize = file && file.size ? file.size : 0;
+    var bitmap = null;
+    var canvas = null;
+
+    function logStep(step, detail) {
+        console.log('[Media] ' + step + (detail ? ' ' + detail : ''));
+    }
 
     function makeResult(blob, mimeType, width, height, originalWidth, originalHeight) {
         return {
@@ -5306,43 +5311,25 @@ async function optimizeImageToWebP(file) {
         };
     }
 
-    // まず「デコード時リサイズ」が可能か試す。
-    // Android Chromeでは、巨大な12MP/48MP画像をフルサイズCanvasへ描画するより
-    // ピークメモリを抑えられる可能性が高い。
-    if (typeof createImageBitmap === 'function') {
-        var bitmap = null;
-        var canvas = null;
-        try {
-            // まず自然サイズを取得して目標サイズを計算するため、
-            // ImageBitmap自体は最大サイズで生成するのではなく、EXIF向きを考慮した
-            // resize指定を利用する。ブラウザが対応しないオプションはcatchで通常経路へ。
-            var probe = await createImageBitmap(file);
-            var ow = probe.width;
-            var oh = probe.height;
-            probe.close();
-            probe = null;
+    logStep('STEP 1 File', (file.name || '(unnamed)') + ' ' + originalSize + ' bytes');
 
-            var scale = Math.min(1, maxEdge / Math.max(ow, oh));
+    if (typeof createImageBitmap === 'function') {
+        try {
+            // STEP 2: 原寸probeは禁止。resizeWidthのみを指定し、アスペクト比を維持する。
+            // probeそのものを最終処理に再利用するため、同じFileを二度デコードしない。
+            bitmap = await createImageBitmap(file, {
+                resizeWidth: probeMaxEdge,
+                resizeQuality: 'high'
+            });
+            logStep('STEP 2 Probe', bitmap.width + 'x' + bitmap.height);
+
+            var ow = bitmap.width;
+            var oh = bitmap.height;
+            var probeEdge = Math.max(ow, oh);
+            var scale = Math.min(1, maxEdge / probeEdge);
             var tw = Math.max(1, Math.round(ow * scale));
             var th = Math.max(1, Math.round(oh * scale));
-
-            try {
-                bitmap = await createImageBitmap(file, {
-                    resizeWidth: tw,
-                    resizeHeight: th,
-                    resizeQuality: 'high'
-                });
-            } catch (resizeErr) {
-                // 一部ブラウザでは resize オプション非対応。
-                bitmap = await createImageBitmap(file);
-                tw = bitmap.width;
-                th = bitmap.height;
-                if (Math.max(tw, th) > maxEdge) {
-                    scale = maxEdge / Math.max(tw, th);
-                    tw = Math.max(1, Math.round(tw * scale));
-                    th = Math.max(1, Math.round(th * scale));
-                }
-            }
+            logStep('STEP 3 Resize', tw + 'x' + th + (isMobile ? ' mobile' : ' desktop'));
 
             canvas = document.createElement('canvas');
             canvas.width = tw;
@@ -5351,39 +5338,39 @@ async function optimizeImageToWebP(file) {
             if (!ctx) throw new Error('Canvas context unavailable');
             ctx.drawImage(bitmap, 0, 0, tw, th);
 
-            // WebPを1回だけ生成。JPEGとのサイズ比較はメモリピークを上げるため廃止。
+            logStep('STEP 4 WebP');
             var webpBlob = await new Promise(function(resolve) {
                 canvas.toBlob(resolve, 'image/webp', IMG_OPT.webpQuality);
             });
 
-            if (webpBlob) {
-                return makeResult(webpBlob, 'image/webp', tw, th, ow, oh);
-            }
+            if (webpBlob) return makeResult(webpBlob, 'image/webp', tw, th, ow, oh);
 
-            // WebP非対応時だけJPEGを生成。
+            // WebP非対応時だけJPEGへフォールバック。
             var jpegBlob = await new Promise(function(resolve) {
                 canvas.toBlob(resolve, 'image/jpeg', IMG_OPT.jpegQuality);
             });
-            if (jpegBlob) {
-                return makeResult(jpegBlob, 'image/jpeg', tw, th, ow, oh);
-            }
+            if (jpegBlob) return makeResult(jpegBlob, 'image/jpeg', tw, th, ow, oh);
 
-            // 最後の安全弁。ただしここまで来るケースは極めて限定的。
-            return makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh);
+            return makeResult(file, file.type || 'image/jpeg', tw, th, ow, oh);
         } catch (e) {
             console.warn('[Media] createImageBitmap optimization failed:', e);
+            // ここで原寸createImageBitmapへフォールバックしない。
+            // メモリ保護を優先し、下記のImage fallbackへ移る。
         } finally {
+            logStep('STEP 5 Release');
             if (bitmap && typeof bitmap.close === 'function') {
                 try { bitmap.close(); } catch (_) {}
             }
+            bitmap = null;
             if (canvas) {
                 try { canvas.width = 1; canvas.height = 1; } catch (_) {}
             }
+            canvas = null;
         }
     }
 
-    // createImageBitmap非対応ブラウザ用フォールバック。
-    // ここでもWebP→JPEGの順に1回ずつだけ生成し、巨大な元画像URLを保持し続けない。
+    // createImageBitmap非対応、または上限付きBitmap生成に失敗した場合の安全なフォールバック。
+    // 元画像をDOMへ表示することはせず、処理終了時にObjectURLを必ず解放する。
     return await new Promise(function(resolve) {
         var url = URL.createObjectURL(file);
         var img = new Image();
@@ -5409,23 +5396,22 @@ async function optimizeImageToWebP(file) {
             var scale = Math.min(1, maxEdge / Math.max(ow, oh));
             var tw = Math.max(1, Math.round(ow * scale));
             var th = Math.max(1, Math.round(oh * scale));
-            var canvas = null;
+            var fallbackCanvas = null;
             try {
-                canvas = document.createElement('canvas');
-                canvas.width = tw;
-                canvas.height = th;
-                var ctx = canvas.getContext('2d', { alpha: false });
+                logStep('STEP 2 Probe', ow + 'x' + oh + ' fallback');
+                logStep('STEP 3 Resize', tw + 'x' + th + ' fallback');
+                fallbackCanvas = document.createElement('canvas');
+                fallbackCanvas.width = tw;
+                fallbackCanvas.height = th;
+                var ctx = fallbackCanvas.getContext('2d', { alpha: false });
                 if (!ctx) throw new Error('Canvas context unavailable');
                 ctx.drawImage(img, 0, 0, tw, th);
-
-                canvas.toBlob(function(blob) {
-                    if (blob) {
-                        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
-                        finish(makeResult(blob, 'image/webp', tw, th, ow, oh));
-                        return;
-                    }
-                    canvas.toBlob(function(jpeg) {
-                        try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+                logStep('STEP 4 WebP fallback');
+                fallbackCanvas.toBlob(function(blob) {
+                    try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {}
+                    if (blob) { finish(makeResult(blob, 'image/webp', tw, th, ow, oh)); return; }
+                    fallbackCanvas.toBlob(function(jpeg) {
+                        try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {}
                         finish(jpeg
                             ? makeResult(jpeg, 'image/jpeg', tw, th, ow, oh)
                             : makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
@@ -5433,7 +5419,7 @@ async function optimizeImageToWebP(file) {
                 }, 'image/webp', IMG_OPT.webpQuality);
             } catch (e) {
                 console.warn('[Media] fallback optimization failed:', e);
-                if (canvas) { try { canvas.width = 1; canvas.height = 1; } catch (_) {} }
+                if (fallbackCanvas) { try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {} }
                 finish(makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
             }
         };
@@ -5444,38 +5430,31 @@ async function optimizeImageToWebP(file) {
 }
 
 function mediaSaveImageFile(cardId, item, file) {
-    if (!file) return;
+    if (!file || !item) return;
 
-    var img = item && item.querySelector('.card-media-layer img');
-    var previewUrl = null;
+    var img = item.querySelector('.card-media-layer img');
+    var saveToken = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    item.dataset.mediaSaveToken = saveToken;
 
-    // まずカードを画像状態にして、ユーザーには即時フィードバックを返す。
-    // ただし巨大なカメラ画像そのものを長時間DOMに保持しない。
-    item.classList.add('has-media');
+    // 原寸Fileをimgへセットしない。最適化完了までは処理中表示のみ。
+    item.classList.add('has-media', 'media-processing');
     showToast(t('toast_img_added'));
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
 
-    // 低容量ファイルだけ元画像を一時プレビューに使用。
-    // 巨大画像では、最適化済みBlobができるまで画像要素へセットしない。
-    if (img && file.size <= IMG_OPT.previewMaxBytes) {
-        previewUrl = URL.createObjectURL(file);
-        img.src = previewUrl;
+    function revokeImgObjectUrl(targetImg) {
+        if (!targetImg) return;
+        var oldUrl = targetImg.dataset.mediaObjectUrl;
+        if (oldUrl) {
+            try { URL.revokeObjectURL(oldUrl); } catch (_) {}
+            delete targetImg.dataset.mediaObjectUrl;
+        }
     }
 
     optimizeImageToWebP(file).then(function(result) {
-        // 最適化済みBlobだけを最終プレビューとして使用。
-        if (img) {
-            if (previewUrl) {
-                try { URL.revokeObjectURL(previewUrl); } catch (_) {}
-                previewUrl = null;
-            }
-            var optimizedUrl = URL.createObjectURL(result.blob);
-            img.src = optimizedUrl;
-            // 画像要素から不要になったObjectURLを安全に解放。
-            img.dataset.mediaObjectUrl = optimizedUrl;
-        }
+        // 同じカードで後から始まった差し替えがあれば、この処理結果は捨てる。
+        if (item.dataset.mediaSaveToken !== saveToken) return;
 
         var record = {
             cardId:           cardId,
@@ -5498,31 +5477,41 @@ function mediaSaveImageFile(cardId, item, file) {
         };
 
         return mediaDB.save(record).then(function() {
-            // ハッシュ計算は保存成功後に実施。
-            // 最適化Blobは小さいため、元画像をarrayBuffer化することはない。
+            console.log('[Media] STEP 6 DB Save', result.width + 'x' + result.height + ' ' + result.optimizedSize + ' bytes');
+            if (item.dataset.mediaSaveToken !== saveToken) return;
+
+            // 登録完了後に初めて最適化済みBlobのObjectURLを生成する。
+            if (img) {
+                revokeImgObjectUrl(img);
+                var optimizedUrl = URL.createObjectURL(result.blob);
+                img.src = optimizedUrl;
+                img.dataset.mediaObjectUrl = optimizedUrl;
+            }
+            item.classList.remove('media-processing');
+            console.log('[Media] STEP 7 Display');
+
+            // SHA-256は登録完了後の非クリティカル処理。
             if (typeof crypto === 'undefined' || !crypto.subtle) return;
-            return result.blob.arrayBuffer().then(function(buf) {
-                return crypto.subtle.digest('SHA-256', buf);
-            }).then(function(hashBuf) {
-                var hex = Array.from(new Uint8Array(hashBuf))
-                    .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
-                record.hash = hex;
-                return mediaDB.save(record);
-            });
+            setTimeout(function() {
+                if (item.dataset.mediaSaveToken !== saveToken) return;
+                result.blob.arrayBuffer().then(function(buf) {
+                    return crypto.subtle.digest('SHA-256', buf);
+                }).then(function(hashBuf) {
+                    var hex = Array.from(new Uint8Array(hashBuf))
+                        .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+                    record.hash = hex;
+                    return mediaDB.save(record);
+                }).catch(function(err) {
+                    console.warn('[Media] SHA-256 post-save failed:', err);
+                });
+            }, 0);
         });
     }).catch(function(err) {
+        if (item.dataset.mediaSaveToken !== saveToken) return;
         console.error('[Media] image save failed:', err);
-        if (previewUrl) {
-            try { URL.revokeObjectURL(previewUrl); } catch (_) {}
-        }
-        // 保存失敗時に「見た目だけ画像あり」が残らないよう戻す。
-        item.classList.remove('has-media');
+        item.classList.remove('has-media', 'media-processing');
         if (img) {
-            var oldUrl = img.dataset.mediaObjectUrl;
-            if (oldUrl) {
-                try { URL.revokeObjectURL(oldUrl); } catch (_) {}
-                delete img.dataset.mediaObjectUrl;
-            }
+            revokeImgObjectUrl(img);
             img.removeAttribute('src');
         }
         if (typeof showToast === 'function') {
@@ -5668,8 +5657,12 @@ function mediaLoadForCard(cardId, item, imgEl) {
     mediaDB.get(cardId).then(function(record) {
         if (record && record.blob) {
             // ローカルIndexedDBに画像あり → 通常パス
+            if (imgEl.dataset.mediaObjectUrl) {
+                try { URL.revokeObjectURL(imgEl.dataset.mediaObjectUrl); } catch (_) {}
+            }
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
+            imgEl.dataset.mediaObjectUrl = url;
             item.classList.add('has-media');
         } else if (item.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
@@ -5695,7 +5688,10 @@ function mediaRemoveCard(cardId, item) {
     mediaDB.remove(cardId).then(function() {
         item.classList.remove('has-media');
         var img = item.querySelector('.card-media-layer img');
-        if (img) img.src = '';
+        if (img) {
+            if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
+            img.src = '';
+        }
         showToast(t('toast_img_removed'));
         // [NEW] このカードがオーバーレイで表示中なら、オーバーレイ側の画像も即時非表示
         if (typeof editCardItem !== 'undefined' && editCardItem === item) {
@@ -9476,7 +9472,10 @@ function overlayShowMediaForCard(cardItem) {
     mediaDB.get(mediaId).then(function(record) {
         if (record && record.blob) {
             // ローカルIndexedDBに画像あり → 通常パス
-            img.src = URL.createObjectURL(record.blob);
+            if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
+            var overlayUrl = URL.createObjectURL(record.blob);
+            img.src = overlayUrl;
+            img.dataset.mediaObjectUrl = overlayUrl;
             layer.classList.add('show');
         } else if (cardItem && cardItem.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
