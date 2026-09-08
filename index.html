@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.2.4　ANKI-V3                                          ║
+  ║  Qcard PRO  v3.5.2    camera+                                  ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -486,6 +486,53 @@
         }
         .scenario-tab.drop-insert-before::before { left: -4px; }
         .scenario-tab.drop-insert-after::after    { right: -4px; }
+
+        /* [NEW] 検索：一致カードを含むシナリオのタブに枠色＋件数バッジを表示 */
+        .scenario-tab.search-hit {
+            border-color: rgba(245,166,35,0.7) !important;
+            box-shadow: 0 0 0 1px rgba(245,166,35,0.25);
+        }
+        .scenario-tab .search-hit-badge {
+            display: none;
+            align-items: center; justify-content: center;
+            min-width: 16px; height: 16px; padding: 0 4px;
+            background: rgba(245,166,35,0.85); color: #1a1a1a;
+            border-radius: 8px; font-size: 0.6rem; font-weight: 700;
+            font-family: 'DM Mono', monospace;
+            margin-left: 2px;
+        }
+        .scenario-tab.search-hit .search-hit-badge { display: inline-flex; }
+
+        /* [NEW] 検索絞り込みビュー：一致カードだけを表示している間のバナー */
+        #search-filter-banner {
+            display: none;
+            align-items: center; gap: 8px;
+            background: rgba(245,166,35,0.1);
+            border: 1px solid rgba(245,166,35,0.35);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--text);
+            margin: 0 14px 8px;
+        }
+        #search-filter-banner.show { display: flex; }
+        #search-filter-banner .sfb-clear {
+            margin-left: auto;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 6px; padding: 3px 10px; font-size: 0.7rem;
+            color: var(--text-muted); cursor: pointer;
+        }
+        .search-count { cursor: pointer; } /* [NEW] クリックで絞り込みビューを開けることを示す */
+        .search-count.has-results:hover { text-decoration: underline; }
+
+        /* [NEW] 検索絞り込みビュー中は、誤って編集して保存されない事故を防ぐため、
+           カードのタイトル・本文入力を一時的に読み取り専用にする。
+           （絞り込み中の編集は保存されない設計のため、編集できないことを明示する） */
+        body.search-filter-view .title-input,
+        body.search-filter-view .content-textarea {
+            pointer-events: none;
+            opacity: 0.85;
+        }
         .scenario-tab .tab-key {
             font-family: 'DM Mono', monospace;
             font-size: 0.56rem; background: var(--border); border-radius: 3px;
@@ -544,6 +591,11 @@
             cursor: default; overflow: hidden; position: relative;
             transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
             height: 160px;
+            /* [NEW] 画面外のカードはブラウザ側でレイアウト・描画処理を丸ごとスキップさせる。
+               大量枚数（Ankiインポート等）でも軽快さを保つための対策その1。
+               高さは常に160pxで確定しているため、契約サイズをそのまま指定してもズレは生じない。 */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 160px;
         }
         .content-textarea { overflow-y: auto !important; }
         .content-textarea::-webkit-scrollbar { width: 3px; }
@@ -831,6 +883,18 @@
         .clp-item:hover { background: var(--surface3); }
         .clp-item.disabled { opacity: 0.35; cursor: not-allowed; }
         .clp-empty-hint { font-size: 0.72rem; color: var(--text-dim); padding: 10px; text-align: center; }
+        .clp-divider { height: 1px; background: var(--border); margin: 12px 0; }
+        .clp-uri-row { display: flex; gap: 6px; align-items: stretch; margin-top: 6px; }
+        .clp-uri-input { flex: 1; min-width: 0; }
+        .clp-uri-add-btn {
+            flex-shrink: 0; padding: 0 10px; border-radius: 7px;
+            border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+            cursor: pointer; font-size: 0.72rem; font-weight: 600;
+        }
+        .clp-uri-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .clp-uri-status { min-height: 18px; margin-top: 5px; font-size: 0.68rem; color: var(--text-dim); }
+        .clp-uri-status.ok { color: var(--accent); }
+        .clp-uri-status.error { color: var(--danger); }
         /* ドラッグオーバー時のフィードバック */
         .grid-item.media-drag-over { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent-glow) !important; }
 
@@ -1647,7 +1711,7 @@
         /* ─── HINT BAR ─── */
         .hint-bar {
             background: var(--surface); border-top: 1px solid var(--border);
-            padding: 5px 14px; display: flex; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+            padding: 5px 300px 5px 14px; display: flex; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
         }
         .hint-item {
             display: flex; align-items: center; gap: 4px;
@@ -2873,6 +2937,58 @@ min-height: 0;
             color: var(--text); cursor: pointer;
         }
         .mob-clip-copy-btn:active { background: var(--surface2); }
+
+        /* [NEW] スワイプ表示：画像追加ボタン。編集モード時だけ表示し、コピー等の既存操作と同じバーに収める。 */
+        .mob-clip-media-btn {
+            background: var(--surface3); border: 1px solid var(--border);
+            border-radius: 50%; width: 44px; height: 44px; font-size: 1rem;
+            color: var(--text-dim); cursor: pointer; line-height: 1;
+            flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+        }
+        .mob-clip-media-btn:active { background: var(--surface2); }
+        .mob-clip-media-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+        .mob-clip-bar .mob-clip-media-btn { display: none; }
+        body.edit-mode-active .mob-clip-bar .mob-clip-media-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+        /* [NEW] 画像ソース選択シート（スマホ） */
+        #media-source-sheet {
+            display: none; position: fixed; inset: 0; z-index: 10020;
+            background: rgba(0,0,0,0.48); align-items: flex-end; justify-content: center;
+            padding: 12px; box-sizing: border-box;
+        }
+        #media-source-sheet.open { display: flex; }
+        .media-source-panel {
+            width: min(100%, 430px); background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.45); padding: 10px;
+            transform: translateY(8px); animation: mediaSourceIn 0.16s ease-out forwards;
+        }
+        @keyframes mediaSourceIn { to { transform: translateY(0); } }
+        .media-source-title {
+            font-size: 0.72rem; color: var(--text-dim); text-align: center;
+            padding: 4px 4px 8px; letter-spacing: 0.04em;
+        }
+        .media-source-option {
+            width: 100%; display: flex; align-items: center; gap: 12px;
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); border-radius: 11px; padding: 13px 14px;
+            margin-top: 6px; text-align: left; cursor: pointer;
+            font-size: 0.82rem; -webkit-tap-highlight-color: transparent;
+        }
+        .media-source-option:active { background: var(--surface3); transform: scale(0.99); }
+        .media-source-option .media-source-icon { font-size: 1.25rem; width: 28px; text-align: center; }
+        .media-source-option .media-source-copy { display: flex; flex-direction: column; gap: 2px; }
+        .media-source-option .media-source-sub { font-size: 0.65rem; color: var(--text-dim); }
+        .media-source-cancel {
+            width: 100%; background: transparent; border: none; color: var(--text-dim);
+            border-radius: 10px; padding: 11px 8px 7px; margin-top: 2px; font-size: 0.74rem; cursor: pointer;
+        }
+        .media-source-cancel:active { background: var(--surface2); }
+        @media (min-width: 641px) {
+            #media-source-sheet { display: none !important; }
+        }
+
         .mob-clip-more-btn {
             background: var(--surface3); border: 1px solid var(--border);
             border-radius: 50%; width: 44px; height: 44px; font-size: 1.1rem;
@@ -3554,6 +3670,189 @@ min-height: 0;
         cursor: pointer;
         padding: 4px 8px;
     }
+
+
+        /* ═══════════════════════════════════════════════════════════════
+           G.E.D.A. FOOTER / INSTITUTIONAL SIGNATURE
+           [NEW v1] レイアウトを占有せず、画面最下部に薄く常駐。
+           通常時は細い署名、クリック時のみ機構情報を展開する。
+           ═══════════════════════════════════════════════════════════════ */
+        #geda-footer {
+            position: fixed;
+            left: auto;
+            right: 14px;
+            transform: none;
+            bottom: calc(7px + env(safe-area-inset-bottom, 0px));
+            z-index: 80;
+            pointer-events: none;
+            font-family: 'DM Mono', monospace;
+            color: var(--text-dim);
+        }
+        #geda-footer-trigger {
+            pointer-events: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            height: 20px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+            font: inherit;
+            box-shadow: none;
+            transition: color .18s, opacity .18s;
+        }
+        #geda-footer-trigger:hover,
+        #geda-footer.open #geda-footer-trigger {
+            color: var(--text-muted);
+        }
+        .geda-mark { display: none; }
+        .geda-footer-short {
+            font-size: 0.50rem;
+            letter-spacing: .075em;
+            white-space: nowrap;
+        }
+        .geda-footer-year {
+            font-size: 0.48rem;
+            opacity: .68;
+            white-space: nowrap;
+        }
+        #geda-footer-panel {
+            display: none;
+            position: absolute;
+            left: auto;
+            right: 0;
+            transform: none;
+            bottom: 28px;
+            width: min(330px, calc(100vw - 24px));
+            padding: 15px 16px 14px;
+            box-sizing: border-box;
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--surface) 96%, transparent);
+            box-shadow: 0 12px 38px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.025) inset;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        #geda-footer.open #geda-footer-panel { display: block; animation: gedaFooterIn .16s ease-out; }
+        @keyframes gedaFooterIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .geda-panel-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            padding-bottom: 11px;
+            border-bottom: 1px solid var(--border);
+        }
+        .geda-seal {
+            flex: 0 0 28px;
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.62rem;
+            letter-spacing: 0;
+        }
+        .geda-panel-kicker {
+            font-size: 0.48rem;
+            letter-spacing: .14em;
+            color: var(--text-dim);
+            margin-bottom: 3px;
+        }
+        .geda-panel-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: .075em;
+            color: var(--text);
+            line-height: 1.3;
+        }
+        .geda-panel-ja {
+            margin-top: 3px;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            letter-spacing: .05em;
+        }
+        .geda-panel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 18px;
+            padding: 11px 0;
+        }
+        .geda-panel-cell-label {
+            font-size: 0.43rem;
+            letter-spacing: .12em;
+            color: var(--text-dim);
+            margin-bottom: 3px;
+        }
+        .geda-panel-cell-value {
+            font-size: 0.53rem;
+            color: var(--text-muted);
+            letter-spacing: .045em;
+        }
+        .geda-observation {
+            padding: 9px 0 10px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .geda-observation-label {
+            font-size: 0.43rem;
+            letter-spacing: .12em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .geda-observation-time {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.57rem;
+            color: var(--text-muted);
+            letter-spacing: .045em;
+            white-space: nowrap;
+        }
+        .geda-observation-note {
+            margin-top: 3px;
+            font-size: 0.42rem;
+            color: var(--text-dim);
+            letter-spacing: .05em;
+        }
+        .geda-panel-notice {
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            font-size: 0.46rem;
+            line-height: 1.65;
+            letter-spacing: .055em;
+            color: var(--text-dim);
+        }
+        .geda-panel-copy {
+            margin-top: 8px;
+            font-size: 0.47rem;
+            color: var(--text-dim);
+            letter-spacing: .05em;
+        }
+        @media (max-width: 640px) {
+            .hint-bar { padding-right: 14px; }
+            #geda-footer {
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                bottom: calc(5px + env(safe-area-inset-bottom, 0px));
+                max-width: calc(100vw - 24px);
+            }
+            #geda-footer-trigger { height: 20px; gap: 0; }
+            .geda-footer-short { font-size: 0.46rem; letter-spacing: .065em; }
+            .geda-footer-year { display: none; }
+            #geda-footer-panel { bottom: 27px; width: min(330px, calc(100vw - 24px)); padding: 13px 14px 12px; }
+        }
+
     </style>
   <!-- Supabase クライアント -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -3563,7 +3862,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.2.0</span>
+    <span class="version-badge">v3.5.2</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -3706,10 +4005,10 @@ min-height: 0;
 <div class="search-bar">
     <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" data-i18n-ph="search_placeholder" placeholder="カードを検索..." oninput="onSearch(this.value)" autocomplete="off">
+        <input type="text" id="search-input" data-i18n-ph="search_placeholder" placeholder="カードを検索..." oninput="onSearch(this.value)" oncompositionend="onSearch(this.value)" autocomplete="off">
         <button class="search-clear" onclick="clearSearch()" data-i18n-title="search_clear" title="クリア">×</button>
     </div>
-    <span class="search-count" id="search-count"></span>
+    <span class="search-count" id="search-count" onclick="toggleSearchFilterView()"></span>
 
     <!-- [MOVED] シナリオ選択：検索窓の右隣に配置。以前は専用の1行（.scenario-bar）を
          占有していたが、検索バーに統合してカード表示領域の縦幅を稼ぐようにした。
@@ -3819,6 +4118,12 @@ min-height: 0;
             </div>
         </div>
     </div>
+</div>
+
+<!-- [NEW] 検索絞り込みビュー：一致カードのみ表示中に出すバナー -->
+<div id="search-filter-banner">
+    <span id="search-filter-banner-text"></span>
+    <button type="button" class="sfb-clear" onclick="clearSearchFilterView()">すべて表示</button>
 </div>
 
 <!-- モバイル シナリオセレクト -->
@@ -4064,8 +4369,18 @@ min-height: 0;
 <div class="card-link-picker" id="card-link-picker">
     <div class="sp-section-label" style="margin-bottom:8px;">🔗 カードをリンク</div>
     <input type="text" id="card-link-search-input" class="sp-search-input"
-           placeholder="🔍 カードを検索…" oninput="cardLinkFilterPicker(this.value)"
-           onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}">
+           placeholder="🔍 タイトル・本文・TAG・シナリオ名で検索…" oninput="cardLinkFilterPicker(this.value)"
+           onkeydown="if(event.key==='Escape'){cardLinkClosePicker();}"
+           oncompositionend="cardLinkFilterPicker(this.value)">
+    <div class="clp-divider"></div>
+    <div class="sp-section-label" style="margin-bottom:4px;">🔗 URIを直接指定</div>
+    <div class="clp-uri-row">
+        <input type="text" id="card-link-uri-input" class="sp-search-input clp-uri-input"
+               placeholder="fig://…"
+               onkeydown="if(event.key==='Enter'){cardLinkAddByUri();} if(event.key==='Escape'){cardLinkClosePicker();}">
+        <button type="button" class="clp-uri-add-btn" onclick="cardLinkAddByUri()">追加</button>
+    </div>
+    <div id="card-link-uri-status" class="clp-uri-status"></div>
     <div id="card-link-results"></div>
 </div>
 <div id="overlay">
@@ -4447,6 +4762,11 @@ min-height: 0;
             <input type="file" id="importFileJSON" accept=".json,.qcf,.qcp" style="display:none" onchange="importJSON(event)">
             <input type="file" id="importFileCSV"  accept=".csv"            style="display:none" onchange="importCSV(event)">
             <input type="file" id="importFileMD"   accept=".md,.markdown,.txt" style="display:none" onchange="importMD(event)">
+            <button class="dm-action" onclick="document.getElementById('importFileObsidian').click()">
+                <span class="dm-icon">🗂️</span>
+                <div><div class="dm-label">Obsidian</div><div class="dm-desc">.md複数選択 / Vaultの.zip</div></div>
+            </button>
+            <input type="file" id="importFileObsidian" accept=".zip,.md,.markdown" multiple style="display:none" onchange="importObsidian(event)">
             <hr class="dm-divider">
             <div class="dm-section-label">テキストを貼り付け</div>
             <textarea id="paste-import-area" placeholder="QCF・JSON・Markdown をここに貼り付け…" style="width:100%;height:56px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.7rem;padding:8px 10px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
@@ -4619,6 +4939,55 @@ min-height: 0;
   </div>
 </div>
 <video id="pip-hidden-video" autoplay muted style="display:none"></video>
+
+<!-- G.E.D.A. INSTITUTIONAL FOOTER -->
+<div id="geda-footer" aria-label="G.E.D.A. information">
+    <button id="geda-footer-trigger" type="button" onclick="toggleGedaFooter(event)" aria-expanded="false" aria-controls="geda-footer-panel">
+        <span class="geda-mark" aria-hidden="true"></span>
+        <span class="geda-footer-short">G.E.D.A. · GLOBAL EXISTENTIAL DEEP ARCHIVE</span>
+        <span class="geda-footer-year">© 2026</span>
+    </button>
+    <div id="geda-footer-panel" role="dialog" aria-label="G.E.D.A. system information">
+        <div class="geda-panel-head">
+            <div class="geda-seal" aria-hidden="true">G·Q</div>
+            <div>
+                <div class="geda-panel-kicker">INSTITUTIONAL ARCHIVE SYSTEM</div>
+                <div class="geda-panel-title">GLOBAL EXISTENTIAL DEEP ARCHIVE</div>
+                <div class="geda-panel-ja">広域実存深層記憶機構</div>
+            </div>
+        </div>
+        <div class="geda-observation" aria-live="polite">
+            <div class="geda-observation-label">SYSTEM OBSERVATION / LOCAL TIMESTAMP</div>
+            <div class="geda-observation-time" id="geda-observation-time">----/--/-- --:--:--.---</div>
+            <div class="geda-observation-note">SYSTEM CLOCK OBSERVED IN REAL TIME · LOCAL ENVIRONMENT</div>
+        </div>
+        <div class="geda-panel-grid">
+            <div>
+                <div class="geda-panel-cell-label">SYSTEM</div>
+                <div class="geda-panel-cell-value">QCARD / QC-01</div>
+            </div>
+            <div>
+                <div class="geda-panel-cell-label">CLASS</div>
+                <div class="geda-panel-cell-value">KNOWLEDGE ARCHIVE</div>
+            </div>
+            <div>
+                <div class="geda-panel-cell-label">AUTHORITY</div>
+                <div class="geda-panel-cell-value">G.E.D.A.</div>
+            </div>
+            <div>
+                <div class="geda-panel-cell-label">EDITION</div>
+                <div class="geda-panel-cell-value">2026 / PRO</div>
+            </div>
+        </div>
+        <div class="geda-panel-notice">
+            SYSTEM PROPERTY OF G.E.D.A.<br>
+            AUTHORIZED USE ONLY.<br>
+            Unauthorized reproduction, modification or redistribution of this software is prohibited.
+        </div>
+        <div class="geda-panel-copy">© 2026 G.E.D.A. / Qcard. ALL RIGHTS RESERVED.</div>
+    </div>
+</div>
+
 
 <script>
 // ===== [NEW] カード画像（メディア）保存 =====
@@ -4972,18 +5341,102 @@ function mediaSaveImageFile(cardId, item, file) {
     });
 }
 
-// ファイル選択ダイアログを開いて画像登録
-function mediaOpenFilePicker(cardId, item) {
+// ── 画像入力ソース選択（スマホ：カメラ / 写真から選択） ──
+var mediaPickerTarget = null; // { cardId, item }
+
+function mediaIsMobile() {
+    return window.innerWidth <= 640;
+}
+
+function mediaEnsureSourceSheet() {
+    var sheet = document.getElementById('media-source-sheet');
+    if (sheet) return sheet;
+
+    sheet = document.createElement('div');
+    sheet.id = 'media-source-sheet';
+    sheet.innerHTML =
+        '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
+            '<div class="media-source-title">画像を追加</div>' +
+            '<button type="button" class="media-source-option" id="media-source-camera">' +
+                '<span class="media-source-icon">📷</span>' +
+                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-option" id="media-source-gallery">' +
+                '<span class="media-source-icon">🖼</span>' +
+                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
+        '</div>';
+    document.body.appendChild(sheet);
+
+    function closeSheet() { sheet.classList.remove('open'); }
+    document.getElementById('media-source-cancel').addEventListener('click', function(e){ e.stopPropagation(); closeSheet(); });
+    sheet.addEventListener('click', function(e){ if (e.target === sheet) closeSheet(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
+
+    document.getElementById('media-source-camera').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(true);
+    });
+    document.getElementById('media-source-gallery').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(false);
+    });
+    return sheet;
+}
+
+function mediaOpenNativePicker(useCamera) {
+    var target = mediaPickerTarget;
+    if (!target || !target.item) return;
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    if (useCamera) input.setAttribute('capture', 'environment');
     input.addEventListener('change', function() {
         if (input.files && input.files[0]) {
-            mediaSaveImageFile(cardId, item, input.files[0]);
+            mediaSaveImageFile(target.cardId, target.item, input.files[0]);
         }
+        mediaPickerTarget = null;
     });
+    // キャンセル時にも参照を解放
+    setTimeout(function(){
+        if (!input.files || !input.files.length) mediaPickerTarget = null;
+    }, 60000);
     input.click();
 }
+
+// ファイル選択ダイアログを開いて画像登録
+// PC：従来どおり直接ファイル選択。スマホ：カメラ / 写真の2択を表示。
+function mediaOpenFilePicker(cardId, item) {
+    mediaPickerTarget = { cardId: cardId, item: item };
+    if (mediaIsMobile()) {
+        var sheet = mediaEnsureSourceSheet();
+        sheet.classList.add('open');
+        return;
+    }
+    mediaOpenNativePicker(false);
+}
+
+// スワイプ画面から現在カードの画像追加を開始
+function mobOpenMediaSourcePicker(idx) {
+    if (typeof appMode !== 'undefined' && appMode !== 'edit') return;
+    var data = (typeof getActive === 'function' && getActive()) ? (getActive().data || []) : [];
+    var d = data[idx];
+    if (!d) return;
+    var items = Array.from(document.querySelectorAll('.grid-item'));
+    var item = items[idx] || null;
+    if (!item) return;
+    var cardId = item.dataset.mediaId || d.mediaId;
+    if (!cardId) {
+        cardId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+        d.mediaId = cardId;
+        item.dataset.mediaId = cardId;
+    }
+    mediaOpenFilePicker(cardId, item);
+}
+window.mobOpenMediaSourcePicker = mobOpenMediaSourcePicker;
 
 // カードの既存画像を読み込んで表示
 function mediaLoadForCard(cardId, item, imgEl) {
@@ -5595,9 +6048,18 @@ function applyI18n() {
 // ═══════════════════════════════════════════════════════════════
 // Supabase 接続設定
 // ═══════════════════════════════════════════════════════════════
+// 本番用の値。配布するファイルはこの値のまま変更しない。
+var SUPABASE_URL_PROD  = 'https://uyqrppgsgbxotfvyqlsl.supabase.co';
+var SUPABASE_ANON_PROD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5cXJwcGdzZ2J4b3RmdnlxbHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NDg4NDcsImV4cCI6MjEwNDAyNDg0N30.KO8fH0BZ2QMKW2eoTB8WNvigbx3H5iz7a2opuCNHlr0';
 
-var SUPABASE_URL  = 'https://uyqrppgsgbxotfvyqlsl.supabase.co';
-var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5cXJwcGdzZ2J4b3RmdnlxbHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NDg4NDcsImV4cCI6MjEwNDAyNDg0N30.KO8fH0BZ2QMKW2eoTB8WNvigbx3H5iz7a2opuCNHlr0';
+// [NEW] 開発用の上書き設定。ブラウザのlocalStorageに値がある場合のみそちらを優先する。
+// 使い方（開発端末のブラウザのConsoleで一度だけ実行）：
+//   localStorage.setItem('qcard_dev_supabase_url', 'https://xxxx.supabase.co');
+//   localStorage.setItem('qcard_dev_supabase_key', '開発用のanonキー');
+// 元に戻す場合は localStorage.removeItem('qcard_dev_supabase_url' / 'qcard_dev_supabase_key')。
+// [FIX] 本番環境のためコンソールへの出力は一切行わない（サイレントに切り替わるのみ）。
+var SUPABASE_URL  = localStorage.getItem('qcard_dev_supabase_url') || SUPABASE_URL_PROD;
+var SUPABASE_ANON = localStorage.getItem('qcard_dev_supabase_key') || SUPABASE_ANON_PROD;
 
 // supabase-js が CDN からロードされている前提
 var sbClient = null;
@@ -5636,10 +6098,18 @@ async function uploadMediaToStorage(cardId, ulid) {
             upsert: true
         });
         console.log('[Media] upload result:', JSON.stringify(res));
-        if (res.error) { console.warn('画像アップロード失敗:', res.error.message); return null; }
+        if (res.error) {
+            console.warn('画像アップロード失敗:', res.error.message);
+            if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードに失敗しました（' + res.error.message + '）');
+            return null;
+        }
         var pub = sb.storage.from('qcard-media').getPublicUrl(path);
         return pub.data.publicUrl || null;
-    } catch(e) { console.warn('画像アップロードエラー:', e); return null; }
+    } catch(e) {
+        console.warn('画像アップロードエラー:', e);
+        if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードでエラーが発生しました');
+        return null;
+    }
 }
 
 // ── Phase C: 音声を Supabase Storage にアップロード ─────────────
@@ -5670,8 +6140,12 @@ async function uploadAudioToStorage(cardId, ulid) {
                     return pub.data.publicUrl || null;
                 }
                 console.warn('アップロード音声の送信失敗:', res.error.message);
+                if (typeof showToast === 'function') showToast('⚠️ 音声のアップロードに失敗しました（' + res.error.message + '）');
             }
-        } catch(e) { console.warn('uploadDB取得エラー:', e); }
+        } catch(e) {
+            console.warn('uploadDB取得エラー:', e);
+            if (typeof showToast === 'function') showToast('⚠️ 音声データの読み込みでエラーが発生しました');
+        }
     }
 
     // ② 録音音声（最新の1件）
@@ -5690,8 +6164,12 @@ async function uploadAudioToStorage(cardId, ulid) {
                     return pub2.data.publicUrl || null;
                 }
                 console.warn('録音音声の送信失敗:', res2.error.message);
+                if (typeof showToast === 'function') showToast('⚠️ 録音のアップロードに失敗しました（' + res2.error.message + '）');
             }
-        } catch(e) { console.warn('itvDB取得エラー:', e); }
+        } catch(e) {
+            console.warn('itvDB取得エラー:', e);
+            if (typeof showToast === 'function') showToast('⚠️ 録音データの読み込みでエラーが発生しました');
+        }
     }
     return null;
 }
@@ -6628,20 +7106,78 @@ function removeCardLink(card, targetUri) {
     return card.links.length !== before;
 }
 
-// [NEW] 全シナリオを横断してカードを検索する（カード選択UI用。DOMではなくデータを直接走査）
+// [FIX] 検索用文字列をQcard全体で統一する。
+// IMEそのものだけでなく、全角/半角・Unicode表現差・不可視文字・空白差などで
+// 「見た目は同じなのに検索できない」状態が起きないよう、比較前に正規化する。
+function normalizeSearchText(value) {
+    if (value === null || value === undefined) return '';
+    var text = String(value);
+    try { text = text.normalize('NFKC'); } catch (e) {}
+    // ゼロ幅文字・BOM等、コピー＆ペーストで混入しやすい不可視文字を除去
+    text = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    // 改行・タブ・連続空白を1つの空白へ統一
+    text = text.replace(/[\r\n\t]+/g, ' ');
+    text = text.replace(/\s+/g, ' ');
+    return text.trim().toLowerCase();
+}
+
+function getCardSearchText(card) {
+    if (!card) return '';
+    return [
+        card.title,
+        card.content,
+        Array.isArray(card.tags) ? card.tags.join(' ') : card.tags,
+        card.source,
+        card.sourceUrl,
+        card.note
+    ].map(normalizeSearchText).filter(Boolean).join(' ');
+}
+
+// [FIX] メイン検索・カードリンク検索・シナリオ件数を同じ判定に統一。
+function cardMatchesQuery(card, query) {
+    var q = normalizeSearchText(query);
+    if (!q) return false;
+    return getCardSearchText(card).indexOf(q) !== -1;
+}
+
+// [FIX] 全シナリオを横断してカードを検索する。
+// DOMを直接検索せず、保存データを基本にする。ただし現在のシナリオについては、
+// 未保存の編集途中の title/content もDOMからURI単位で上書きして検索対象にする。
 function searchCardsAcrossScenarios(query) {
-    var q = (query || '').trim().toLowerCase();
+    var q = normalizeSearchText(query);
     var results = [];
+    var active = getActive();
+    var liveByUri = {};
+
+    // 検索中の表示状態に関係なく、DOMに存在するカードの最新入力だけを補正情報として取得。
+    if (active && grid) {
+        Array.from(grid.querySelectorAll('.grid-item')).forEach(function(item) {
+            var uri = item.dataset.uri;
+            if (!uri) return;
+            var ti = item.querySelector('.title-input');
+            var ci = item.querySelector('.content-textarea');
+            liveByUri[uri] = {
+                title: ti ? ti.value : undefined,
+                content: ci ? ci.value : undefined
+            };
+        });
+    }
+
     scenarios.forEach(function(s, si) {
         (s.data || []).forEach(function(card, ci) {
             if (!card.uri) return;
-            var title = (card.title || '').trim();
-            var content = (card.content || '');
-            if (!title && !content.trim()) return; // 空カードは選択肢から除外
-            if (q) {
-                var hay = (title + ' ' + content).toLowerCase();
-                if (hay.indexOf(q) === -1) return;
+
+            var searchCard = card;
+            if (s === active && liveByUri[card.uri]) {
+                // 元データを破壊せず、入力中の値だけ検索用に反映する。
+                searchCard = Object.assign({}, card, liveByUri[card.uri]);
             }
+
+            var title = (searchCard.title || '').trim();
+            var content = (searchCard.content || '');
+            if (!title && !content.trim()) return; // 空カードは選択肢から除外
+            if (q && !cardMatchesQuery(searchCard, q)) return;
+
             results.push({
                 scenarioName: displayScenarioName(s, si),
                 scenarioId: s.id,
@@ -6738,7 +7274,13 @@ function cardLinkOpenPicker() {
     backdrop.classList.add('show');
     picker.classList.add('show');
     var input = document.getElementById('card-link-search-input');
-    if (input) { input.value = ''; cardLinkFilterPicker(''); setTimeout(function(){ input.focus(); }, 30); }
+    var uriInput = document.getElementById('card-link-uri-input');
+    var status = document.getElementById('card-link-uri-status');
+    if (input) { input.value = ''; }
+    if (uriInput) { uriInput.value = ''; }
+    if (status) { status.textContent = ''; status.className = 'clp-uri-status'; }
+    cardLinkFilterPicker('');
+    if (input) setTimeout(function(){ input.focus(); }, 30);
 }
 function cardLinkClosePicker() {
     var backdrop = document.getElementById('card-link-picker-backdrop');
@@ -6750,26 +7292,111 @@ function cardLinkFilterPicker(query) {
     var resultsEl = document.getElementById('card-link-results');
     if (!resultsEl || !editCardItem) return;
     resultsEl.innerHTML = '';
-    // [FIX] 参照の陳腐化対策：フィルタ描画時点で最新のcurrentUriを取得する
-    saveCurrentGridData();
-    var currentMeta = getCardMeta(editCardItem);
-    var currentUri  = currentMeta ? currentMeta.uri : null;
-    var currentEditItem = editCardItem; // クリック時に非同期でも正しいカードを参照できるよう固定
-    var results = searchCardsAcrossScenarios(query);
+    try {
+        cardLinkFilterPickerImpl(query, resultsEl);
+    } catch (err) {
+        console.error('[cardLinkFilterPicker] 予期しないエラー:', err);
+        resultsEl.innerHTML = '';
+        var errEl = document.createElement('div');
+        errEl.className = 'clp-empty-hint';
+        errEl.textContent = '検索中にエラーが発生しました。もう一度お試しください。';
+        resultsEl.appendChild(errEl);
+    }
+}
+function cardLinkFilterPickerImpl(query, resultsEl) {
+
+    // カードリンク用検索は「リンク先候補を探す」ことだけを責務とする。
+    // TOP検索とは目的が異なるため、検索対象は
+    //   タイトル / 本文 / TAG / シナリオ名
+    // に限定する。source / URL / note などのメタデータは対象外。
+    // また、DOM index と active.data[index] の対応に依存せず URI を主キーとして扱う。
+    var q = normalizeSearchText(query);
+    var currentUri = null;
+    var currentEditItem = editCardItem;
+
+    // [FIX v2] 検索中に saveCurrentGridData() は実行しない。
+    // 検索は純粋な参照処理にし、DOMの再同期や保存による副作用で
+    // picker の対象カード／検索結果が変化しないようにする。
+
+    try {
+        var currentMeta = getCardMeta(currentEditItem);
+        currentUri = currentMeta ? currentMeta.uri : null;
+    } catch (err2) {
+        console.warn('[cardLinkFilterPicker] 現在カードのURI取得に失敗:', err2);
+    }
+
+    // 現在シナリオだけは未保存の title/content を URI で補正する。
+    var active = getActive();
+    var liveByUri = {};
+    if (active && grid) {
+        Array.from(grid.querySelectorAll('.grid-item')).forEach(function(item) {
+            var uri = item.dataset.uri;
+            if (!uri) return;
+            var ti = item.querySelector('.title-input');
+            var ci = item.querySelector('.content-textarea');
+            liveByUri[uri] = {
+                title: ti ? ti.value : undefined,
+                content: ci ? ci.value : undefined
+            };
+        });
+    }
+
+    var results = [];
+    scenarios.forEach(function(s, si) {
+        var scenarioName = displayScenarioName(s, si);
+        var scenarioNameNorm = normalizeSearchText(scenarioName);
+        (s.data || []).forEach(function(card, ci) {
+            if (!card || !card.uri) return;
+
+            var searchTitle = card.title || '';
+            var searchContent = card.content || '';
+            if (s === active && liveByUri[card.uri]) {
+                if (liveByUri[card.uri].title !== undefined) searchTitle = liveByUri[card.uri].title;
+                if (liveByUri[card.uri].content !== undefined) searchContent = liveByUri[card.uri].content;
+            }
+
+            var title = String(searchTitle || '').trim();
+            var content = String(searchContent || '');
+            if (!title && !content.trim()) return;
+
+            var tagText = Array.isArray(card.tags) ? card.tags.join(' ') : (card.tags || '');
+            var haystack = [title, content, tagText, scenarioNameNorm]
+                .map(normalizeSearchText)
+                .filter(Boolean)
+                .join(' ');
+
+            // 空検索は全カード。文字入力時は title/content/TAG/scenario name の部分一致。
+            if (q && haystack.indexOf(q) === -1) return;
+
+            results.push({
+                scenarioName: scenarioName,
+                scenarioId: s.id,
+                cardTitle: title || '（無題）',
+                uri: card.uri,
+                cardIndex: ci
+            });
+        });
+    });
+
     // シナリオごとにグルーピングして表示
     var groups = {};
     var order = [];
     results.forEach(function(r) {
-        if (!groups[r.scenarioId]) { groups[r.scenarioId] = { name: r.scenarioName, items: [] }; order.push(r.scenarioId); }
+        if (!groups[r.scenarioId]) {
+            groups[r.scenarioId] = { name: r.scenarioName, items: [] };
+            order.push(r.scenarioId);
+        }
         groups[r.scenarioId].items.push(r);
     });
+
     if (order.length === 0) {
         var empty = document.createElement('div');
         empty.className = 'clp-empty-hint';
-        empty.textContent = '該当するカードがありません';
+        empty.textContent = q ? '該当するカードがありません' : 'リンク先にできるカードがありません';
         resultsEl.appendChild(empty);
         return;
     }
+
     order.forEach(function(sid) {
         var group = document.createElement('div');
         group.className = 'clp-group';
@@ -6777,6 +7404,7 @@ function cardLinkFilterPicker(query) {
         label.className = 'clp-group-label';
         label.textContent = groups[sid].name;
         group.appendChild(label);
+
         groups[sid].items.forEach(function(r) {
             var item = document.createElement('div');
             item.className = 'clp-item';
@@ -6787,12 +7415,15 @@ function cardLinkFilterPicker(query) {
                 item.title = '自分自身へのリンクは作成できません';
             } else {
                 item.addEventListener('click', function() {
-                    // [FIX] クリック時点で改めて最新のカード参照を取得してから追加する
-                    saveCurrentGridData();
-                    var freshMeta = getCardMeta(currentEditItem);
-                    if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
-                        saveScenarios();
-                        renderCardLinks(currentEditItem);
+                    try {
+                        // [FIX v2] 検索結果クリック時も保存→再構築を挟まず、URIで現在カードを解決。
+                        var freshMeta = getCardMeta(currentEditItem);
+                        if (freshMeta && addCardLink(freshMeta, r.uri, r.cardTitle)) {
+                            saveScenarios();
+                            renderCardLinks(currentEditItem);
+                        }
+                    } catch (err) {
+                        console.warn('[cardLinkFilterPicker] リンク追加に失敗:', err);
                     }
                     cardLinkClosePicker();
                 });
@@ -6801,6 +7432,75 @@ function cardLinkFilterPicker(query) {
         });
         resultsEl.appendChild(group);
     });
+}
+
+// [NEW] fig:// URI を直接指定してリンクを追加する。
+// 検索結果と同じく最終保存値は targetUri のみで、タイトル変更に影響されない。
+function cardLinkAddByUri() {
+    if (!editCardItem) return;
+
+    var input = document.getElementById('card-link-uri-input');
+    var status = document.getElementById('card-link-uri-status');
+    var uri = input ? String(input.value || '').trim() : '';
+
+    if (status) {
+        status.className = 'clp-uri-status';
+        status.textContent = '';
+    }
+
+    if (!/^fig:\/\/[^\s]+$/i.test(uri)) {
+        if (status) {
+            status.className = 'clp-uri-status error';
+            status.textContent = 'fig:// で始まるURIを入力してください';
+        }
+        return;
+    }
+
+    // URI は保存時に小文字化しない。永続識別子そのものを完全一致で解決する。
+    var found = findCardByUri(uri);
+    if (!found) {
+        if (status) {
+            status.className = 'clp-uri-status error';
+            status.textContent = '⚠ このURIのカードが見つかりません';
+        }
+        return;
+    }
+
+    try {
+        // [FIX v2] URIベースの getCardMeta() を使うため、ここでも保存によるDOM再構築を挟まない。
+        var freshMeta = getCardMeta(editCardItem);
+        if (!freshMeta) throw new Error('現在カードのメタデータを取得できません');
+        if (freshMeta.uri === uri) {
+            if (status) {
+                status.className = 'clp-uri-status error';
+                status.textContent = '自分自身へのリンクは作成できません';
+            }
+            return;
+        }
+
+        var label = found.card.title || '（無題）';
+        if (!addCardLink(freshMeta, uri, label)) {
+            if (status) {
+                status.className = 'clp-uri-status error';
+                status.textContent = 'このURIはすでにリンクされています';
+            }
+            return;
+        }
+        saveScenarios();
+        renderCardLinks(editCardItem);
+        if (status) {
+            status.className = 'clp-uri-status ok';
+            status.textContent = '✓ ' + label + ' をリンクしました';
+        }
+        if (input) input.value = '';
+        setTimeout(cardLinkClosePicker, 180);
+    } catch (err) {
+        console.warn('[cardLinkAddByUri] リンク追加に失敗:', err);
+        if (status) {
+            status.className = 'clp-uri-status error';
+            status.textContent = 'リンクの追加に失敗しました';
+        }
+    }
 }
 
 
@@ -6851,6 +7551,32 @@ function toggleTheme() {
     bindControls();
     bindKeyboard();
     applySpeechClickLockUI();
+
+    // [FIX v2] Card Link picker の検索／URI入力をJSイベントでも確実に接続する。
+    // inline handler が残っていても二重実行は結果が同じなので問題ない。
+    (function bindCardLinkPickerEvents() {
+        var searchInput = document.getElementById('card-link-search-input');
+        if (searchInput && !searchInput.dataset.qcardBound) {
+            searchInput.dataset.qcardBound = '1';
+            searchInput.addEventListener('input', function(e) {
+                cardLinkFilterPicker(e.target.value);
+            });
+            searchInput.addEventListener('compositionend', function(e) {
+                cardLinkFilterPicker(e.target.value);
+            });
+        }
+        var uriInput = document.getElementById('card-link-uri-input');
+        if (uriInput && !uriInput.dataset.qcardBound) {
+            uriInput.dataset.qcardBound = '1';
+            uriInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cardLinkAddByUri();
+                }
+            });
+        }
+    })();
 
     // [NEW] グリッド画像表示トグルの初期状態を反映
     document.body.classList.toggle('media-hidden', !mediaDisplayOn);
@@ -6939,10 +7665,14 @@ function closeTutorial(save) {
 function renderScenarioTabs() {
     var container = document.getElementById('scenario-tabs');
     container.innerHTML = '';
+    // [NEW] 検索中は、シナリオごとの一致件数を先に計算しておく
+    var searchCounts = (typeof currentQuery !== 'undefined' && currentQuery)
+        ? computeSearchMatchCounts(currentQuery) : {};
     scenarios.forEach(function(s, idx) {
         var isActive = s.id === activeScenarioId;
+        var hitCount = searchCounts[s.id] || 0;
         var tab = document.createElement('div');
-        tab.className = 'scenario-tab' + (isActive ? ' active' : '');
+        tab.className = 'scenario-tab' + (isActive ? ' active' : '') + (hitCount > 0 ? ' search-hit' : '');
         tab.draggable = true;
         tab.dataset.sid = s.id;
 
@@ -7010,6 +7740,15 @@ function renderScenarioTabs() {
         tab.appendChild(key);
         tab.appendChild(name);
 
+        // [NEW] 検索一致件数バッジ（該当シナリオがある場合のみ表示）
+        if (hitCount > 0) {
+            var hitBadge = document.createElement('span');
+            hitBadge.className = 'search-hit-badge';
+            hitBadge.textContent = hitCount;
+            hitBadge.title = currentQuery + ' に一致するカード ' + hitCount + '件';
+            tab.appendChild(hitBadge);
+        }
+
         var del = document.createElement('button');
         del.className = 'tab-delete';
         del.textContent = '×';
@@ -7032,6 +7771,14 @@ function renderScenarioTabs() {
 
 function switchScenario(id) {
     saveCurrentGridData();
+    // [NEW] シナリオを切り替えたら、絞り込みビューは自動解除する
+    // （別シナリオのデータに対して古い絞り込み状態を引き継がないようにする）
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) {
+        searchFilterActive = false;
+        document.body.classList.remove('search-filter-view');
+        var sfBanner = document.getElementById('search-filter-banner');
+        if (sfBanner) sfBanner.classList.remove('show');
+    }
     activeScenarioId = id;
     saveScenarios();
     renderScenarioTabs();
@@ -7168,6 +7915,11 @@ function getCurrentGridData() {
 }
 
 function saveCurrentGridData() {
+    // [FIX] 検索の絞り込みビュー中は、画面に見えているのは一致カードだけの部分集合。
+    // ここで通常通り保存すると、シナリオの全データが「見えている分だけ」に
+    // 上書きされてしまい、他のカードが消える重大なデータ損失につながる。
+    // 絞り込み表示中は保存をスキップする（絞り込みを解除してから保存する設計にする）。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) return;
     var active = getActive();
     if (!active) return;
     active.data      = getCurrentGridData();
@@ -7176,6 +7928,8 @@ function saveCurrentGridData() {
 }
 
 function saveCurrentGridDataWithIndicator() {
+    // [FIX] 同上の理由で、絞り込みビュー中の保存は行わない。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive) return;
     setSaveState('unsaved');
     triggerSave(function() {
         var active = getActive();
@@ -7372,6 +8126,26 @@ function updateGrid() {
     var active = getActive();
     var data = active ? active.data : [];
     var total = rows * cols;
+
+    // [NEW] 検索の絞り込みビュー中は、行×列の固定グリッドではなく
+    // 「一致したカードだけ」を可変件数で並べる一時的な表示にする。
+    // scenario.data 自体は書き換えないため、絞り込みを解除すれば通常表示に戻る。
+    if (typeof searchFilterActive !== 'undefined' && searchFilterActive && currentQuery) {
+        var lower = normalizeSearchText(currentQuery);
+        var filtered = data.filter(function(card) { return cardMatchesQuery(card, lower); });
+        if (filtered.length === 0) {
+            // 一致が0件になった場合（他のシナリオに切り替わった等）は絞り込みを自動解除する
+            searchFilterActive = false;
+            document.body.classList.remove('search-filter-view');
+            var banner = document.getElementById('search-filter-banner');
+            if (banner) banner.classList.remove('show');
+        } else {
+            data  = filtered;
+            total = filtered.length;
+            cols  = Math.min(cols, Math.max(1, filtered.length));
+        }
+    }
+
     var rowsEl = document.getElementById('rowsInput');
     if (rowsEl) rowsEl.value = rows;
     
@@ -7388,6 +8162,9 @@ function updateGrid() {
 }
 
 function renderGrid(data, total) {
+    // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
+    // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
+    if (_mediaLazyObserver) _mediaLazyObserver.disconnect();
     grid.innerHTML = '';
     var cols = getActiveCols();
     var rows = getActiveRows();
@@ -7750,13 +8527,64 @@ function createItem(index, d) {
     });
     item.appendChild(pasteHint);
 
-    // [NEW] 既存の画像データを読み込んで表示（あれば）
-    mediaLoadForCard(cardId, item, mediaImg);
+    // [NEW] 既存の画像データは、画面に入ってから読み込む（画面外カードの無駄な
+    // IndexedDBアクセス・デコード処理を防ぐ。大量枚数対策その2）
+    try {
+        getMediaLazyObserver().observe(item);
+    } catch (err) {
+        // [FIX] 何らかの理由でオブザーバーが使えない場合、画像が永久に読み込まれない
+        // 事態を避けるため、即時読み込みにフォールバックする
+        console.warn('[lazy-load] フォールバックして即時読み込みします:', err);
+        mediaLoadForCard(cardId, item, mediaImg);
+    }
 
     return item;
 }
 
+// [NEW] グリッド全体で1つだけ共有するIntersectionObserver。
+// スクロール領域(.grid-wrapper)を基準に、カードが画面に近づいた時点で
+// 一度だけ mediaLoadForCard() を呼び、以後はそのカードの監視を解除する。
+var _mediaLazyObserver = null;
+function getMediaLazyObserver() {
+    if (!_mediaLazyObserver) {
+        var rootEl = document.querySelector('.grid-wrapper');
+        // [FIX] コールバック内は、外側の可変変数(_mediaLazyObserver)ではなく、
+        // このクロージャ専用のローカル変数(obs)だけを参照するようにする。
+        // 再描画のタイミング次第で外側の変数を経由すると不整合が起きうるため、
+        // 「このコールバックは常に自分自身が属するインスタンスだけを見る」形に固定する。
+        var obs = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (!entry.isIntersecting) return;
+                var el = entry.target;
+                if (obs) obs.unobserve(el);
+                var cid = el.dataset.mediaId;
+                var img = el.querySelector('.card-media-layer img');
+                if (cid && img && typeof mediaLoadForCard === 'function') mediaLoadForCard(cid, el, img);
+            });
+        }, { root: rootEl, rootMargin: '400px 0px', threshold: 0.01 });
+        _mediaLazyObserver = obs;
+    }
+    return _mediaLazyObserver;
+}
+
 // ===== SEARCH =====
+
+
+// [NEW] 全シナリオを横断して、シナリオごとの一致件数を返す。
+// DOM生成を伴わず scenario.data を直接見るだけなので、非表示のシナリオも軽く数えられる。
+function computeSearchMatchCounts(q) {
+    var counts = {};
+    if (!q) return counts;
+    var lower = normalizeSearchText(q);
+    if (!lower) return counts;
+    scenarios.forEach(function(s) {
+        var n = 0;
+        (s.data || []).forEach(function(card) { if (cardMatchesQuery(card, lower)) n++; });
+        if (n > 0) counts[s.id] = n;
+    });
+    return counts;
+}
+
 function onSearch(q) {
     currentQuery = q.trim();
     applySearch(currentQuery);
@@ -7765,6 +8593,7 @@ function onSearch(q) {
 function applySearch(q) {
     var items    = Array.from(grid.querySelectorAll('.grid-item'));
     var countEl  = document.getElementById('search-count');
+    var active   = getActive();
 
     // reset highlights first
     items.forEach(function(item) {
@@ -7778,27 +8607,22 @@ function applySearch(q) {
     if (!q) {
         countEl.textContent = '';
         countEl.className = 'search-count';
+        // [NEW] 検索語が消えたらシナリオタブのバッジ・絞り込みビューも解除する
+        renderScenarioTabs();
+        if (searchFilterActive) clearSearchFilterView();
         return;
     }
 
-    var lower   = q.toLowerCase();
+    var lower   = normalizeSearchText(q);
     var matched = 0;
 
-    items.forEach(function(item) {
-        var title   = item.querySelector('.title-input').value;
-        var content = item.querySelector('.content-textarea').value;
-        // toPlainText で ** 記号・引用マーカー(>)を除去してから検索
-        var searchTitle   = toPlainText(title).toLowerCase();
-        var searchContent = toPlainText(content).toLowerCase();
-        // カードメタデータ（タグ・メモ）も検索対象に含める
-        var active = getActive();
-        var items_all = Array.from(grid.querySelectorAll('.grid-item'));
-        var cardIdx   = items_all.indexOf(item);
-        var cardMeta  = (active && active.data && active.data[cardIdx]) || {};
-        var searchTags = (cardMeta.tags || []).join(' ').toLowerCase();
-        var searchNote = (cardMeta.note || '').toLowerCase();
-        var hit = searchTitle.includes(lower) || searchContent.includes(lower)
-               || searchTags.includes(lower)  || searchNote.includes(lower);
+    items.forEach(function(item, idx) {
+        var cardMeta = (active && active.data && active.data[idx]) || {};
+        // 表示中のカードは編集途中の値を優先して見るため、DOM側の現在値を使う
+        var titleVal   = item.querySelector('.title-input').value;
+        var contentVal = item.querySelector('.content-textarea').value;
+        var liveCard = { title: titleVal, content: contentVal, tags: cardMeta.tags, source: cardMeta.source, sourceUrl: cardMeta.sourceUrl, note: cardMeta.note };
+        var hit = cardMatchesQuery(liveCard, lower);
         if (hit) {
             item.classList.add('search-match');
             matched++;
@@ -7809,6 +8633,9 @@ function applySearch(q) {
 
     countEl.textContent = matched + ' 件一致';
     countEl.className   = 'search-count' + (matched > 0 ? ' has-results' : '');
+
+    // [NEW] シナリオを跨いだ一致件数をタブに反映する
+    renderScenarioTabs();
 }
 
 function clearSearch() {
@@ -7817,6 +8644,35 @@ function clearSearch() {
     currentQuery = '';
     applySearch('');
     inp.focus();
+}
+
+// ===== SEARCH FILTER VIEW（一致カードのみ一時的に絞り込み表示） =====
+// 学習モードの studyApplyFilter() と同じ考え方：
+// 表示用の一時的なビューであり、scenario.data の並び順そのものは書き換えない。
+var searchFilterActive = false;
+
+function toggleSearchFilterView() {
+    if (!currentQuery) return;
+    if (searchFilterActive) { clearSearchFilterView(); return; }
+    searchFilterActive = true;
+    document.body.classList.add('search-filter-view');
+    updateGrid();
+    var banner = document.getElementById('search-filter-banner');
+    var text   = document.getElementById('search-filter-banner-text');
+    if (banner) banner.classList.add('show');
+    if (text) {
+        var n = document.querySelectorAll('.grid-item.search-match').length;
+        text.textContent = '「' + currentQuery + '」に一致するカードのみ表示中（' + n + '件・編集不可）';
+    }
+}
+
+function clearSearchFilterView() {
+    searchFilterActive = false;
+    document.body.classList.remove('search-filter-view');
+    var banner = document.getElementById('search-filter-banner');
+    if (banner) banner.classList.remove('show');
+    updateGrid();
+    if (currentQuery) applySearch(currentQuery);
 }
 
 // ===== OVERLAY =====
@@ -8184,11 +9040,21 @@ window.updateGrid = function() {
 };
 
 // gridItem から対応する card データを取得
+// [FIX v2] DOM配列のindexではなく、永続URIを主キーとして解決する。
+// 検索フィルタ／並び替え／再描画後も editCardItem と active.data の対応が崩れない。
 function getCardMeta(cardItem) {
     var active = getActive();
-    if (!active) return null;
+    if (!active || !cardItem) return null;
+    var uri = cardItem.dataset ? cardItem.dataset.uri : null;
+    if (uri) {
+        var byUri = (active.data || []).find(function(card) {
+            return card && card.uri === uri;
+        });
+        if (byUri) return byUri;
+    }
+    // URIがない旧DOMへのフォールバック（通常は発生しない）
     var items = Array.from(grid.querySelectorAll('.grid-item'));
-    var idx   = items.indexOf(cardItem);
+    var idx = items.indexOf(cardItem);
     return (idx >= 0 && active.data[idx]) ? active.data[idx] : null;
 }
 
@@ -9841,6 +10707,193 @@ function parseMarkdownToScenarios(text) {
     return resultScenarios.filter(function(s){ return s.data.length > 0; });
 }
 
+// ════════════════════════════════════════════════════════════
+// Obsidian Import v0.1
+// 目的：ObsidianのMarkdown知識資産を「Qcardのカード＋TAG＋Card Link」へ
+//      変換する。Vault完全再現は行わず、既存Markdown importとは独立。
+// 対応：複数.md / Vault.zip / YAML frontmatter / #tag / [[Wikilink]] / ![[...]]
+//      同時インポートしたノート間のWikilinkは fig:// URI のCard Linkへ変換。
+// ════════════════════════════════════════════════════════════
+function obsidianStripFrontmatter(text) {
+    return String(text || '').replace(/^\uFEFF?---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n?/, '');
+}
+
+function obsidianParseScalar(v) {
+    var x = String(v == null ? '' : v).trim();
+    if ((x[0] === '"' && x[x.length-1] === '"') || (x[0] === "'" && x[x.length-1] === "'")) x = x.slice(1,-1);
+    return x;
+}
+function obsidianParseFrontmatter(text) {
+    var out = { tags: [] };
+    var m = String(text || '').match(/^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?/);
+    if (!m) return out;
+    var lines = m[1].split(/\r?\n/), current = null;
+    lines.forEach(function(line) {
+        var lm = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+        if (lm) {
+            current = lm[1].toLowerCase();
+            var val = lm[2].trim();
+            if (val === '') { if (current === 'tags') out.tags = []; return; }
+            if (current === 'tags') {
+                if (/^\[.*\]$/.test(val)) out.tags = val.slice(1,-1).split(',').map(obsidianParseScalar).map(function(t){return t.replace(/^#/, '').trim();}).filter(Boolean);
+                else out.tags = [obsidianParseScalar(val).replace(/^#/, '').trim()].filter(Boolean);
+            } else out[current] = obsidianParseScalar(val);
+            return;
+        }
+        var item = line.match(/^\s*-\s+(.+)$/);
+        if (item && current === 'tags') out.tags.push(obsidianParseScalar(item[1]).replace(/^#/, '').trim());
+    });
+    out.tags = Array.from(new Set((out.tags || []).filter(Boolean)));
+    return out;
+}
+function obsidianExtractInlineTags(text) {
+    var found = [], m;
+    var re = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
+    while ((m = re.exec(String(text || '')))) found.push(m[2]);
+    return found;
+}
+function obsidianNormalizeWikiTarget(target) {
+    var t = String(target || '').trim();
+    t = t.replace(/\\/g, '/');
+    // [[Note|表示名]] / [[Note#Heading]] → Note
+    t = t.split('|')[0].split('#')[0].trim();
+    t = t.replace(/\.md$/i, '');
+    return t;
+}
+function obsidianWikiLinks(text) {
+    var out = [], m;
+    var re = /!?(?:\[\[([^\]]+)\]\])/g;
+    while ((m = re.exec(String(text || '')))) {
+        var raw = m[1], isEmbed = String(m[0]).charAt(0) === '!';
+        out.push({ target: obsidianNormalizeWikiTarget(raw), label: (raw.split('|')[1] || raw.split('#')[0]).trim(), embed: isEmbed });
+    }
+    return out;
+}
+function obsidianCleanBody(text) {
+    var body = obsidianStripFrontmatter(text);
+    // Obsidianの画像埋め込みはv0.1では画像取り込みせず、ファイル名を残す。
+    body = body.replace(/!\[\[([^\]]+)\]\]/g, '[画像: $1]');
+    // Wikilinkはリンク解決後も本文を壊さないよう表示名だけ残す。
+    body = body.replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, function(_, target, label){ return (label || target || '').trim(); });
+    // Obsidian callout の記号だけ軽く除去。本文の意味は保持する。
+    body = body.replace(/^\s*>\s*\[!([A-Za-z0-9_-]+)\][+-]?\s*/gm, '> ');
+    return body.trim();
+}
+function obsidianTitle(text, fileName) {
+    var fm = obsidianParseFrontmatter(text);
+    if (fm.title) return fm.title;
+    var h1 = String(obsidianStripFrontmatter(text)).match(/^#\s+(.+)$/m);
+    if (h1) return h1[1].trim();
+    return String(fileName || '').replace(/\.md$/i, '').trim() || '（無題）';
+}
+function obsidianBuildCard(text, fileName, pathKey) {
+    var fm = obsidianParseFrontmatter(text);
+    var body = obsidianCleanBody(text);
+    var title = obsidianTitle(text, fileName);
+    var card = newCardMeta(title, body);
+    card.tags = Array.from(new Set([].concat(fm.tags || [], obsidianExtractInlineTags(text)).filter(Boolean)));
+    card.source = fm.source || fm.author || '';
+    card.sourceUrl = fm.url || fm.sourceurl || '';
+    card.note = fm.note || '';
+    card._obsidianPath = pathKey;
+    card._obsidianWikiLinks = obsidianWikiLinks(text).filter(function(w){ return !w.embed && w.target; });
+    return card;
+}
+function obsidianScenarioName(path) {
+    var p = String(path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    if (!p) return 'Obsidian';
+    var parts = p.split('/').filter(Boolean);
+    return parts.length ? parts[0] : 'Obsidian';
+}
+function obsidianApplyWikiLinks(importedScenarios, pathToCard) {
+    importedScenarios.forEach(function(s) {
+        (s.data || []).forEach(function(card) {
+            var links = card._obsidianWikiLinks || [];
+            links.forEach(function(w) {
+                var candidates = [w.target, w.target.replace(/\.md$/i,'')];
+                var found = null;
+                for (var i=0; i<candidates.length && !found; i++) {
+                    found = pathToCard[candidates[i].toLowerCase()] || null;
+                }
+                if (!found) {
+                    // 同名ノートをVault内から解決（フォルダをまたぐ曖昧な名前は最初の一致）
+                    var key = w.target.toLowerCase();
+                    var keys = Object.keys(pathToCard);
+                    for (var k=0; k<keys.length; k++) {
+                        if (keys[k].split('/').pop().replace(/\.md$/i,'') === key) { found = pathToCard[keys[k]]; break; }
+                    }
+                }
+                if (found && found.uri !== card.uri) addCardLink(card, found.uri, w.label || found.title || '');
+            });
+            delete card._obsidianPath;
+            delete card._obsidianWikiLinks;
+        });
+    });
+}
+function obsidianBuildScenarios(filesData) {
+    var byScenario = {}, order = [], pathToCard = {};
+    filesData.forEach(function(f) {
+        if (!/\.md$/i.test(f.path || f.name || '')) return;
+        var name = f.name || String(f.path).split('/').pop();
+        var scenarioName = obsidianScenarioName(f.path);
+        if (!byScenario[scenarioName]) {
+            byScenario[scenarioName] = newScenarioMeta(scenarioName);
+            byScenario[scenarioName].cols = 4; byScenario[scenarioName].rows = 4;
+            order.push(scenarioName);
+        }
+        var card = obsidianBuildCard(f.text, name, f.path);
+        byScenario[scenarioName].data.push(card);
+        var normalizedPath = String(f.path || name).replace(/\\/g,'/').replace(/^\/+/, '').toLowerCase();
+        var base = normalizedPath.split('/').pop();
+        pathToCard[normalizedPath] = card;
+        pathToCard[base] = pathToCard[base] || card;
+        pathToCard[base.replace(/\.md$/i,'')] = pathToCard[base.replace(/\.md$/i,'')] || card;
+    });
+    var result = order.map(function(n){ return byScenario[n]; }).filter(function(s){ return s.data.length; });
+    obsidianApplyWikiLinks(result, pathToCard);
+    return result;
+}
+async function importObsidian(e) {
+    var files = Array.from((e && e.target && e.target.files) || []);
+    if (!files.length) return;
+    try {
+        var mdFiles = [];
+        var zipFile = files.find(function(f){ return /\.zip$/i.test(f.name); });
+        if (zipFile) {
+            if (typeof JSZip === 'undefined') {
+                await ankiLoadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+            }
+            var zip = await JSZip.loadAsync(await zipFile.arrayBuffer());
+            var entries = Object.keys(zip.files).filter(function(k){ return !zip.files[k].dir && /\.md$/i.test(k); });
+            for (var i=0; i<entries.length; i++) {
+                var path = entries[i].replace(/^\.?\/?/, '');
+                var text = await zip.files[entries[i]].async('string');
+                mdFiles.push({ path:path, name:path.split('/').pop(), text:text });
+            }
+        } else {
+            for (var j=0; j<files.length; j++) {
+                if (/\.md$/i.test(files[j].name)) mdFiles.push({ path:files[j].webkitRelativePath || files[j].name, name:files[j].name, text:await files[j].text() });
+            }
+        }
+        var imported = obsidianBuildScenarios(mdFiles);
+        if (!imported.length) { showToast(t('toast_no_data')); return; }
+        var capacity = 8 - scenarios.length;
+        if (capacity <= 0) { showToast('シナリオ上限（8個）に達しています'); return; }
+        imported.slice(0, capacity).forEach(function(s){ scenarios.push(s); });
+        activeScenarioId = imported[0].id;
+        saveScenarios(); renderScenarioTabs();
+        document.getElementById('colsInput').value = getActiveCols();
+        updateGrid();
+        showToast('ObsidianのMarkdownを ' + Math.min(imported.length, capacity) + ' シナリオ読み込みました');
+        closeDataModal();
+    } catch (err) {
+        console.error('[importObsidian] import failed:', err);
+        showToast('Obsidianの読み込みに失敗しました');
+    } finally {
+        if (e && e.target) e.target.value = '';
+    }
+}
+
 // [NEW] 貼り付けエリアの内容を自動判定してインポート（JSON優先、失敗時はMarkdownとして解釈）
 function importFromPaste() {
     var ta = document.getElementById('paste-import-area');
@@ -10345,6 +11398,27 @@ function ankiFieldToPlainText(raw) {
     return s.replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// [NEW] ノートの全フィールド（フィールド0＝タイトルを除く）を、
+// 「フィールド名: 値」の形でラベル付き結合して本文にする。
+// フィールド名は col.models のノートタイプ定義（fldNames配列）から取得する。
+// 空欄フィールド（例：画像だけ入っていて他が空の「画像」フィールド）はスキップする。
+// fldNames が取得できない場合（テーブル構造が想定外など）は、
+// 既存の「フィールド1をそのまま本文にする」挙動にフォールバックする。
+function ankiBuildContentFromFields(fields, fldNames) {
+    if (!fldNames || !fldNames.length) {
+        // フォールバック：従来通りフィールド1だけを本文にする
+        return ankiFieldToPlainText(fields[1] || '');
+    }
+    var parts = [];
+    for (var i = 1; i < fields.length; i++) {
+        var label = fldNames[i] || ('フィールド' + i);
+        var value = ankiFieldToPlainText(fields[i] || '');
+        if (!value) continue; // 空欄フィールドは省略
+        parts.push(label + ': ' + value);
+    }
+    return parts.join('\n');
+}
+
 // 抽出した画像バイナリを、既存の画像最適化パイプラインに乗せてmediaDBへ保存する
 // （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
 function ankiSaveImageBlob(mediaId, bytes, filename) {
@@ -10413,6 +11487,19 @@ function importAnki(e) {
             } catch (err) { /* テーブルも無ければデッキ不明として later にフォールバック */ }
         }
 
+        // [NEW] ノートタイプごとのフィールド名一覧（col.models のJSON定義から取得）。
+        // ノートタイプが複数ある場合に備え、モデルID→フィールド名配列 のマップを作る。
+        var fldNamesByModel = {};
+        try {
+            var modelsRes = db.exec('SELECT models FROM col LIMIT 1');
+            if (modelsRes.length && modelsRes[0].values.length) {
+                var models = JSON.parse(modelsRes[0].values[0][0]);
+                Object.keys(models).forEach(function(mid) {
+                    fldNamesByModel[mid] = models[mid].flds.map(function(f) { return f.name; });
+                });
+            }
+        } catch (err) { /* 取得できなければ従来のフォールバック挙動になる */ }
+
         // ── メディアのファイル名対応表（数値ファイル名 → 元ファイル名。逆引きも作る） ──
         var mediaMap = {};
         var mediaFile = zip.file('media');
@@ -10424,7 +11511,7 @@ function importAnki(e) {
             var mediaReverse = {};
             Object.keys(mediaMap).forEach(function(num) { mediaReverse[mediaMap[num]] = num; });
 
-            var notesRes = db.exec('SELECT id, flds FROM notes');
+            var notesRes = db.exec('SELECT id, mid, flds FROM notes');
             if (!notesRes.length) throw new Error('カードデータ（notes）が見つかりませんでした');
 
             var noteToDeck = {};
@@ -10440,22 +11527,31 @@ function importAnki(e) {
             var scenarioByDeck = {};
             var importedScenarios = [];
             var totalCards = 0;
-            var imagePromises = [];
+            // [MOD] 画像だけを {card, filename} の形で集めておき、
+            // カード本体（テキスト）の保存とは切り離してあとで処理する。
+            var pendingImages = [];
 
             notesRes[0].values.forEach(function(row) {
                 var nid  = row[0];
-                var flds = row[1] || '';
-                var fields  = flds.split('\x1f');
-                var rawFront = fields[0] || '';
-                var rawBack  = fields[1] || '';
+                var mid  = row[1];
+                var flds = row[2] || '';
+                var fields = flds.split('\x1f');
+                var fldNames = fldNamesByModel[mid];
 
-                // 画像は前後どちらかの最初の1枚のみ取り込む（Qcardは1カード1画像のため）
+                // [FIX] 画像は表・裏(フィールド0/1)だけでなく、ノートの全フィールドから探す。
+                // Ankiはノートタイプが自由に作れるため、「単語/訳/読み/音声/画像/タグ」のように
+                // 画像だけ独立したフィールドに分離されているデッキも多く、表裏だけを見ていると
+                // 画像を取りこぼす（実際にこのデッキがそのパターンだった）。
                 var imgFilename = null;
-                var imgMatch = (rawFront + ' ' + rawBack).match(/<img[^>]+src=["']([^"']+)["']/i);
+                var imgMatch = fields.join(' ').match(/<img[^>]+src=["']([^"']+)["']/i);
                 if (imgMatch) imgFilename = imgMatch[1];
 
-                var title   = ankiFieldToPlainText(rawFront);
-                var content = ankiFieldToPlainText(rawBack);
+                // [MOD] タイトルはフィールド0のまま。本文は「フィールド1だけ」ではなく、
+                // フィールド名をラベルにして残り全フィールドを結合する。
+                // 表裏2フィールドだけの単純なデッキでは、結果的に従来と同じ
+                // 「フィールド1の内容だけ」になるため、既存の正常動作には影響しない。
+                var title   = ankiFieldToPlainText(fields[0] || '');
+                var content = ankiBuildContentFromFields(fields, fldNames);
                 if (!title && !content && !imgFilename) return; // 完全に空のノートはスキップ
 
                 var did = noteToDeck[nid];
@@ -10474,17 +11570,7 @@ function importAnki(e) {
                 totalCards++;
 
                 if (imgFilename && mediaReverse[imgFilename] !== undefined) {
-                    var numName = mediaReverse[imgFilename];
-                    var entry = zip.file(numName);
-                    if (entry) {
-                        imagePromises.push(
-                            entry.async('uint8array').then(function(bytes) {
-                                var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-                                card.mediaId = mediaId;
-                                return ankiSaveImageBlob(mediaId, bytes, imgFilename);
-                            }).catch(function(){ /* 1枚失敗しても全体は続行する */ })
-                        );
-                    }
+                    pendingImages.push({ card: card, filename: imgFilename, numName: mediaReverse[imgFilename] });
                 }
             });
 
@@ -10496,29 +11582,74 @@ function importAnki(e) {
                 s.rows = Math.max(3, Math.ceil(s.data.length / 3));
             });
 
-            return Promise.all(imagePromises).then(function() {
-                scenarios = scenarios.concat(importedScenarios);
-                saveScenarios();
-                renderScenarioTabs();
+            // [MOD] テキストは画像処理を待たずに、ここで先に確定保存する。
+            // 画像1枚あたりの変換（WebP化）はメインスレッドで時間がかかるため、
+            // 300枚を超えるような大きなデッキでは全体の完了まで数十秒〜かかることがある。
+            // 従来は Promise.all() で全画像の完了を待ってから保存していたため、
+            // その間ブラウザが固まって見え、「何も取り込まれなかった」ように見える事故があった。
+            scenarios = scenarios.concat(importedScenarios);
+            saveScenarios();
+            renderScenarioTabs();
 
-                // Ankiインポート直後は switchScenario() を使わない。
-                // switchScenario() は先頭で saveCurrentGridData() を実行するため、
-                // activeScenarioId を先に新シナリオへ変更すると、現在画面の旧グリッド内容で
-                // インポート済みデータを上書きしてしまう。
-                activeScenarioId = importedScenarios[0].id;
-                var active = getActive();
-                document.getElementById('colsInput').value = active ? active.cols : 3;
-                var rowsEl = document.getElementById('rowsInput');
-                if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
-                isLearningReversed = !!(active && active.isReversed);
-                updateLearningDirectionBtn();
-                updateGrid();
-                applySearch(currentQuery);
-                hideOverlay();
+            // Ankiインポート直後は switchScenario() を使わない。
+            // switchScenario() は先頭で saveCurrentGridData() を実行するため、
+            // activeScenarioId を先に新シナリオへ変更すると、現在画面の旧グリッド内容で
+            // インポート済みデータを上書きしてしまう。
+            activeScenarioId = importedScenarios[0].id;
+            var active = getActive();
+            document.getElementById('colsInput').value = active ? active.cols : 3;
+            var rowsEl = document.getElementById('rowsInput');
+            if (rowsEl) rowsEl.value = (active && active.rows) ? active.rows : 3;
+            isLearningReversed = !!(active && active.isReversed);
+            updateLearningDirectionBtn();
+            updateGrid();
+            applySearch(currentQuery);
+            hideOverlay();
+            closeDataModal();
 
+            if (!pendingImages.length) {
                 showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
-                closeDataModal();
-            });
+                return;
+            }
+
+            // [NEW] 画像はここから非同期・少数ずつ処理する。
+            // テキストは既に保存済みなので、画像処理が重くても
+            // 「一切取り込めなかった」という事態にはならない。
+            showToast('カードを保存しました。画像を処理中… (0/' + pendingImages.length + ')');
+            var BATCH_SIZE = 5;
+            var done = 0;
+
+            function processImageBatch(startIdx) {
+                var batch = pendingImages.slice(startIdx, startIdx + BATCH_SIZE);
+                if (!batch.length) {
+                    // 全画像処理が完了。最後にもう一度保存して画面へ反映する。
+                    saveScenarios();
+                    updateGrid();
+                    showToast('画像の読み込みが完了しました（' + done + '/' + pendingImages.length + '枚）');
+                    return;
+                }
+                var batchPromises = batch.map(function(item) {
+                    var entry = zip.file(item.numName);
+                    if (!entry) return Promise.resolve();
+                    return entry.async('uint8array').then(function(bytes) {
+                        var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                        item.card.mediaId = mediaId;
+                        return ankiSaveImageBlob(mediaId, bytes, item.filename);
+                    }).catch(function(){ /* 1枚失敗しても全体は続行する */ });
+                });
+                Promise.all(batchPromises).then(function() {
+                    done += batch.length;
+                    // バッチごとに保存・再描画し、少しずつ画像が反映されていく様子を見せる
+                    saveScenarios();
+                    if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
+                        updateGrid();
+                    }
+                    showToast('画像を処理中… (' + done + '/' + pendingImages.length + ')');
+                    // メインスレッドを一度解放してから次のバッチへ（UIが固まって見えるのを防ぐ）
+                    setTimeout(function() { processImageBatch(startIdx + BATCH_SIZE); }, 30);
+                });
+            }
+            processImageBatch(0);
         });
     }).catch(function(err) {
         console.error('[importAnki]', err);
@@ -11795,6 +12926,14 @@ function rdSaveRate(v) {
         clipStatus.className = 'mob-clip-status';
         // [FIX] 「🔗 カードをリンク」を独立行から、コピー行右側のアイコンボタンに統合し
         //       縦スペースを1行分削減する（左右カード送りボタンの見切れ対策）
+        // [NEW] スワイプ表示：編集モード時の画像追加導線。小さなアイコンだけを既存バーに追加する。
+        var clipMediaBtn = document.createElement('button');
+        clipMediaBtn.type = 'button';
+        clipMediaBtn.className = 'mob-clip-media-btn';
+        clipMediaBtn.innerHTML = '🖼';
+        clipMediaBtn.title = '画像を追加';
+        clipMediaBtn.setAttribute('aria-label', '画像を追加');
+
         var clipLinkBtn = document.createElement('button');
         clipLinkBtn.type = 'button';
         clipLinkBtn.className = 'mob-clip-link-btn';
@@ -11802,6 +12941,7 @@ function rdSaveRate(v) {
         clipLinkBtn.title = 'カードをリンク';
         clipBar.appendChild(clipCopyBtn);
         clipBar.appendChild(clipStatus);
+        clipBar.appendChild(clipMediaBtn);
         clipBar.appendChild(clipLinkBtn);
         clipBar.appendChild(clipMoreBtn);
         clipBar.appendChild(clipMenu);
@@ -11821,6 +12961,14 @@ function rdSaveRate(v) {
         clipMoreBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             clipMenu.classList.toggle('open');
+        });
+        clipMediaBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        clipMediaBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
+        clipMediaBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var idx = parseInt(clipBar.dataset.idx, 10);
+            if (isNaN(idx)) return;
+            if (typeof mobOpenMediaSourcePicker === 'function') mobOpenMediaSourcePicker(idx);
         });
         clipPasteNewBtn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -12002,6 +13150,8 @@ function rdSaveRate(v) {
             var showClipBar = !!(d && (appMode === 'view' || appMode === 'edit'));
             clipBar.style.display = showClipBar ? 'flex' : 'none';
             var pasteAllowed = (appMode === 'edit');
+            var mediaAddBtnMob = clipBar.querySelector('.mob-clip-media-btn');
+            if (mediaAddBtnMob) mediaAddBtnMob.style.display = pasteAllowed ? 'inline-flex' : 'none';
             var pasteNewBtn  = clipBar.querySelector('.mob-clip-paste-new');
             var pasteOverBtn = clipBar.querySelector('.mob-clip-paste-over');
             // 閲覧モードでは「⋯」に貼り付け項目自体を出さない（無効化ではなく非表示）
@@ -14918,6 +16068,71 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         });
     };
 })();
+
+
+// ===== G.E.D.A. FOOTER =====
+(function() {
+    var gedaClockTimer = null;
+
+    function updateGedaObservationTime() {
+        var el = document.getElementById('geda-observation-time');
+        if (!el) return;
+        var d = new Date();
+        var pad = function(n, len) { return String(n).padStart(len || 2, '0'); };
+        var value = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate())
+            + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+            + '.' + pad(d.getMilliseconds(), 3);
+        el.textContent = value;
+    }
+
+    function startGedaObservationClock() {
+        updateGedaObservationTime();
+        if (gedaClockTimer) clearInterval(gedaClockTimer);
+        gedaClockTimer = setInterval(updateGedaObservationTime, 37);
+    }
+
+    function stopGedaObservationClock() {
+        if (gedaClockTimer) {
+            clearInterval(gedaClockTimer);
+            gedaClockTimer = null;
+        }
+    }
+
+    window.toggleGedaFooter = function(e) {
+        if (e) e.stopPropagation();
+        var footer = document.getElementById('geda-footer');
+        var trigger = document.getElementById('geda-footer-trigger');
+        if (!footer) return;
+        var open = footer.classList.toggle('open');
+        if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) startGedaObservationClock();
+        else stopGedaObservationClock();
+    };
+
+    document.addEventListener('click', function(e) {
+        var footer = document.getElementById('geda-footer');
+        var trigger = document.getElementById('geda-footer-trigger');
+        if (!footer || !footer.classList.contains('open')) return;
+        if (e.target === trigger || trigger.contains(e.target)) return;
+        if (!e.target.closest('#geda-footer-panel')) {
+            footer.classList.remove('open');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            stopGedaObservationClock();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        var footer = document.getElementById('geda-footer');
+        var trigger = document.getElementById('geda-footer-trigger');
+        if (footer && footer.classList.contains('open')) {
+            footer.classList.remove('open');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            stopGedaObservationClock();
+        }
+    });
+})();
+
 </script>
 </body>
 </html>
