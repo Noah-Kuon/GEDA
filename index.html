@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2 / Camera v18   swipe                         ║
+  ║  Qcard PRO  v3.6.0              swipe-02           ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4017,7 +4017,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.5.2</span>
+    <span class="version-badge">v3.6.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -13783,7 +13783,7 @@ function rdSaveRate(v) {
         clipDoneBtn.className = 'mob-edit-done-btn';
         clipDoneBtn.textContent = '編集待機中';
         clipDoneBtn.setAttribute('aria-label', '編集待機中');
-        clipDoneBtn.title = '現在の編集内容を保存して編集ロックを解除';
+        clipDoneBtn.title = '今すぐ保存する（送りボタン・スワイプでも自動保存されます）';
         var clipMenu = document.createElement('div');
         clipMenu.className = 'mob-clip-menu';
         var clipMediaMenuBtn = document.createElement('button');
@@ -14333,9 +14333,20 @@ function rdSaveRate(v) {
     }
 
     // ── カードめくり（アニメーション付き） ──
+    // [FIX] 編集中でも送りボタンでロックしない。送る直前に自動で保存を確定させる。
+    // （以前は mobEditingActive の間ナビゲーションを完全ブロックしており、
+    //   「編集を確定」ボタンを押さない限り身動きが取れなくなる不具合があった）
+    function mobCommitPendingEdit() {
+        if (mobEditCommitState === 'dirty' && typeof saveCurrentGridData === 'function') {
+            try { saveCurrentGridData(); } catch (e) {}
+        }
+        mobEditingActive = false;
+        mobEditCommitState = 'saved';
+        if (mCounter) mCounter.classList.remove('editing');
+    }
+
     function goNext() {
-        // [FIX v4] 編集中はカード送りを完全ロック。
-        if (mobEditingActive) return;
+        if (mobEditingActive) mobCommitPendingEdit();
         var data = getData();
         if (mIdx >= data.length - 1) return;
         // 学習モード：studyNav でインデックスを進める（評価履歴管理のため）
@@ -14346,8 +14357,7 @@ function rdSaveRate(v) {
         animateTo(1, function() { mIdx++; });
     }
     function goPrev() {
-        // [FIX v4] 編集中はカード送りを完全ロック。
-        if (mobEditingActive) return;
+        if (mobEditingActive) mobCommitPendingEdit();
         if (mIdx <= 0) return;
         if (appMode === 'study' && typeof window.studyNav === 'function') {
             window.studyNav(-1);
@@ -14359,17 +14369,12 @@ function rdSaveRate(v) {
     window.mobGoPrev = goPrev;
 
     // [FIX v5] 編集内容を確定してロックを解除するが、編集モード自体は維持する。
-    // これにより「確定→閲覧→もう一度編集」という余計な往復をなくし、
-    // 同じ編集画面から前後カードへ移動して続けて編集できる。
+    // ボタンからの手動確定は任意の操作として残す（送りボタン・スワイプでも
+    // 自動的に確定されるようになったため、必須ではなくなった）。
     window.mobFinishEditing = function() {
         if (appMode !== 'edit') return;
         if (mobEditCommitState !== 'dirty') return;
-        if (typeof saveCurrentGridData === 'function') {
-            try { saveCurrentGridData(); } catch (e) {}
-        }
-        mobEditingActive = false;
-        mobEditCommitState = 'saved';
-        if (mCounter) mCounter.classList.remove('editing');
+        mobCommitPendingEdit();
         if (typeof showToast === 'function') showToast('✓ 編集内容を保存しました');
         mRenderAll();
     };
@@ -14420,15 +14425,9 @@ function rdSaveRate(v) {
     };
 
     stage.addEventListener('touchstart', function(e) {
-        // [FIX v4] 編集中は横スワイプを開始しない。縦スクロールはブラウザへ委譲。
-        if (mobEditingActive) {
-            isSwiping = false;
-            swipeAxis = null;
-            touchDeltaX = 0;
-            stage.classList.remove('mob-animating', 'mob-edge-bounce');
-            stage.style.transform = 'translateX(-33.3333%)';
-            return;
-        }
+        // [FIX] 編集中でもスワイプを止めない。触れた瞬間に編集内容を確定してから、
+        // 通常のスワイプ開始処理へそのまま進む。
+        if (mobEditingActive) mobCommitPendingEdit();
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
         touchDeltaX = 0;
@@ -14438,7 +14437,6 @@ function rdSaveRate(v) {
     }, { passive: true });
 
     stage.addEventListener('touchmove', function(e) {
-        if (mobEditingActive) return;
         var dx = e.touches[0].clientX - touchStartX;
         var dy = e.touches[0].clientY - touchStartY;
         if (!swipeAxis) {
@@ -14468,11 +14466,6 @@ function rdSaveRate(v) {
     }, { passive: true });
 
     stage.addEventListener('touchend', function(e) {
-        if (mobEditingActive) {
-            isSwiping = false;
-            swipeAxis = null;
-            return;
-        }
         if (!isSwiping || swipeAxis !== 'x') { isSwiping = false; return; }
         var data = getData();
         var threshold = 90; // [FIX v4] 50px → 90px
