@@ -5531,6 +5531,109 @@ function mediaSaveImageFile(cardId, item, file) {
     });
 }
 
+// ── 画像入力ソース選択 ────────────────────────────────────────
+// 画面幅ではなく「実際のモバイル端末」かどうかを判定する。
+// PC Chromeをスマホ幅にしてテストしても、通常のファイル選択を使える。
+function mediaIsMobileDevice() {
+    var ua = navigator.userAgent || '';
+    var uaDataMobile = !!(navigator.userAgentData && navigator.userAgentData.mobile);
+    var mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(ua);
+    var iPadLike = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+    return uaDataMobile || mobileUA || iPadLike;
+}
+
+var mediaPickerTarget = null; // { cardId, item }
+
+function mediaEnsureSourceSheet() {
+    var sheet = document.getElementById('media-source-sheet');
+    if (sheet) return sheet;
+
+    sheet = document.createElement('div');
+    sheet.id = 'media-source-sheet';
+    sheet.innerHTML =
+        '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
+            '<div class="media-source-title">画像を追加</div>' +
+            '<button type="button" class="media-source-option" id="media-source-camera">' +
+                '<span class="media-source-icon">📷</span>' +
+                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-option" id="media-source-gallery">' +
+                '<span class="media-source-icon">🖼</span>' +
+                '<span class="media-source-copy"><span>写真から選択</span><span class="media-source-sub">端末に保存されている画像を選択</span></span>' +
+            '</button>' +
+            '<button type="button" class="media-source-cancel" id="media-source-cancel">キャンセル</button>' +
+        '</div>';
+    document.body.appendChild(sheet);
+
+    function closeSheet() { sheet.classList.remove('open'); }
+    document.getElementById('media-source-cancel').addEventListener('click', function(e){ e.stopPropagation(); closeSheet(); });
+    sheet.addEventListener('click', function(e){ if (e.target === sheet) closeSheet(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
+
+    document.getElementById('media-source-camera').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(true);
+    });
+    document.getElementById('media-source-gallery').addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSheet();
+        mediaOpenNativePicker(false);
+    });
+    return sheet;
+}
+
+function mediaOpenNativePicker(useCamera) {
+    var target = mediaPickerTarget;
+    if (!target || !target.item) return;
+
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (useCamera) input.setAttribute('capture', 'environment');
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    input.style.top = '0';
+    input.style.width = '1px';
+    input.style.height = '1px';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+
+    var cleaned = false;
+    function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        if (input.parentNode) input.parentNode.removeChild(input);
+        if (mediaPickerTarget === target) mediaPickerTarget = null;
+    }
+
+    input.addEventListener('change', function() {
+        var file = input.files && input.files[0];
+        if (file) mediaSaveImageFile(target.cardId, target.item, file);
+        cleanup();
+    });
+    input.addEventListener('cancel', cleanup);
+
+    var opened = false;
+    try {
+        if (typeof input.showPicker === 'function') {
+            input.showPicker();
+            opened = true;
+        }
+    } catch (err) {
+        console.warn('[Media] showPicker fallback:', err);
+    }
+    if (!opened) {
+        try { input.click(); opened = true; }
+        catch (err2) { console.error('[Media] file picker failed:', err2); cleanup(); }
+    }
+
+    // cancelイベントを発火しないブラウザ向けの保険。
+    setTimeout(function() {
+        if (!input.files || !input.files.length) setTimeout(cleanup, 1000);
+    }, 60000);
+}
+
 function mediaOpenFilePicker(cardId, item) {
     mediaPickerTarget = { cardId: cardId, item: item };
     if (mediaIsMobileDevice()) {
