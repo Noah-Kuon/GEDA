@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2 / Camera v18                                                   ║
+  ║  Qcard PRO  v3.7.0    swipe-number                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2930,6 +2930,41 @@ min-height: 0;
         body.mob-grid1 .grid-wrapper,
         body.mob-grid2 .grid-wrapper { overflow-y: auto; padding: 0; }
 
+        /* [FIX v5] 編集ステータス専用の一行を廃止。
+           編集中の状態と確定操作は、カード下部の操作バーに統合する。 */
+        #mob-edit-status { display:none; }
+        .mob-edit-done-btn {
+            display:none;
+            border:1px solid var(--accent);
+            background:var(--accent);
+            color:var(--surface);
+            border-radius:20px;
+            padding:6px 13px;
+            font-size:0.72rem;
+            font-weight:700;
+            cursor:pointer;
+            -webkit-tap-highlight-color:transparent;
+            white-space:nowrap;
+            flex-shrink:0;
+        }
+        body.edit-mode-active .mob-edit-done-btn { display:inline-flex; align-items:center; justify-content:center; }
+        .mob-edit-done-btn:active { transform:scale(0.96); }
+        .mob-edit-done-btn:disabled { cursor:default; opacity:0.72; }
+        /* 編集状態を色と文言で明確化：入力中=確定待ち、確定後=保存済み */
+        .mob-edit-done-btn.is-dirty {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--surface);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+        .mob-edit-done-btn.is-saved {
+            background: var(--surface3);
+            border-color: var(--border2);
+            color: var(--text-muted);
+            box-shadow: none;
+        }
+        .mob-edit-done-btn.is-saved:active { background: var(--surface2); }
+
         /* ── スワイプステージ ── */
         #mob-stage {
             flex: 1;
@@ -2941,10 +2976,13 @@ min-height: 0;
             width: 300%;
             transform: translateX(-33.3333%);   /* 初期位置: currentを表示 */
             will-change: transform;
+            /* [FIX v6] 端での横方向ブラウザオーバースクロールも抑止する。
+               縦スクロールは子要素側の overflow-y:auto / touch-action:pan-y を維持。 */
+            overscroll-behavior-x: contain;
         }
         /* スワイプ遷移アニメーション */
         #mob-stage.mob-animating {
-            transition: transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transition: transform 0.38s cubic-bezier(0.22, 0.61, 0.36, 1);
         }
         .mob-slide {
             width: 33.3333%;
@@ -2988,6 +3026,12 @@ min-height: 0;
             white-space: pre-wrap;
             outline: none;
         }
+        /* [FIX v4] 編集中は横方向のページジェスチャーを抑え、本文は縦スクロールのみ許可。 */
+        body.edit-mode-active #mob-stage { touch-action: pan-y; }
+        body.edit-mode-active .mob-card-inner,
+        body.edit-mode-active .mob-editable { touch-action: pan-y; }
+        #mobile-counter.editing { font-weight: 700; color: var(--accent); }
+
         /* [FIX] フリップ（スワイプ）ビュー：非表示カードのバッジ（タップで表示/非表示を解除） */
         .mob-hidden-flip-badge {
             display: none;
@@ -3014,8 +3058,13 @@ min-height: 0;
             padding-top: 8px; margin-top: auto;
             flex-shrink: 0;
             position: relative;
-            justify-content: space-between; /* [FIX] コピー(左)と「⋯」(右端)を分離し誤タップを防止 */
+            justify-content: flex-start;
         }
+        /* [FIX v5] 操作バー内で「コピー＝左」「確定＝中央」「⋯＝右」を明確化 */
+        .mob-clip-bar .mob-clip-copy-btn { flex: 0 0 auto; }
+        .mob-clip-bar .mob-clip-status { display:none; }
+        .mob-clip-bar .mob-edit-done-btn { margin-left:auto; margin-right:auto; }
+        .mob-clip-bar .mob-clip-more-btn { margin-left:auto; }
         .mob-clip-copy-btn {
             background: var(--surface3); border: 1px solid var(--border);
             border-radius: 20px; padding: 6px 14px; font-size: 0.74rem;
@@ -3033,8 +3082,10 @@ min-height: 0;
         .mob-clip-media-btn:active { background: var(--surface2); }
         .mob-clip-media-btn:hover { color: var(--accent); border-color: var(--accent); }
 
-        .mob-clip-bar .mob-clip-media-btn { display: none; }
-        body.edit-mode-active .mob-clip-bar .mob-clip-media-btn { display: inline-flex; align-items: center; justify-content: center; }
+        /* [FIX v5] 画像追加・カードリンクは「⋯」メニューへ集約。
+           入力エリアの高さを増やさず、操作バーは3要素に限定する。 */
+        .mob-clip-bar .mob-clip-media-btn,
+        .mob-clip-bar .mob-clip-link-btn { display:none !important; }
 
         /* [NEW] 画像ソース選択シート（スマホ） */
         #media-source-sheet {
@@ -3103,6 +3154,8 @@ min-height: 0;
         }
         .mob-clip-menu-item:active { background: var(--surface2); }
         .mob-clip-menu-item:disabled { opacity: 0.35; cursor: not-allowed; }
+        body:not(.edit-mode-active) .mob-clip-menu .mob-clip-media-menu { display:none; }
+        body:not(.edit-mode-active) .mob-clip-menu .mob-clip-link-menu { display:none; }
         .mob-clip-status {
             font-size: 0.64rem; color: var(--text-dim);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -3198,14 +3251,33 @@ min-height: 0;
         /* [FIX] 先頭/末尾では矢印を無効化表示し、「これ以上カードが無い」ことを常時視覚的に示す */
         .mob-nav-btn.disabled { opacity: 0.28; pointer-events: none; }
         #mobile-counter { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-dim); }
+        /* [NEW] 件数表示をタップしてカード番号を直接入力できるようにする */
+        #mobile-counter.mob-counter-editable {
+            cursor: pointer; border-radius: 6px; padding: 2px 8px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #mobile-counter.mob-counter-editable:active { background: var(--surface2); }
+        .mob-counter-input {
+            width: 46px;
+            font-family: 'DM Mono', monospace;
+            font-size: 0.72rem; font-weight: 700;
+            color: var(--accent);
+            background: var(--surface); border: 1px solid var(--accent);
+            border-radius: 6px; text-align: center;
+            padding: 1px 2px;
+            outline: none;
+        }
+        .mob-counter-input::-webkit-outer-spin-button,
+        .mob-counter-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .mob-counter-input[type=number] { -moz-appearance: textfield; }
 
         /* [FIX] 端（1枚目より前 / 最後より後）へスワイプした際の「これ以上進めない」フィードバック */
         @keyframes mobEdgeBounce {
             0%   { transform: translateX(-33.3333%); }
-            35%  { transform: translateX(var(--mob-edge-bounce-x, -30%)); }
+            35%  { transform: translateX(var(--mob-edge-bounce-x, -33.3333%)); }
             100% { transform: translateX(-33.3333%); }
         }
-        #mob-stage.mob-edge-bounce { animation: mobEdgeBounce 0.28s ease-out; }
+        #mob-stage.mob-edge-bounce { animation: mobEdgeBounce 0.36s ease-out; }
 
         /* ── グリッド1列 ── */
         body.mob-grid1 .grid-container {
@@ -3935,7 +4007,24 @@ min-height: 0;
             #geda-footer-trigger { height: 20px; gap: 0; }
             .geda-footer-short { font-size: 0.46rem; letter-spacing: .065em; }
             .geda-footer-year { display: none; }
-            #geda-footer-panel { bottom: 27px; width: min(330px, calc(100vw - 24px)); padding: 13px 14px 12px; }
+            /* [FIX v4] G.E.D.A. panel: viewport-centered on mobile. */
+            #geda-footer-panel {
+                position: fixed;
+                left: 50%;
+                right: auto;
+                bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+                transform: translateX(-50%);
+                width: min(330px, calc(100vw - 24px));
+                max-height: calc(100dvh - 72px - env(safe-area-inset-bottom, 0px));
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding: 13px 14px 12px;
+            }
+            #geda-footer.open #geda-footer-panel { animation: gedaFooterInMobile .18s ease-out; }
+            @keyframes gedaFooterInMobile {
+                from { opacity: 0; transform: translate(-50%, 6px); }
+                to   { opacity: 1; transform: translate(-50%, 0); }
+            }
         }
 
     </style>
@@ -3947,7 +4036,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.5.2</span>
+    <span class="version-badge">v3.7.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -7518,6 +7607,17 @@ function setAppMode(mode) {
     // 未知モードはeditへフォールバック
     var resolvedMode = VALID_MODES[mode] ? mode : 'edit';
 
+    // [FIX v5] 編集画面を離れたら、カード送りロックも解除して次回編集に備える。
+    if (typeof mobEditingActive !== 'undefined') {
+        if (resolvedMode !== 'edit') {
+            mobEditingActive = false;
+            mobEditCommitState = 'idle';
+        } else if (appMode !== 'edit') {
+            mobEditingActive = false;
+            mobEditCommitState = 'idle';
+        }
+    }
+
     appMode = resolvedMode;
     localStorage.setItem('kp_mode', resolvedMode);
 
@@ -7577,6 +7677,9 @@ function setAppMode(mode) {
         // studyStart は STUDY MODE IIFE より後に定義されるため typeof チェック
         setTimeout(function() { if (typeof studyStart === 'function') studyStart(); }, 50);
     }
+
+    // [FIX v4] モード切替時に残っているスワイプ状態を解除。
+    if (typeof window.mobResetSwipeState === 'function') window.mobResetSwipeState();
 
     // ── 7. モバイルスワイプUIを再描画 ──
     setTimeout(function() {
@@ -13694,8 +13797,22 @@ function rdSaveRate(v) {
         clipMoreBtn.type = 'button';
         clipMoreBtn.className = 'mob-clip-more-btn';
         clipMoreBtn.innerHTML = '⋯';
+        var clipDoneBtn = document.createElement('button');
+        clipDoneBtn.type = 'button';
+        clipDoneBtn.className = 'mob-edit-done-btn';
+        clipDoneBtn.textContent = '編集待機中';
+        clipDoneBtn.setAttribute('aria-label', '編集待機中');
+        clipDoneBtn.title = '今すぐ保存する（送りボタン・スワイプでも自動保存されます）';
         var clipMenu = document.createElement('div');
         clipMenu.className = 'mob-clip-menu';
+        var clipMediaMenuBtn = document.createElement('button');
+        clipMediaMenuBtn.type = 'button';
+        clipMediaMenuBtn.className = 'mob-clip-menu-item mob-clip-media-menu';
+        clipMediaMenuBtn.textContent = '🖼 画像を追加';
+        var clipLinkMenuBtn = document.createElement('button');
+        clipLinkMenuBtn.type = 'button';
+        clipLinkMenuBtn.className = 'mob-clip-menu-item mob-clip-link-menu';
+        clipLinkMenuBtn.textContent = '🔗 カードをリンク';
         var clipPasteNewBtn = document.createElement('button');
         clipPasteNewBtn.type = 'button';
         clipPasteNewBtn.className = 'mob-clip-menu-item mob-clip-paste-new';
@@ -13708,6 +13825,8 @@ function rdSaveRate(v) {
         clipClearBtn.type = 'button';
         clipClearBtn.className = 'mob-clip-menu-item mob-clip-clear';
         clipClearBtn.textContent = '✕ クリップボードを解除';
+        clipMenu.appendChild(clipMediaMenuBtn);
+        clipMenu.appendChild(clipLinkMenuBtn);
         clipMenu.appendChild(clipPasteNewBtn);
         clipMenu.appendChild(clipPasteOverBtn);
         clipMenu.appendChild(clipClearBtn);
@@ -13729,9 +13848,7 @@ function rdSaveRate(v) {
         clipLinkBtn.innerHTML = '\uD83D\uDD17';
         clipLinkBtn.title = 'カードをリンク';
         clipBar.appendChild(clipCopyBtn);
-        clipBar.appendChild(clipStatus);
-        clipBar.appendChild(clipMediaBtn);
-        clipBar.appendChild(clipLinkBtn);
+        clipBar.appendChild(clipDoneBtn);
         clipBar.appendChild(clipMoreBtn);
         clipBar.appendChild(clipMenu);
 
@@ -13751,14 +13868,32 @@ function rdSaveRate(v) {
             e.stopPropagation();
             clipMenu.classList.toggle('open');
         });
-        clipMediaBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-        clipMediaBtn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
-        clipMediaBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
-        clipMediaBtn.addEventListener('click', function(e) {
+        clipMediaMenuBtn.addEventListener('click', function(e) {
             e.stopPropagation();
+            clipMenu.classList.remove('open');
+            var idx = parseInt(clipBar.dataset.idx, 10);
+            if (!isNaN(idx) && typeof mobOpenMediaSourcePicker === 'function') mobOpenMediaSourcePicker(idx);
+        });
+        clipLinkMenuBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            clipMenu.classList.remove('open');
             var idx = parseInt(clipBar.dataset.idx, 10);
             if (isNaN(idx)) return;
-            if (typeof mobOpenMediaSourcePicker === 'function') mobOpenMediaSourcePicker(idx);
+            var data = getData();
+            var d = data[idx];
+            if (!d) return;
+            var gridItem = getGridItem(data, idx);
+            if (gridItem) {
+                editCardItem = gridItem;
+                if (typeof cardLinkOpenPicker === 'function') cardLinkOpenPicker();
+            }
+        });
+        clipDoneBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+        clipDoneBtn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+        clipDoneBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
+        clipDoneBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (typeof window.mobFinishEditing === 'function') window.mobFinishEditing();
         });
         clipPasteNewBtn.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -13790,23 +13925,6 @@ function rdSaveRate(v) {
         var linkList = document.createElement('div');
         linkList.className = 'mob-link-list';
         linkBar.appendChild(linkList);
-
-        // [FIX] 🔗ボタン（clipBar内に統合）のクリックで、現在表示中のカードにリンクを追加する
-        clipLinkBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-        clipLinkBtn.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
-        clipLinkBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var idx = parseInt(clipBar.dataset.idx, 10);
-            if (isNaN(idx)) return;
-            var data = getData();
-            var d = data[idx];
-            if (!d) return;
-            var gridItem = getGridItem(data, idx);
-            if (gridItem) {
-                editCardItem = gridItem;
-                if (typeof cardLinkOpenPicker === 'function') cardLinkOpenPicker();
-            }
-        });
 
         inner.appendChild(hb);
         inner.appendChild(t);
@@ -13868,6 +13986,10 @@ function rdSaveRate(v) {
 
     // ── 状態 ──
     var mIdx = 0;
+    // [FIX v5] 実際にカード入力欄を編集している間だけカード送りをロック。
+    // 編集モードそのものは維持し、「確定」でロック解除して同じ編集画面から次カードへ進める。
+    var mobEditingActive = false;
+    var mobEditCommitState = 'idle'; // idle / dirty / saved
 
     // ── データアクセス（直接参照・コピーなし） ──
     // 学習モード中は studyCards（出題順・シャッフル済み）を優先使用
@@ -14096,6 +14218,37 @@ function rdSaveRate(v) {
         }
     }
 
+    function updateMobEditCommitButton() {
+        var buttons = document.querySelectorAll('.mob-edit-done-btn');
+        if (!buttons.length) return;
+        var inEditMode = (appMode === 'edit');
+        var dirty = inEditMode && mobEditCommitState === 'dirty';
+        var saved = inEditMode && mobEditCommitState === 'saved';
+        buttons.forEach(function(btn) {
+            btn.classList.toggle('is-dirty', dirty);
+            btn.classList.toggle('is-saved', saved);
+            btn.disabled = !dirty;
+            btn.setAttribute('aria-disabled', dirty ? 'false' : 'true');
+            if (!inEditMode) {
+                btn.textContent = '✓ 編集を確定';
+                btn.title = '編集モードではありません';
+                btn.setAttribute('aria-label', '編集を確定');
+            } else if (dirty) {
+                btn.textContent = '✓ 編集を確定';
+                btn.title = '現在の編集内容を保存してカード移動を再開';
+                btn.setAttribute('aria-label', '編集内容を確定');
+            } else if (saved) {
+                btn.textContent = '✓ 保存済み';
+                btn.title = '保存済みです。入力すると再び確定待ちになります';
+                btn.setAttribute('aria-label', '編集内容は保存済み');
+            } else {
+                btn.textContent = '編集待機中';
+                btn.title = '入力欄を編集すると確定待ちになります';
+                btn.setAttribute('aria-label', '編集待機中');
+            }
+        });
+    }
+
     // ── 3スライド全描画 ──
     function mRenderAll() {
         // 学習モード中はstudyIdx（出題順インデックス）でスワイプ位置を同期
@@ -14114,8 +14267,12 @@ function rdSaveRate(v) {
         renderSlide(slides[1], data, mIdx);    // cur
         renderSlide(slides[2], data, nextIdx); // next
 
-        // カウンタ
-        if (mCounter) mCounter.textContent = (len ? mIdx + 1 : 0) + ' / ' + len;
+        // [FIX v4] 編集中は現在位置を常時明示。
+        if (mCounter) {
+            mCounter.textContent = (len ? mIdx + 1 : 0) + ' / ' + len;
+            mCounter.classList.toggle('editing', mobEditingActive);
+        }
+        updateMobEditCommitButton();
 
         // [FIX] 端（1枚目/最後）では矢印ボタンを無効化表示し、
         // 「これ以上カードが無い」ことを常に視覚的にわかるようにする
@@ -14195,7 +14352,20 @@ function rdSaveRate(v) {
     }
 
     // ── カードめくり（アニメーション付き） ──
+    // [FIX] 編集中でも送りボタンでロックしない。送る直前に自動で保存を確定させる。
+    // （以前は mobEditingActive の間ナビゲーションを完全ブロックしており、
+    //   「編集を確定」ボタンを押さない限り身動きが取れなくなる不具合があった）
+    function mobCommitPendingEdit() {
+        if (mobEditCommitState === 'dirty' && typeof saveCurrentGridData === 'function') {
+            try { saveCurrentGridData(); } catch (e) {}
+        }
+        mobEditingActive = false;
+        mobEditCommitState = 'saved';
+        if (mCounter) mCounter.classList.remove('editing');
+    }
+
     function goNext() {
+        if (mobEditingActive) mobCommitPendingEdit();
         var data = getData();
         if (mIdx >= data.length - 1) return;
         // 学習モード：studyNav でインデックスを進める（評価履歴管理のため）
@@ -14206,6 +14376,7 @@ function rdSaveRate(v) {
         animateTo(1, function() { mIdx++; });
     }
     function goPrev() {
+        if (mobEditingActive) mobCommitPendingEdit();
         if (mIdx <= 0) return;
         if (appMode === 'study' && typeof window.studyNav === 'function') {
             window.studyNav(-1);
@@ -14215,6 +14386,118 @@ function rdSaveRate(v) {
     }
     window.mobGoNext = goNext;
     window.mobGoPrev = goPrev;
+
+    // [NEW] 矢印ボタン長押し用の「即時版」。通常のスライドアニメーション（0.38秒）は
+    // 高速連打には遅すぎて重なってしまうため、長押し中の連続送りはアニメーション無しで
+    // 即座に切り替える。1回タップした時の見た目（滑らかなスライド）はそのまま維持する。
+    function goNextInstant() {
+        if (mobEditingActive) mobCommitPendingEdit();
+        var data = getData();
+        if (mIdx >= data.length - 1) return;
+        if (appMode === 'study' && typeof window.studyNav === 'function') { window.studyNav(1); return; }
+        mIdx++;
+        mRenderAll();
+    }
+    function goPrevInstant() {
+        if (mobEditingActive) mobCommitPendingEdit();
+        if (mIdx <= 0) return;
+        if (appMode === 'study' && typeof window.studyNav === 'function') { window.studyNav(-1); return; }
+        mIdx--;
+        mRenderAll();
+    }
+
+    // [NEW] 長押しで加速しながら連続送りするための共通ヘルパー。
+    // 短いタップ＝1回だけ通常操作（アニメーション付き）、450ms以上の長押し＝
+    // 即時切り替えでの連続送りに切り替わり、押し続けるほど速くなる。
+    function setupHoldToRepeat(btn, tapAction, repeatAction) {
+        if (!btn) return;
+        var holdTimer = null, repeatTimer = null, engaged = false, speed = 320;
+        function stopRepeating() {
+            clearTimeout(holdTimer); clearTimeout(repeatTimer);
+            holdTimer = null; repeatTimer = null; speed = 320;
+        }
+        function scheduleRepeat() {
+            repeatTimer = setTimeout(function() {
+                repeatAction();
+                speed = Math.max(70, speed - 25); // だんだん速く（下限あり）
+                scheduleRepeat();
+            }, speed);
+        }
+        btn.addEventListener('pointerdown', function(e) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            stopRepeating();
+            engaged = false;
+            holdTimer = setTimeout(function() {
+                engaged = true;
+                repeatAction();
+                scheduleRepeat();
+            }, 450);
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function(evt) {
+            btn.addEventListener(evt, stopRepeating);
+        });
+        btn.addEventListener('click', function(e) {
+            if (engaged) {
+                // 長押し操作の後に発生するclickは無視する（連続送り分と二重にしないため）
+                e.preventDefault(); e.stopPropagation();
+                engaged = false;
+                return;
+            }
+            tapAction();
+        });
+    }
+
+    // [NEW] 件数表示（例: 10 / 90）をタップすると、カード番号を直接入力してジャンプできる。
+    if (mCounter) {
+        mCounter.classList.add('mob-counter-editable');
+        mCounter.title = 'タップしてカード番号を直接入力';
+        mCounter.addEventListener('click', function() {
+            if (mCounter.querySelector('input')) return;
+            var data = getData();
+            var total = data.length;
+            if (!total) return;
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.min = 1; input.max = total;
+            input.value = mIdx + 1;
+            input.className = 'mob-counter-input';
+            ['click', 'pointerdown', 'mousedown', 'touchstart'].forEach(function(evt) {
+                input.addEventListener(evt, function(e) { e.stopPropagation(); });
+            });
+            var committed = false;
+            function commit() {
+                if (committed) return;
+                committed = true;
+                var v = parseInt(input.value, 10);
+                if (!isNaN(v)) {
+                    if (mobEditingActive) mobCommitPendingEdit();
+                    window.mSetIdx(v - 1);
+                } else {
+                    mRenderAll(); // 数値でなければ元の表示に戻す
+                }
+            }
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') input.blur();
+                e.stopPropagation();
+            });
+            input.addEventListener('blur', commit);
+            mCounter.textContent = '';
+            mCounter.appendChild(input);
+            input.focus();
+            input.select();
+        });
+    }
+
+    // [FIX v5] 編集内容を確定してロックを解除するが、編集モード自体は維持する。
+    // ボタンからの手動確定は任意の操作として残す（送りボタン・スワイプでも
+    // 自動的に確定されるようになったため、必須ではなくなった）。
+    window.mobFinishEditing = function() {
+        if (appMode !== 'edit') return;
+        if (mobEditCommitState !== 'dirty') return;
+        mobCommitPendingEdit();
+        if (typeof showToast === 'function') showToast('✓ 編集内容を保存しました');
+        mRenderAll();
+    };
 
     // dir: 1=次へ, -1=前へ
     function animateTo(dir, cb) {
@@ -14251,8 +14534,20 @@ function rdSaveRate(v) {
     // ── タッチ/スワイプ ──
     var touchStartX = 0, touchStartY = 0, touchDeltaX = 0;
     var isSwiping = false, swipeAxis = null;
+    window.mobResetSwipeState = function() {
+        isSwiping = false;
+        swipeAxis = null;
+        touchDeltaX = 0;
+        if (stage) {
+            stage.classList.remove('mob-animating', 'mob-edge-bounce');
+            stage.style.transform = 'translateX(-33.3333%)';
+        }
+    };
 
     stage.addEventListener('touchstart', function(e) {
+        // [FIX] 編集中でもスワイプを止めない。触れた瞬間に編集内容を確定してから、
+        // 通常のスワイプ開始処理へそのまま進む。
+        if (mobEditingActive) mobCommitPendingEdit();
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
         touchDeltaX = 0;
@@ -14278,7 +14573,12 @@ function rdSaveRate(v) {
         var atLastEdge  = (mIdx >= data.length - 1 && dx < 0);
         var damped = dx;
         if (atFirstEdge || atLastEdge) {
-            damped = dx * 0.32; // 抵抗係数：指の移動量の約3割しか動かない
+            // [FIX v6] 端では「空の隣カード」が見えるほど引っ張れないよう、
+            // ラバーバンドを極端に強くし、表示上の移動量も最大14pxに制限する。
+            // これにより1枚目では「左側にまだカードがある」ような誤認を防ぎ、
+            // 指を離した瞬間の行き止まりも明確になる。
+            var edgeSign = dx > 0 ? 1 : -1;
+            damped = edgeSign * Math.min(Math.abs(dx) * 0.12, 14);
         }
         touchDeltaX = damped;
         var pct = -33.3333 + (damped / stage.parentElement.offsetWidth) * 100;
@@ -14288,7 +14588,7 @@ function rdSaveRate(v) {
     stage.addEventListener('touchend', function(e) {
         if (!isSwiping || swipeAxis !== 'x') { isSwiping = false; return; }
         var data = getData();
-        var threshold = 50; // px
+        var threshold = 90; // [FIX v4] 50px → 90px
         var movedNext = (touchDeltaX < -threshold && mIdx < data.length - 1);
         var movedPrev = (touchDeltaX >  threshold && mIdx > 0);
 
@@ -14306,7 +14606,10 @@ function rdSaveRate(v) {
                 // バウンス用の@keyframesアニメーションと通常のtransition（mob-animating）が
                 // 同時に同じtransformを奪い合うと着地位置がズレるため、
                 // バウンス完了後に改めてtransitionで中央へ確定させる。
-                var bounceX = touchDeltaX > 0 ? '-28%' : '-38.6667%';
+                // [FIX v6] バウンスも「隣カードが存在する」ように見えない最小限の14px。
+                var edgePx = touchDeltaX > 0 ? 14 : -14;
+                var edgePct = (edgePx / stage.parentElement.offsetWidth) * 100;
+                var bounceX = (-33.3333 + edgePct) + '%';
                 stage.classList.remove('mob-animating');
                 stage.style.setProperty('--mob-edge-bounce-x', bounceX);
                 stage.classList.add('mob-edge-bounce');
@@ -14327,8 +14630,8 @@ function rdSaveRate(v) {
     // ── ナビボタン ──
     var prevBtn = document.getElementById('mob-prev');
     var nextBtn = document.getElementById('mob-next');
-    if (prevBtn) prevBtn.addEventListener('click', goPrev);
-    if (nextBtn) nextBtn.addEventListener('click', goNext);
+    setupHoldToRepeat(prevBtn, goPrev, goPrevInstant);
+    setupHoldToRepeat(nextBtn, goNext, goNextInstant);
 
     // ── 編集モード：タイトル・本文の入力 → グリッド実体に反映 ──
     slides.forEach(function(sl) {
@@ -14361,9 +14664,11 @@ function rdSaveRate(v) {
         if (titleEl) {
             titleEl.addEventListener('input', function() {
                 if (titleEl.contentEditable !== 'true') return;
+                mobEditingActive = true;
+                mobEditCommitState = 'dirty';
+                if (mCounter) mCounter.classList.add('editing');
                 syncToGrid('title', titleEl.textContent);
-                // 他スライドに同インデックスがあれば同期（高速スワイプ対策）
-                mRenderAll();
+                // [FIX v4] 入力中の再描画を行わない。カーソルとカード位置を安定させる。
             });
             titleEl.addEventListener('keydown', function(e) {
                 if (titleEl.contentEditable === 'true' && e.key === 'Enter') {
@@ -14375,6 +14680,9 @@ function rdSaveRate(v) {
         if (contentEl) {
             contentEl.addEventListener('input', function() {
                 if (contentEl.contentEditable !== 'true') return;
+                mobEditingActive = true;
+                mobEditCommitState = 'dirty';
+                if (mCounter) mCounter.classList.add('editing');
                 syncToGrid('content', contentEl.textContent);
             });
         }
