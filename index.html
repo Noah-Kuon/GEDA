@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2    camera+                                  ║
+  ║  Qcard PRO  v3.5.2  camera++                                                 ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5344,8 +5344,16 @@ function mediaSaveImageFile(cardId, item, file) {
 // ── 画像入力ソース選択（スマホ：カメラ / 写真から選択） ──
 var mediaPickerTarget = null; // { cardId, item }
 
-function mediaIsMobile() {
-    return window.innerWidth <= 640;
+// 画面幅ではなく「実際のモバイル端末」かどうかを判定。
+// これにより、PCブラウザをスマホ幅に縮めてスマホUIを検証しても、
+// カメラ専用の入力導線には入らず、通常のファイル選択を利用できる。
+function mediaIsMobileDevice() {
+    var ua = navigator.userAgent || '';
+    var uaDataMobile = !!(navigator.userAgentData && navigator.userAgentData.mobile);
+    var mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(ua);
+    // iPadOSのデスクトップ風UAにも対応
+    var iPadLike = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+    return uaDataMobile || mobileUA || iPadLike;
 }
 
 function mediaEnsureSourceSheet() {
@@ -5408,10 +5416,10 @@ function mediaOpenNativePicker(useCamera) {
 }
 
 // ファイル選択ダイアログを開いて画像登録
-// PC：従来どおり直接ファイル選択。スマホ：カメラ / 写真の2択を表示。
+// 実機スマホ：カメラ / 写真の2択。PC（画面をスマホ幅にしていても）：通常のファイル選択。
 function mediaOpenFilePicker(cardId, item) {
     mediaPickerTarget = { cardId: cardId, item: item };
-    if (mediaIsMobile()) {
+    if (mediaIsMobileDevice()) {
         var sheet = mediaEnsureSourceSheet();
         sheet.classList.add('open');
         return;
