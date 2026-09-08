@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2   camera+++                                                ║
+  ║  Qcard PRO  v3.5.2   UI                                       ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -754,71 +754,82 @@
            [FIX] 空カード（未入力）とテキスト入力済みカードで見せ方を分ける。
            空カード: 全面オーバーレイで「＋ カードを編集」を主役にし、画像追加は副次的な選択肢にする。
            入力済みカード: 全面を塞がず、隅の小さなアイコンのみ表示してテキスト編集を妨げない。 */
+        /* [v7] MEDIA ACTION RAIL — modern / quiet / unified */
         .card-media-add-btn {
             display: none;
             position: absolute;
-            inset: 0;
+            left: 8px; right: 8px; bottom: 8px;
+            width: auto; height: 40px;
+            box-sizing: border-box;
             z-index: 20;
-            align-items: center; justify-content: center;
-            background: rgba(61,139,255,0.06);
-            border: 1.5px dashed transparent;
-            border-radius: 9px;
-            color: var(--text-dim);
+            align-items: stretch; justify-content: stretch;
+            flex-direction: row;
+            gap: 0;
+            padding: 0;
+            overflow: hidden;
+            background: rgba(10,14,22,0.78);
+            border: 0;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.82);
             font-size: 0.68rem;
-            cursor: pointer;
-            flex-direction: column;
-            gap: 4px;
-            transition: all 0.15s;
+            cursor: default;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: opacity 0.16s ease, background 0.16s ease;
         }
-        .card-media-add-btn .cmab-edit-hint { display: flex; align-items: center; justify-content: center; gap: 4px; }
-        .card-media-add-btn .cmab-edit-hint .icon { font-size: 1.1rem; color: var(--text-dim); }
-        .card-media-add-btn .cmab-img-btn {
-            margin-top: 6px;
-            background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 20px; padding: 7px 12px; font-size: 0.66rem;
-            color: var(--text-dim); cursor: pointer;
-            display: flex; align-items: center; gap: 4px;
-            min-height: 36px; box-sizing: border-box;
-        }
-        .card-media-add-btn .cmab-img-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .card-media-add-btn .cmab-edit-hint,
+        .card-media-add-btn .cmab-img-btn,
         .card-media-add-btn .cmab-edit-btn {
-            background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 20px; padding: 7px 12px; font-size: 0.66rem;
-            color: var(--text-dim); cursor: pointer;
-            display: flex; align-items: center; gap: 4px;
-            min-height: 36px; box-sizing: border-box;
+            appearance: none;
+            -webkit-appearance: none;
+            flex: 1 1 0;
+            min-width: 0;
+            height: 100%;
+            margin: 0;
+            padding: 0 10px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            color: inherit;
+            font: inherit;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.14s ease, color 0.14s ease;
         }
-        .card-media-add-btn .cmab-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .card-media-add-btn .cmab-img-btn { border-left: 1px solid rgba(255,255,255,0.12); }
+        .card-media-add-btn .cmab-edit-hint:hover,
+        .card-media-add-btn .cmab-img-btn:hover,
+        .card-media-add-btn .cmab-edit-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+        }
+        .card-media-add-btn .cmab-edit-hint:active,
+        .card-media-add-btn .cmab-img-btn:active,
+        .card-media-add-btn .cmab-edit-btn:active { background: rgba(255,255,255,0.12); }
+        .card-media-add-btn .icon {
+            flex: 0 0 auto;
+            font-size: 0.88rem;
+            line-height: 1;
+            color: rgba(255,255,255,0.56);
+        }
+        .card-media-add-btn .label { overflow: hidden; text-overflow: ellipsis; }
 
-        /* 空カード：全面オーバーレイ（クリックで直接編集開始、画像追加は副次ボタン） */
-        body.edit-mode-active .grid-item.is-blank-card:not(.has-media):hover .card-media-add-btn { display: flex; }
-        /* 一度クリックしてテキスト入力にフォーカスしている間は、隠す（force-editing） */
-        .grid-item.force-editing .card-media-add-btn { display: none !important; }
-        /* [FIX] クリップボード保持中（「ここに貼り付け」表示中）の空カードでは、
-           画像追加オーバーレイを背面化し、貼り付け操作を最優先にする。 */
-        .grid-item.clipboard-paste-active .card-media-add-btn { display: none !important; }
-        .grid-item.clipboard-paste-active .grid-paste-hint { z-index: 5; }
-
-        /* [FIX] 入力済みカード（画像だけ未設定）：全面を塞がず、左上に小さな丸アイコンのみ表示 */
+        /* 空カード／入力済みカードとも、2アクションを同じ視覚階層で表示 */
+        body.edit-mode-active .grid-item.is-blank-card:not(.has-media):hover .card-media-add-btn,
         body.edit-mode-active .grid-item:not(.is-blank-card):not(.has-media):hover .card-media-add-btn {
             display: flex;
-            inset: auto; top: 6px; left: 6px;
-            width: 30px; height: 30px;
-            border-radius: 50%;
-            background: rgba(8,12,20,0.75);
-            border: 1px solid rgba(255,255,255,0.25);
-            padding: 0;
         }
-        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-edit-hint { display: flex; }
-        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-edit-hint .icon { display: none; }
-        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-img-btn {
-            width: auto; height: auto; margin: 0; padding: 7px 12px;
-            border-radius: 20px; border: 1px solid var(--border); background: var(--surface2);
-            color: var(--text-dim); display: flex; align-items: center; justify-content: center;
-        }
-        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-img-btn .label { display: inline; }
-        .card-media-add-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(61,139,255,0.1); }
-        .card-media-add-btn .icon { font-size: 1.1rem; }
+        .grid-item.force-editing .card-media-add-btn { display: none !important; }
+        .grid-item.clipboard-paste-active .card-media-add-btn { display: none !important; }
+        .grid-item.clipboard-paste-active .grid-paste-hint { z-index: 5; }
 
         /* ── Card Link v0.1 ── */
         .meta-row-links-section {
@@ -2281,44 +2292,47 @@
     ══════════════════════════════════════ */
     @media (max-width: 640px) {
 
-        /* [v6] タッチ端末では「ホバー待ち」にせず、画像未登録カードの操作を明示。
-           編集／画像追加を横並びにして、カード高さからはみ出しにくくする。 */
+        /* [v7] MOBILE — card内に完全に収める */
         .card-media-add-btn {
-            inset: auto 8px 8px 8px !important;
+            left: 8px !important;
+            right: 8px !important;
+            bottom: 8px !important;
+            top: auto !important;
             width: auto !important;
-            height: auto !important;
-            min-height: 0 !important;
-            padding: 6px !important;
-            border-radius: 12px !important;
-            background: rgba(8,12,20,0.82) !important;
-            border: 1px solid rgba(255,255,255,0.18) !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            padding: 0 !important;
+            border-radius: 8px !important;
+            background: rgba(10,14,22,0.82) !important;
+            border: 0 !important;
             flex-direction: row !important;
-            gap: 6px !important;
+            gap: 0 !important;
+            overflow: hidden !important;
             z-index: 30 !important;
         }
         body.edit-mode-active .grid-item:not(.has-media) .card-media-add-btn { display: flex !important; }
         .card-media-add-btn .cmab-edit-hint,
         .card-media-add-btn .cmab-img-btn,
         .card-media-add-btn .cmab-edit-btn {
-            flex: 1 1 0;
-            justify-content: center;
-            min-width: 0;
-            white-space: nowrap;
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            width: 50% !important;
+            height: 40px !important;
+            min-height: 40px !important;
             margin: 0 !important;
+            padding: 0 8px !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-sizing: border-box !important;
+            justify-content: center;
+            white-space: nowrap;
         }
-        .card-media-add-btn .cmab-edit-hint {
-            background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 20px; padding: 7px 10px; min-height: 36px;
-            box-sizing: border-box; cursor: pointer;
-        }
-        .card-media-add-btn .cmab-edit-hint .label { display: inline; }
-        .card-media-add-btn .cmab-img-btn { min-height: 36px; padding: 7px 10px; }
-        .grid-item:not(.is-blank-card) .card-media-add-btn {
-            top: auto !important; left: 8px !important; right: 8px !important; bottom: 8px !important;
-            width: auto !important; height: auto !important;
-            border-radius: 12px !important;
-        }
-        .grid-item:not(.is-blank-card) .card-media-add-btn .cmab-edit-hint .icon { display: none; }
+        .card-media-add-btn .cmab-img-btn { border-left: 1px solid rgba(255,255,255,0.12) !important; }
+        .card-media-add-btn .cmab-edit-hint:hover,
+        .card-media-add-btn .cmab-img-btn:hover { background: rgba(255,255,255,0.08) !important; }
+        .card-media-add-btn .icon { font-size: 0.84rem; }
+        .card-media-add-btn .label { font-size: 0.67rem; }
 
         /* --- TOP BAR: 1行固定ヘッダー --- */
         .top-bar {
@@ -8527,7 +8541,7 @@ function createItem(index, d) {
     var mediaImgAddBtn = document.createElement('button');
     mediaImgAddBtn.type = 'button';
     mediaImgAddBtn.className = 'cmab-img-btn';
-    mediaImgAddBtn.innerHTML = '<span class="icon">🖼</span><span class="label">画像を追加</span>';
+    mediaImgAddBtn.innerHTML = '<span class="icon">＋</span><span class="label">画像を追加</span>';
     mediaAddBtn.appendChild(mediaEditHint);
     mediaAddBtn.appendChild(mediaImgAddBtn);
 
