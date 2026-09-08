@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.5.2                                                   ║
+  ║  Qcard PRO  v3.5.2 / Camera v18                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2197,6 +2197,28 @@
             margin: 4px 0;
         }
 
+        /* ===== Qcard Camera (getUserMedia) v14 ===== */
+        #qcard-camera-modal {
+            display:none; position:fixed; inset:0; z-index:1200;
+            background:rgba(0,0,0,0.92); align-items:center; justify-content:center;
+        }
+        #qcard-camera-modal.open { display:flex; }
+        .qcard-camera-panel {
+            width:min(96vw,720px); max-height:96dvh; background:var(--surface);
+            border:1px solid var(--border2); border-radius:16px; overflow:hidden;
+            box-shadow:0 24px 80px rgba(0,0,0,.6); display:flex; flex-direction:column;
+        }
+        .qcard-camera-head { padding:10px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+        .qcard-camera-title { font-weight:700; font-size:.82rem; flex:1; }
+        .qcard-camera-status { font-size:.66rem; color:var(--text-dim); }
+        #qcard-camera-video-wrap { background:#000; position:relative; width:100%; aspect-ratio:3/4; max-height:72dvh; }
+        #qcard-camera-video { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+        .qcard-camera-controls { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); }
+        .qcard-camera-controls button { flex:1; min-height:44px; border:1px solid var(--border); border-radius:9px; background:var(--surface2); color:var(--text); font:inherit; cursor:pointer; }
+        #qcard-camera-shoot { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+        #qcard-camera-switch { flex:0 0 auto; width:88px; }
+        #qcard-camera-close { flex:0 0 auto; width:70px; }
+        #qcard-camera-canvas { display:none; }
         /* ===== PIP CAPTURE WINDOW ===== */
 #pip-capture {
   position: fixed;
@@ -4983,6 +5005,25 @@ min-height: 0;
         </div>
     </div>
 </div>
+<!-- Qcard Camera v18: direct getUserMedia -->
+<div id="qcard-camera-modal" aria-hidden="true">
+  <div class="qcard-camera-panel">
+    <div class="qcard-camera-head">
+      <div class="qcard-camera-title">📷 Qcardカメラ</div>
+      <div id="qcard-camera-status" class="qcard-camera-status">カメラを準備しています…</div>
+    </div>
+    <div id="qcard-camera-video-wrap">
+      <video id="qcard-camera-video" autoplay playsinline muted></video>
+    </div>
+    <canvas id="qcard-camera-canvas"></canvas>
+    <div class="qcard-camera-controls">
+      <button type="button" id="qcard-camera-close">閉じる</button>
+      <button type="button" id="qcard-camera-switch">↔ 切替</button>
+      <button type="button" id="qcard-camera-shoot">● 撮影</button>
+    </div>
+  </div>
+</div>
+
 <div id="timer-flash"></div>
 
 <!-- PIP CAPTURE WINDOW -->
@@ -5262,111 +5303,408 @@ var itvDB = (function() {
     return { save: save, getByCardId: getByCardId, remove: remove };
 })();
 
+// ===== MOBILE IMAGE DIAGNOSTICS (development only) =====
+// スマートフォン実機だけで、画像処理の各STEP・所要時間・取得可能なJSヒープ値を確認するための診断モード。
+// 本機能は画像保存ロジックそのものを変更せず、観測情報を追加する。
+var MEDIA_DEBUG_V11 = {
+    enabled: false,
+    seq: 0,
+    current: null,
+    history: [],
+    panel: null,
+    body: null,
+    maxHistory: 20
+};
+
+function mediaDebugV11FormatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function mediaDebugV11Memory() {
+    try {
+        if (performance && performance.memory) {
+            return {
+                used: performance.memory.usedJSHeapSize,
+                total: performance.memory.totalJSHeapSize,
+                limit: performance.memory.jsHeapSizeLimit
+            };
+        }
+    } catch (_) {}
+    return null;
+}
+
+function mediaDebugV11MemoryText() {
+    var m = mediaDebugV11Memory();
+    if (!m) return 'JS Heap: n/a';
+    return 'JS Heap: ' + mediaDebugV11FormatBytes(m.used) + ' / ' + mediaDebugV11FormatBytes(m.limit);
+}
+
+function mediaDebugV11EnsurePanel() {
+    if (!MEDIA_DEBUG_V11.enabled || MEDIA_DEBUG_V11.panel) return;
+    if (!document || !document.body) return;
+
+    var panel = document.createElement('div');
+    panel.id = 'qcardMediaDebugV11';
+    panel.style.cssText = [
+        'position:fixed','left:8px','right:8px','bottom:8px','z-index:2147483647',
+        'background:rgba(0,0,0,.90)','color:#fff','font:12px/1.45 monospace',
+        'border-radius:10px','box-shadow:0 4px 20px rgba(0,0,0,.35)',
+        'padding:8px','display:none','max-height:42vh','overflow:hidden'
+    ].join(';');
+
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;';
+    head.innerHTML = '<strong>Qcard Image Debug</strong>';
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:4px;';
+    var copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.textContent = 'コピー';
+    copyBtn.style.cssText = 'font:12px sans-serif;padding:4px 7px;border:1px solid #888;border-radius:6px;background:#222;color:#fff;';
+    copyBtn.onclick = function() {
+        var text = mediaDebugV11Export();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function(){ if (typeof showToast === 'function') showToast('診断ログをコピーしました'); }).catch(function(){ mediaDebugV11FallbackCopy(text); });
+        } else {
+            mediaDebugV11FallbackCopy(text);
+        }
+    };
+    var clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.textContent = '消去';
+    clearBtn.style.cssText = copyBtn.style.cssText;
+    clearBtn.onclick = function() { MEDIA_DEBUG_V11.history = []; MEDIA_DEBUG_V11.current = null; MEDIA_PICKER_DEBUG_V12.events = []; MEDIA_PICKER_DEBUG_V12.active = null; mediaDebugV11Render(); mediaDebugV11Persist(); mediaPickerDebugV12Persist(); mediaDebugV12Render(); };
+    actions.appendChild(copyBtn);
+    actions.appendChild(clearBtn);
+    head.appendChild(actions);
+
+    var body = document.createElement('pre');
+    body.style.cssText = 'margin:0;white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:34vh;';
+    panel.appendChild(head);
+    panel.appendChild(body);
+    document.body.appendChild(panel);
+    MEDIA_DEBUG_V11.panel = panel;
+    MEDIA_DEBUG_V11.body = body;
+    mediaDebugV11Render();
+}
+
+function mediaDebugV11Show() {
+    if (!MEDIA_DEBUG_V11.enabled) return;
+    mediaDebugV11EnsurePanel();
+    if (MEDIA_DEBUG_V11.panel) MEDIA_DEBUG_V11.panel.style.display = 'block';
+}
+
+function mediaDebugV11Render() {
+    if (!MEDIA_DEBUG_V11.body) return;
+    var lines = ['JS Heap support: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
+    MEDIA_DEBUG_V11.history.slice(-5).forEach(function(item) {
+        lines.push('');
+        lines.push('#' + item.id + '  ' + item.fileName + '  ' + mediaDebugV11FormatBytes(item.fileSize));
+        lines.push('START MEMORY      ' + (item.startMemoryText || 'n/a'));
+        item.steps.forEach(function(st) {
+            lines.push(st.step.padEnd(16, ' ') + (st.detail || '') + (st.ms != null ? '   ' + st.ms + 'ms' : ''));
+        });
+        if (item.error) lines.push('ERROR: ' + item.error);
+        if (item.totalMs != null) lines.push('TOTAL            ' + item.totalMs + 'ms');
+        lines.push('END MEMORY       ' + (item.endMemoryText || 'n/a'));
+    });
+    MEDIA_DEBUG_V11.body.textContent = lines.join('\n');
+    MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
+    if (typeof MEDIA_PICKER_DEBUG_V12 !== 'undefined') mediaDebugV12Render();
+}
+
+function mediaDebugV11Persist() {
+    try {
+        sessionStorage.setItem('qcard_media_debug_v12', JSON.stringify(MEDIA_DEBUG_V11.history));
+    } catch (_) {}
+}
+
+function mediaDebugV11Restore() {
+    try {
+        var raw = sessionStorage.getItem('qcard_media_debug_v12');
+        if (raw) MEDIA_DEBUG_V11.history = JSON.parse(raw) || [];
+    } catch (_) {}
+}
+
+function mediaDebugV11Export() {
+    var out = ['Qcard Image Debug', 'Generated: ' + new Date().toISOString(), 'JS Heap: ' + (mediaDebugV11Memory() ? 'YES' : 'NO')];
+    MEDIA_DEBUG_V11.history.forEach(function(item) {
+        out.push('', '#' + item.id + '  ' + item.fileName + '  ' + mediaDebugV11FormatBytes(item.fileSize));
+        item.steps.forEach(function(st) {
+            out.push(st.step + ' | ' + (st.detail || '') + (st.ms != null ? ' | ' + st.ms + 'ms' : ''));
+        });
+        if (item.error) out.push('ERROR | ' + item.error);
+        if (item.totalMs != null) out.push('TOTAL | ' + item.totalMs + 'ms');
+        out.push('END MEMORY | ' + (item.endMemoryText || 'n/a'));
+    });
+    out.push('', '--- PICKER / CAMERA BOUNDARY v12 ---');
+    MEDIA_PICKER_DEBUG_V12.events.forEach(function(ev) {
+        var prefix = ev.id ? '[' + ev.id + '] ' : '';
+        var mode = ev.mode ? ev.mode + ' ' : '';
+        out.push(prefix + mode + ev.type + ' | ' + (ev.detail || ''));
+    });
+    return out.join('\n');
+}
+
+function mediaDebugV11FallbackCopy(text) {
+    try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        if (typeof showToast === 'function') showToast('診断ログをコピーしました');
+    } catch (_) {}
+}
+
+function mediaDebugV11Start(file) {
+    mediaDebugV11Show();
+    var item = {
+        id: ++MEDIA_DEBUG_V11.seq,
+        fileName: (file && file.name) || '(unnamed)',
+        fileSize: (file && file.size) || 0,
+        startAt: performance.now(),
+        lastAt: performance.now(),
+        steps: [],
+        startMemoryText: mediaDebugV11MemoryText(),
+        endMemoryText: '',
+        error: '',
+        totalMs: null
+    };
+    MEDIA_DEBUG_V11.current = item;
+    MEDIA_DEBUG_V11.history.push(item);
+    if (MEDIA_DEBUG_V11.history.length > MEDIA_DEBUG_V11.maxHistory) MEDIA_DEBUG_V11.history.shift();
+    mediaDebugV11Log('START', item.fileName + ' ' + mediaDebugV11FormatBytes(item.fileSize));
+    return item;
+}
+
+function mediaDebugV11Log(step, detail) {
+    var item = MEDIA_DEBUG_V11.current;
+    if (!item) return;
+    var now = performance.now();
+    var ms = Math.round(now - item.lastAt);
+    item.lastAt = now;
+    item.steps.push({ step: step, detail: detail || '', ms: ms });
+    if (step === 'END' || step === 'ERROR') {
+        item.totalMs = Math.round(now - item.startAt);
+        item.endMemoryText = mediaDebugV11MemoryText();
+        if (step === 'ERROR') item.error = detail || 'unknown error';
+    }
+    mediaDebugV11Render();
+    mediaDebugV11Persist();
+}
+
+function mediaDebugV11Finish() {
+    if (!MEDIA_DEBUG_V11.current) return;
+    mediaDebugV11Log('END', mediaDebugV11MemoryText());
+    MEDIA_DEBUG_V11.current = null;
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ mediaDebugV11Restore(); mediaDebugV11EnsurePanel(); });
+} else {
+    mediaDebugV11Restore();
+    mediaDebugV11EnsurePanel();
+}
+
 // 画像ファイルを保存して即時反映
 // ===== IMAGE OPTIMIZATION =====
 // 画像を WebP（→ JPEG → 元ファイル）3段階フォールバックで最適化する
 // 呼び出し元は mediaSaveImageFile() のみ。他の保存フローには影響しない。
 var IMG_OPT = {
-    maxEdge:      1600,   // px: 長辺の上限（これ以下はリサイズしない）
-    webpQuality:  0.80,   // WebP 品質
-    jpegQuality:  0.85,   // JPEG フォールバック品質
+    // スマホ保存用は長辺1024pxを上限とする。
+    maxEdge:       1024,
+    // probeは原寸デコードせず、長辺1536pxに制限する。
+    probeMaxEdge:  1536,
+    desktopMaxEdge:1600,
+    webpQuality:   0.80,
+    jpegQuality:   0.82
 };
 
 /**
- * File / Blob を受け取り、リサイズ + WebP変換 した Blob を返す Promise。
- * 変換に失敗した場合は JPEG → 元ファイルの順にフォールバックする。
- * @returns {Promise<{blob: Blob, mimeType: string, width: number, height: number}>}
+ * 画像を「巨大な元画像を何枚もメモリ上に保持しない」方式で軽量化する。
+ *
+ * 重要な変更点：
+ *  1. WebPとJPEGを同時に作らず、まずWebPだけ生成する。
+ *  2. createImageBitmap() が使える端末では、デコード時リサイズを優先する。
+ *  3. 処理終了時に Image / ImageBitmap / Canvas / ObjectURL を明示的に解放する。
+ *  4. 変換に失敗しても元ファイルへ無条件フォールバックせず、可能なら小さなJPEGを試す。
  */
-function optimizeImageToWebP(file) {
-    return new Promise(function(resolve) {
+async function optimizeImageToWebP(file) {
+    var isMobile = (typeof mediaIsMobileDevice === 'function') && mediaIsMobileDevice();
+    var maxEdge = isMobile ? IMG_OPT.maxEdge : IMG_OPT.desktopMaxEdge;
+    var probeMaxEdge = Math.max(maxEdge, IMG_OPT.probeMaxEdge || 1536);
+    var originalSize = file && file.size ? file.size : 0;
+    var bitmap = null;
+    var canvas = null;
 
-        // Image デコード
+    var debugItem = mediaDebugV11Start(file);
+    function logStep(step, detail) {
+        console.log('[Media] ' + step + (detail ? ' ' + detail : ''));
+        var normalized = String(step || '').replace(/^STEP\s+/, 'STEP ');
+        mediaDebugV11Log(normalized, detail || '');
+    }
+
+    function makeResult(blob, mimeType, width, height, originalWidth, originalHeight) {
+        return {
+            blob: blob,
+            mimeType: mimeType || file.type || 'image/jpeg',
+            optimizedMimeType: mimeType || file.type || 'image/jpeg',
+            width: width || 0,
+            height: height || 0,
+            originalWidth: originalWidth || 0,
+            originalHeight: originalHeight || 0,
+            originalSize: originalSize,
+            optimizedSize: blob && blob.size ? blob.size : originalSize
+        };
+    }
+
+    logStep('STEP 1 File', (file.name || '(unnamed)') + ' ' + originalSize + ' bytes');
+
+    if (typeof createImageBitmap === 'function') {
+        try {
+            // STEP 2: 原寸probeは禁止。resizeWidthのみを指定し、アスペクト比を維持する。
+            // probeそのものを最終処理に再利用するため、同じFileを二度デコードしない。
+            bitmap = await createImageBitmap(file, {
+                resizeWidth: probeMaxEdge,
+                resizeQuality: 'high'
+            });
+            logStep('STEP 2 Probe', bitmap.width + 'x' + bitmap.height);
+
+            var ow = bitmap.width;
+            var oh = bitmap.height;
+            var probeEdge = Math.max(ow, oh);
+            var scale = Math.min(1, maxEdge / probeEdge);
+            var tw = Math.max(1, Math.round(ow * scale));
+            var th = Math.max(1, Math.round(oh * scale));
+            logStep('STEP 3 Resize', tw + 'x' + th + (isMobile ? ' mobile' : ' desktop'));
+
+            canvas = document.createElement('canvas');
+            canvas.width = tw;
+            canvas.height = th;
+            var ctx = canvas.getContext('2d', { alpha: false });
+            if (!ctx) throw new Error('Canvas context unavailable');
+            ctx.drawImage(bitmap, 0, 0, tw, th);
+
+            logStep('STEP 4 WebP');
+            var webpBlob = await new Promise(function(resolve) {
+                canvas.toBlob(resolve, 'image/webp', IMG_OPT.webpQuality);
+            });
+
+            if (webpBlob) return makeResult(webpBlob, 'image/webp', tw, th, ow, oh);
+
+            // WebP非対応時だけJPEGへフォールバック。
+            var jpegBlob = await new Promise(function(resolve) {
+                canvas.toBlob(resolve, 'image/jpeg', IMG_OPT.jpegQuality);
+            });
+            if (jpegBlob) return makeResult(jpegBlob, 'image/jpeg', tw, th, ow, oh);
+
+            return makeResult(file, file.type || 'image/jpeg', tw, th, ow, oh);
+        } catch (e) {
+            console.warn('[Media] createImageBitmap optimization failed:', e);
+            // ここで原寸createImageBitmapへフォールバックしない。
+            // メモリ保護を優先し、下記のImage fallbackへ移る。
+        } finally {
+            logStep('STEP 5 Release');
+            if (bitmap && typeof bitmap.close === 'function') {
+                try { bitmap.close(); } catch (_) {}
+            }
+            bitmap = null;
+            if (canvas) {
+                try { canvas.width = 1; canvas.height = 1; } catch (_) {}
+            }
+            canvas = null;
+        }
+    }
+
+    // createImageBitmap非対応、または上限付きBitmap生成に失敗した場合の安全なフォールバック。
+    // 元画像をDOMへ表示することはせず、処理終了時にObjectURLを必ず解放する。
+    return await new Promise(function(resolve) {
         var url = URL.createObjectURL(file);
         var img = new Image();
+        var settled = false;
+
+        function finish(result) {
+            if (settled) return;
+            settled = true;
+            try { URL.revokeObjectURL(url); } catch (_) {}
+            img.onload = null;
+            img.onerror = null;
+            img.src = '';
+            resolve(result);
+        }
 
         img.onerror = function() {
-            // デコード失敗 → 元ファイルをそのまま返す
-            URL.revokeObjectURL(url);
-            resolve({ blob: file, mimeType: file.type,
-                      width: 0, height: 0,
-                      originalSize: file.size, optimizedSize: file.size });
+            finish(makeResult(file, file.type || 'image/jpeg', 0, 0, 0, 0));
         };
 
         img.onload = function() {
-            URL.revokeObjectURL(url);
-
             var ow = img.naturalWidth;
             var oh = img.naturalHeight;
-
-            // リサイズ計算（長辺が maxEdge を超える場合のみ縮小）
-            var scale = 1;
-            if (Math.max(ow, oh) > IMG_OPT.maxEdge) {
-                scale = IMG_OPT.maxEdge / Math.max(ow, oh);
+            var scale = Math.min(1, maxEdge / Math.max(ow, oh));
+            var tw = Math.max(1, Math.round(ow * scale));
+            var th = Math.max(1, Math.round(oh * scale));
+            var fallbackCanvas = null;
+            try {
+                logStep('STEP 2 Probe', ow + 'x' + oh + ' fallback');
+                logStep('STEP 3 Resize', tw + 'x' + th + ' fallback');
+                fallbackCanvas = document.createElement('canvas');
+                fallbackCanvas.width = tw;
+                fallbackCanvas.height = th;
+                var ctx = fallbackCanvas.getContext('2d', { alpha: false });
+                if (!ctx) throw new Error('Canvas context unavailable');
+                ctx.drawImage(img, 0, 0, tw, th);
+                logStep('STEP 4 WebP fallback');
+                fallbackCanvas.toBlob(function(blob) {
+                    try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {}
+                    if (blob) { finish(makeResult(blob, 'image/webp', tw, th, ow, oh)); return; }
+                    fallbackCanvas.toBlob(function(jpeg) {
+                        try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {}
+                        finish(jpeg
+                            ? makeResult(jpeg, 'image/jpeg', tw, th, ow, oh)
+                            : makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
+                    }, 'image/jpeg', IMG_OPT.jpegQuality);
+                }, 'image/webp', IMG_OPT.webpQuality);
+            } catch (e) {
+                console.warn('[Media] fallback optimization failed:', e);
+                if (fallbackCanvas) { try { fallbackCanvas.width = 1; fallbackCanvas.height = 1; } catch (_) {} }
+                finish(makeResult(file, file.type || 'image/jpeg', ow, oh, ow, oh));
             }
-            var tw = Math.round(ow * scale);
-            var th = Math.round(oh * scale);
-
-            // Canvas に描画
-            var canvas = document.createElement('canvas');
-            canvas.width  = tw;
-            canvas.height = th;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, tw, th);
-
-            // ① WebP 変換
-            canvas.toBlob(function(webpBlob) {
-
-                // ② JPEG 変換（WebP と比較するために必ず生成）
-                canvas.toBlob(function(jpegBlob) {
-
-                    // 最も小さいものを選択（元ファイル含む3択）
-                    // 「軽量化」が目的なので、大きくなるなら元ファイルを採用する
-                    var candidates = [];
-                    if (webpBlob) candidates.push({ blob: webpBlob, mimeType: 'image/webp', size: webpBlob.size });
-                    if (jpegBlob) candidates.push({ blob: jpegBlob, mimeType: 'image/jpeg', size: jpegBlob.size });
-                    candidates.push({ blob: file, mimeType: file.type, size: file.size });
-
-                    // サイズが最小のものを採用
-                    candidates.sort(function(a, b) { return a.size - b.size; });
-                    var best = candidates[0];
-
-                    resolve({
-                        blob:          best.blob,
-                        mimeType:      best.mimeType,
-                        optimizedMimeType: best.mimeType,   // 明示フィールドとして保持
-                        width:         tw,
-                        height:        th,
-                        originalWidth:  ow,
-                        originalHeight: oh,
-                        originalSize:  file.size,
-                        optimizedSize: best.size
-                    });
-
-                }, 'image/jpeg', IMG_OPT.jpegQuality);
-            }, 'image/webp', IMG_OPT.webpQuality);
         };
 
+        img.decoding = 'async';
         img.src = url;
     });
 }
 
 function mediaSaveImageFile(cardId, item, file) {
-    if (!file) return;
+    if (!file || !item) return;
 
-    // 即時プレビュー（最適化前の元ファイルで表示 → UX に影響なし）
     var img = item.querySelector('.card-media-layer img');
-    if (img) img.src = URL.createObjectURL(file);
-    item.classList.add('has-media');
+    var saveToken = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    item.dataset.mediaSaveToken = saveToken;
+
+    // 原寸Fileをimgへセットしない。最適化完了までは処理中表示のみ。
+    item.classList.add('has-media', 'media-processing');
     showToast(t('toast_img_added'));
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
 
-    // 最適化 → IndexedDB 保存（バックグラウンドで処理。表示フローをブロックしない）
-    optimizeImageToWebP(file).then(function(result) {
+    function revokeImgObjectUrl(targetImg) {
+        if (!targetImg) return;
+        var oldUrl = targetImg.dataset.mediaObjectUrl;
+        if (oldUrl) {
+            try { URL.revokeObjectURL(oldUrl); } catch (_) {}
+            delete targetImg.dataset.mediaObjectUrl;
+        }
+    }
 
-        // プレビューを最適化後 Blob に差し替え（変わったか見た目では分からない）
-        if (img) img.src = URL.createObjectURL(result.blob);
+    optimizeImageToWebP(file).then(function(result) {
+        // 同じカードで後から始まった差し替えがあれば、この処理結果は捨てる。
+        if (item.dataset.mediaSaveToken !== saveToken) return;
 
         var record = {
             cardId:           cardId,
@@ -5375,10 +5713,9 @@ function mediaSaveImageFile(cardId, item, file) {
             mimeType:         result.mimeType,
             optimizedMimeType: result.optimizedMimeType || result.mimeType,
             size:             result.optimizedSize,
-            // 元画像情報（メタとして保持）
-            originalFilename: file.name        || '',
-            originalMimeType: file.type        || '',
-            originalWidth:    result.originalWidth  || 0,
+            originalFilename: file.name || '',
+            originalMimeType: file.type || '',
+            originalWidth:    result.originalWidth || 0,
             originalHeight:   result.originalHeight || 0,
             originalSize:     result.originalSize,
             optimizedWidth:   result.width,
@@ -5389,35 +5726,67 @@ function mediaSaveImageFile(cardId, item, file) {
             mediaUrl:         null
         };
 
-        // 保存 → SHA-256 ハッシュを非同期で算出して更新
-        mediaDB.save(record).then(function() {
-            if (!crypto || !crypto.subtle) return;
-            result.blob.arrayBuffer().then(function(buf) {
-                return crypto.subtle.digest('SHA-256', buf);
-            }).then(function(hashBuf) {
-                var hex = Array.from(new Uint8Array(hashBuf))
-                    .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
-                record.hash = hex;
-                mediaDB.save(record);
-            }).catch(function() { /* hash算出失敗は無視 */ });
+        return mediaDB.save(record).then(function() {
+            console.log('[Media] STEP 6 DB Save', result.width + 'x' + result.height + ' ' + result.optimizedSize + ' bytes');
+            mediaDebugV11Log('STEP 6', result.width + 'x' + result.height + ' ' + mediaDebugV11FormatBytes(result.optimizedSize));
+            if (item.dataset.mediaSaveToken !== saveToken) return;
+
+            // 登録完了後に初めて最適化済みBlobのObjectURLを生成する。
+            if (img) {
+                revokeImgObjectUrl(img);
+                var optimizedUrl = URL.createObjectURL(result.blob);
+                img.src = optimizedUrl;
+                img.dataset.mediaObjectUrl = optimizedUrl;
+            }
+            item.classList.remove('media-processing');
+            console.log('[Media] STEP 7 Display');
+            mediaDebugV11Log('STEP 7', 'display');
+            mediaDebugV11Finish();
+
+            // SHA-256は登録完了後の非クリティカル処理。
+            if (typeof crypto === 'undefined' || !crypto.subtle) return;
+            setTimeout(function() {
+                if (item.dataset.mediaSaveToken !== saveToken) return;
+                result.blob.arrayBuffer().then(function(buf) {
+                    return crypto.subtle.digest('SHA-256', buf);
+                }).then(function(hashBuf) {
+                    var hex = Array.from(new Uint8Array(hashBuf))
+                        .map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+                    record.hash = hex;
+                    return mediaDB.save(record);
+                }).catch(function(err) {
+                    console.warn('[Media] SHA-256 post-save failed:', err);
+                });
+            }, 0);
         });
+    }).catch(function(err) {
+        if (item.dataset.mediaSaveToken !== saveToken) return;
+        console.error('[Media] image save failed:', err);
+        mediaDebugV11Log('ERROR', err && err.message ? err.message : String(err));
+        mediaDebugV11Finish();
+        item.classList.remove('has-media', 'media-processing');
+        if (img) {
+            revokeImgObjectUrl(img);
+            img.removeAttribute('src');
+        }
+        if (typeof showToast === 'function') {
+            showToast('⚠️ 画像を保存できませんでした。画像サイズを小さくして再度お試しください。');
+        }
     });
 }
 
-// ── 画像入力ソース選択（スマホ：カメラ / 写真から選択） ──
-var mediaPickerTarget = null; // { cardId, item }
-
-// 画面幅ではなく「実際のモバイル端末」かどうかを判定。
-// これにより、PCブラウザをスマホ幅に縮めてスマホUIを検証しても、
-// カメラ専用の入力導線には入らず、通常のファイル選択を利用できる。
+// ── 画像入力ソース選択 ────────────────────────────────────────
+// 画面幅ではなく「実際のモバイル端末」かどうかを判定する。
+// PC Chromeをスマホ幅にしてテストしても、通常のファイル選択を使える。
 function mediaIsMobileDevice() {
     var ua = navigator.userAgent || '';
     var uaDataMobile = !!(navigator.userAgentData && navigator.userAgentData.mobile);
     var mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(ua);
-    // iPadOSのデスクトップ風UAにも対応
     var iPadLike = navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
     return uaDataMobile || mobileUA || iPadLike;
 }
+
+var mediaPickerTarget = null; // { cardId, item }
 
 function mediaEnsureSourceSheet() {
     var sheet = document.getElementById('media-source-sheet');
@@ -5428,9 +5797,9 @@ function mediaEnsureSourceSheet() {
     sheet.innerHTML =
         '<div class="media-source-panel" role="dialog" aria-label="画像を追加">' +
             '<div class="media-source-title">画像を追加</div>' +
-            '<button type="button" class="media-source-option" id="media-source-camera">' +
+            '<button type="button" class="media-source-option" id="media-source-camera" >' +
                 '<span class="media-source-icon">📷</span>' +
-                '<span class="media-source-copy"><span>カメラで撮影</span><span class="media-source-sub">その場で撮影してカードに追加</span></span>' +
+                '<span class="media-source-copy"><span>Qcardカメラ</span><span class="media-source-sub">Qcard画面内で直接撮影してカードに追加</span></span>' +
             '</button>' +
             '<button type="button" class="media-source-option" id="media-source-gallery">' +
                 '<span class="media-source-icon">🖼</span>' +
@@ -5446,9 +5815,10 @@ function mediaEnsureSourceSheet() {
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
 
     document.getElementById('media-source-camera').addEventListener('click', function(e) {
+        e.preventDefault();
         e.stopPropagation();
         closeSheet();
-        mediaOpenNativePicker(true);
+        qcardCameraV16Open(mediaPickerTarget);
     });
     document.getElementById('media-source-gallery').addEventListener('click', function(e) {
         e.stopPropagation();
@@ -5458,65 +5828,364 @@ function mediaEnsureSourceSheet() {
     return sheet;
 }
 
+// ===== CAMERA / FILE PICKER BOUNDARY DIAGNOSTICS (v12) =====
+// v11で「2枚目のカメラ撮影時はSTARTログすら出ない」ケースを切り分けるため、
+// ネイティブカメラ／ファイルピッカーの起動前後とFile受信までを記録する。
+// 画像処理ロジックそのものは変更しない。
+var MEDIA_PICKER_DEBUG_V12 = {
+    seq: 0,
+    active: null,
+    events: [],
+    maxEvents: 80,
+    lastVisibility: document.visibilityState || 'unknown'
+};
+
+function mediaPickerDebugV12Now() {
+    try { return Math.round(performance.now()); } catch (_) { return 0; }
+}
+
+function mediaPickerDebugV12Persist() {
+    try {
+        sessionStorage.setItem('qcard_media_picker_debug_v12', JSON.stringify(MEDIA_PICKER_DEBUG_V12.events));
+    } catch (_) {}
+}
+
+function mediaPickerDebugV12Restore() {
+    try {
+        var raw = sessionStorage.getItem('qcard_media_picker_debug_v12');
+        if (raw) MEDIA_PICKER_DEBUG_V12.events = JSON.parse(raw) || [];
+    } catch (_) {}
+}
+
+function mediaPickerDebugV12Event(type, detail) {
+    if (!MEDIA_DEBUG_V11.enabled) return;
+    var ev = {
+        id: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.id : null,
+        mode: MEDIA_PICKER_DEBUG_V12.active ? MEDIA_PICKER_DEBUG_V12.active.mode : null,
+        type: type,
+        detail: detail || '',
+        at: new Date().toISOString(),
+        perf: mediaPickerDebugV12Now()
+    };
+    MEDIA_PICKER_DEBUG_V12.events.push(ev);
+    if (MEDIA_PICKER_DEBUG_V12.events.length > MEDIA_PICKER_DEBUG_V12.maxEvents) {
+        MEDIA_PICKER_DEBUG_V12.events.shift();
+    }
+    mediaDebugV11Show();
+    mediaPickerDebugV12Persist();
+    mediaDebugV12Render();
+    console.log('[Media v12]', type, detail || '');
+}
+
+function mediaDebugV12Render() {
+    if (!MEDIA_DEBUG_V11.body) return;
+    // 画像処理ログ(v11形式)の下に、カメラ境界イベントを追加表示する。
+    var base = MEDIA_DEBUG_V11.body.textContent || '';
+    var lines = base ? [base, '', '--- PICKER / CAMERA BOUNDARY v12 ---'] : ['--- PICKER / CAMERA BOUNDARY v12 ---'];
+    MEDIA_PICKER_DEBUG_V12.events.slice(-40).forEach(function(ev) {
+        var prefix = ev.id ? '[' + ev.id + '] ' : '';
+        var mode = ev.mode ? ev.mode + ' ' : '';
+        lines.push(prefix + mode + ev.type + (ev.detail ? ' | ' + ev.detail : ''));
+    });
+    MEDIA_DEBUG_V11.body.textContent = lines.join('\n');
+    MEDIA_DEBUG_V11.body.scrollTop = MEDIA_DEBUG_V11.body.scrollHeight;
+}
+
+function mediaPickerDebugV12Start(useCamera) {
+    var id = ++MEDIA_PICKER_DEBUG_V12.seq;
+    MEDIA_PICKER_DEBUG_V12.active = {
+        id: id,
+        mode: useCamera ? 'CAMERA' : 'GALLERY',
+        startedAt: mediaPickerDebugV12Now()
+    };
+    mediaDebugV11Show();
+    mediaPickerDebugV12Event('PICKER START', useCamera ? 'camera' : 'gallery');
+    return MEDIA_PICKER_DEBUG_V12.active;
+}
+
+function mediaPickerDebugV12End() {
+    MEDIA_PICKER_DEBUG_V12.active = null;
+    mediaPickerDebugV12Persist();
+}
+
+// ネイティブピッカーから戻ったことを、visibility/focus/pageshowの変化として観測する。
+// ページ全体のイベント監視ではなく、activeなピッカーがある間だけ記録する。
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', function() {
+        var state = document.visibilityState || 'unknown';
+        if (MEDIA_PICKER_DEBUG_V12.active) {
+            mediaPickerDebugV12Event('VISIBILITY', state);
+        }
+        MEDIA_PICKER_DEBUG_V12.lastVisibility = state;
+    });
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('focus', function() {
+        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('FOCUS', 'window');
+    });
+    window.addEventListener('pageshow', function() {
+        if (MEDIA_PICKER_DEBUG_V12.active) mediaPickerDebugV12Event('PAGESHOW', 'window');
+    });
+}
+
+mediaPickerDebugV12Restore();
+
+// ===== Qcard Camera v18: direct camera =====
+var QCARD_CAMERA_V16 = {
+    stream: null,
+    facingMode: 'environment',
+    target: null,
+    busy: false
+};
+
+function qcardCameraV16Diag(msg) {
+    var status = document.getElementById('qcard-camera-status');
+    if (status) status.textContent = msg;
+    if (MEDIA_DEBUG_V11.enabled) {
+        try { console.log('[QcardCamera] ' + msg); } catch (_) {}
+        try { mediaPickerDebugV12Event('QCAMERA ' + msg); } catch (_) {}
+    }
+}
+
+function qcardCameraV16Stop() {
+    var v = document.getElementById('qcard-camera-video');
+    var st = QCARD_CAMERA_V16.stream;
+    if (st) {
+        try { st.getTracks().forEach(function(t){ t.stop(); }); } catch (_) {}
+    }
+    QCARD_CAMERA_V16.stream = null;
+    if (v) { try { v.pause(); } catch (_) {} try { v.srcObject = null; } catch (_) {} }
+    QCARD_CAMERA_V16.busy = false;
+}
+
+function qcardCameraV16SetDebugPanelHidden(hidden) {
+    // 診断パネルは z-index:2147483647 のため、カメラ画面上に重なって
+    // 撮影ボタンを覆ってしまう。カメラ使用中だけ一時的に非表示にし、
+    // カメラを閉じたら元の表示状態へ戻す。
+    try {
+        var panel = document.getElementById('qcardMediaDebugV11');
+        if (!panel) return;
+        if (hidden) {
+            panel.dataset.qcardCameraHidden = panel.style.display || '';
+            panel.style.display = 'none';
+        } else if (panel.dataset.qcardCameraHidden !== undefined) {
+            panel.style.display = panel.dataset.qcardCameraHidden || 'block';
+            delete panel.dataset.qcardCameraHidden;
+        }
+    } catch (_) {}
+}
+
+function qcardCameraV16Close() {
+    qcardCameraV16Stop();
+    qcardCameraV16SetDebugPanelHidden(false);
+    var modal = document.getElementById('qcard-camera-modal');
+    if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+    qcardCameraV16Diag('閉じました');
+}
+
+async function qcardCameraV16Open(target) {
+    var modal = document.getElementById('qcard-camera-modal');
+    var video = document.getElementById('qcard-camera-video');
+    var t = target || window.mediaPickerTarget || null;
+    if (typeof showToast === 'function') showToast('📷 Qcardカメラを起動します…');
+    qcardCameraV16Diag('起動処理開始');
+
+    if (!t || !t.item) {
+        qcardCameraV16Diag('ERROR: 対象カードを取得できませんでした');
+        return;
+    }
+    if (!modal || !video) {
+        qcardCameraV16Diag('ERROR: カメラ画面DOMがありません');
+        return;
+    }
+    QCARD_CAMERA_V16.target = t;
+    qcardCameraV16SetDebugPanelHidden(true);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden','false');
+    qcardCameraV16Diag('カメラ画面を表示しました');
+
+    if (!window.isSecureContext) {
+        qcardCameraV16Diag('ERROR: HTTPSではありません（isSecureContext=false）');
+        return;
+    }
+    if (!navigator.mediaDevices) {
+        qcardCameraV16Diag('ERROR: navigator.mediaDevices がありません');
+        return;
+    }
+    if (!navigator.mediaDevices.getUserMedia) {
+        qcardCameraV16Diag('ERROR: getUserMedia が利用できません');
+        return;
+    }
+
+    qcardCameraV16Diag('カメラ許可を確認しています…');
+    try {
+        qcardCameraV16Stop();
+        var constraints = {
+            audio: false,
+            video: { facingMode: { ideal: QCARD_CAMERA_V16.facingMode } }
+        };
+        qcardCameraV16Diag('getUserMedia を呼び出します');
+        var stream = await navigator.mediaDevices.getUserMedia(constraints);
+        QCARD_CAMERA_V16.stream = stream;
+        video.srcObject = stream;
+        video.setAttribute('playsinline','');
+        video.muted = true;
+        await video.play();
+        qcardCameraV16Diag('カメラ準備完了 ' + (video.videoWidth || '?') + '×' + (video.videoHeight || '?'));
+    } catch (err) {
+        var name = err && err.name ? err.name : 'Error';
+        var msg = err && err.message ? err.message : String(err);
+        qcardCameraV16Diag('ERROR: ' + name + ' / ' + msg);
+        if (typeof showToast === 'function') showToast('⚠️ カメラ起動失敗: ' + name);
+    }
+}
+
+async function qcardCameraV16Switch() {
+    QCARD_CAMERA_V16.facingMode = QCARD_CAMERA_V16.facingMode === 'environment' ? 'user' : 'environment';
+    await qcardCameraV16Open(QCARD_CAMERA_V16.target);
+}
+
+async function qcardCameraV16Capture() {
+    var st = QCARD_CAMERA_V16, v = document.getElementById('qcard-camera-video'), c = document.getElementById('qcard-camera-canvas');
+    if (!st.stream || !st.target || !v || !c || st.busy || !v.videoWidth) return;
+    st.busy = true;
+    try {
+        qcardCameraV16Diag('撮影しています…');
+        var maxEdge=1024, sw=v.videoWidth, sh=v.videoHeight, scale=Math.min(1,maxEdge/Math.max(sw,sh));
+        c.width=Math.max(1,Math.round(sw*scale)); c.height=Math.max(1,Math.round(sh*scale));
+        var ctx=c.getContext('2d',{alpha:false});
+        ctx.drawImage(v,0,0,c.width,c.height);
+        var blob=await new Promise(function(resolve,reject){c.toBlob(function(b){b?resolve(b):reject(new Error('WebP生成失敗'));},'image/webp',0.80);});
+        var file=new File([blob],'qcard-camera-'+Date.now()+'.webp',{type:'image/webp',lastModified:Date.now()});
+        var target=st.target;
+        qcardCameraV16Diag('撮影画像作成完了 ' + Math.round(file.size/1024) + 'KB');
+        qcardCameraV16Stop();
+        qcardCameraV16SetDebugPanelHidden(false);
+        var modal=document.getElementById('qcard-camera-modal');
+        if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
+        mediaSaveImageFile(target.cardId,target.item,file);
+    } catch(err) {
+        qcardCameraV16Diag('ERROR: 撮影失敗 / ' + (err.message||err));
+        if(typeof showToast==='function') showToast('⚠️ 撮影画像を作成できませんでした');
+    } finally { try{c.width=1;c.height=1;}catch(_){} st.busy=false; }
+}
+
+(function qcardCameraV16Bind(){
+    function bind(){
+        var close=document.getElementById('qcard-camera-close'), shoot=document.getElementById('qcard-camera-shoot'), sw=document.getElementById('qcard-camera-switch');
+        if(close) close.onclick=qcardCameraV16Close;
+        if(shoot) shoot.onclick=qcardCameraV16Capture;
+        if(sw) sw.onclick=qcardCameraV16Switch;
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind); else bind();
+})();
+
+function qcardCameraV15Open(target) { return qcardCameraV16Open(target); }
+
 function mediaOpenNativePicker(useCamera) {
     var target = mediaPickerTarget;
     if (!target || !target.item) return;
 
-    // [v6] デスクトップChromeの狭いウィンドウ／DevToolsエミュレーションでも
-    // ファイル選択が確実に開くよう、inputをDOMへ接続した状態で
-    // showPicker() → click() の順にフォールバックする。
+    var debugSession = mediaPickerDebugV12Start(!!useCamera);
     var input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     if (useCamera) input.setAttribute('capture', 'environment');
     input.style.position = 'fixed';
     input.style.left = '-9999px';
+    input.style.top = '0';
     input.style.width = '1px';
     input.style.height = '1px';
     input.style.opacity = '0';
     document.body.appendChild(input);
 
+    mediaPickerDebugV12Event('INPUT CREATED',
+        'accept=' + input.accept + (useCamera ? ' capture=environment' : ''));
+
     var cleaned = false;
-    function cleanup() {
+    var settled = false;
+    var returnLogged = false;
+    function cleanup(reason) {
         if (cleaned) return;
         cleaned = true;
-        mediaPickerTarget = null;
+        mediaPickerDebugV12Event('CLEANUP', reason || 'unknown');
         if (input.parentNode) input.parentNode.removeChild(input);
+        if (mediaPickerTarget === target) mediaPickerTarget = null;
+        if (MEDIA_PICKER_DEBUG_V12.active === debugSession) mediaPickerDebugV12End();
+    }
+
+    function logReturn(source) {
+        if (returnLogged) return;
+        returnLogged = true;
+        mediaPickerDebugV12Event('PICKER RETURN', source || 'unknown');
     }
 
     input.addEventListener('change', function() {
-        if (input.files && input.files[0]) {
-            mediaSaveImageFile(target.cardId, target.item, input.files[0]);
+        logReturn('change');
+        var fileCount = input.files ? input.files.length : 0;
+        mediaPickerDebugV12Event('FILE CHANGE', 'count=' + fileCount);
+        var file = input.files && input.files[0];
+        if (file) {
+            settled = true;
+            mediaPickerDebugV12Event('FILE RECEIVED',
+                (file.name || '(unnamed)') + ' ' + mediaDebugV11FormatBytes(file.size) + ' ' + (file.type || '(no type)'));
+            mediaPickerDebugV12Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
+            mediaSaveImageFile(target.cardId, target.item, file);
+            cleanup('change handled');
+        } else {
+            settled = true;
+            mediaPickerDebugV12Event('FILE EMPTY', 'change event without file');
+            cleanup('empty change');
         }
-        cleanup();
     });
-
-    input.addEventListener('cancel', cleanup);
+    input.addEventListener('cancel', function() {
+        logReturn('cancel');
+        mediaPickerDebugV12Event('CANCEL', 'native picker cancel');
+        settled = true;
+        cleanup('cancel');
+    });
 
     var opened = false;
     try {
         if (typeof input.showPicker === 'function') {
+            mediaPickerDebugV12Event('SHOWPICKER CALL', 'before');
             input.showPicker();
             opened = true;
+            mediaPickerDebugV12Event('SHOWPICKER RETURN', 'success');
         }
     } catch (err) {
-        // showPicker が利用できない／許可されない場合は click() へ
+        mediaPickerDebugV12Event('SHOWPICKER ERROR', err && err.message ? err.message : String(err));
+        console.warn('[Media] showPicker fallback:', err);
     }
     if (!opened) {
-        try { input.click(); } catch (err2) { cleanup(); }
+        try {
+            mediaPickerDebugV12Event('CLICK CALL', 'before');
+            input.click();
+            opened = true;
+            mediaPickerDebugV12Event('CLICK RETURN', 'success');
+        }
+        catch (err2) {
+            mediaPickerDebugV12Event('CLICK ERROR', err2 && err2.message ? err2.message : String(err2));
+            console.error('[Media] file picker failed:', err2);
+            cleanup('open failed');
+        }
     }
 
-    // キャンセルイベントを実装しないブラウザ向けの保険。
-    setTimeout(function(){
+    if (opened) mediaPickerDebugV12Event('PICKER OPENED', useCamera ? 'camera requested' : 'gallery requested');
+
+    // cancelイベントを発火しないブラウザ向けの保険。
+    // 60秒後にまだFileが来ていなければ、待機中であることを明示する。
+    setTimeout(function() {
+        if (cleaned) return;
         if (!input.files || !input.files.length) {
-            // ここではすぐ削除せず、OSダイアログが長く開いているケースを考慮。
-            setTimeout(cleanup, 1000);
+            mediaPickerDebugV12Event('PICKER WAITING', 'no file after 60s');
+            setTimeout(function() {
+                if (!cleaned && !settled) cleanup('timeout');
+            }, 1000);
         }
     }, 60000);
 }
 
-// ファイル選択ダイアログを開いて画像登録
-// 実機スマホ：カメラ / 写真の2択。PC（画面をスマホ幅にしていても）：通常のファイル選択。
 function mediaOpenFilePicker(cardId, item) {
     mediaPickerTarget = { cardId: cardId, item: item };
     if (mediaIsMobileDevice()) {
@@ -5551,8 +6220,12 @@ function mediaLoadForCard(cardId, item, imgEl) {
     mediaDB.get(cardId).then(function(record) {
         if (record && record.blob) {
             // ローカルIndexedDBに画像あり → 通常パス
+            if (imgEl.dataset.mediaObjectUrl) {
+                try { URL.revokeObjectURL(imgEl.dataset.mediaObjectUrl); } catch (_) {}
+            }
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
+            imgEl.dataset.mediaObjectUrl = url;
             item.classList.add('has-media');
         } else if (item.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
@@ -5578,7 +6251,10 @@ function mediaRemoveCard(cardId, item) {
     mediaDB.remove(cardId).then(function() {
         item.classList.remove('has-media');
         var img = item.querySelector('.card-media-layer img');
-        if (img) img.src = '';
+        if (img) {
+            if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
+            img.src = '';
+        }
         showToast(t('toast_img_removed'));
         // [NEW] このカードがオーバーレイで表示中なら、オーバーレイ側の画像も即時非表示
         if (typeof editCardItem !== 'undefined' && editCardItem === item) {
@@ -9359,7 +10035,10 @@ function overlayShowMediaForCard(cardItem) {
     mediaDB.get(mediaId).then(function(record) {
         if (record && record.blob) {
             // ローカルIndexedDBに画像あり → 通常パス
-            img.src = URL.createObjectURL(record.blob);
+            if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
+            var overlayUrl = URL.createObjectURL(record.blob);
+            img.src = overlayUrl;
+            img.dataset.mediaObjectUrl = overlayUrl;
             layer.classList.add('show');
         } else if (cardItem && cardItem.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
