@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.7.0    swipe-number                         ║
+  ║  Qcard PRO  v3.8.0   title                                              ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -660,7 +660,19 @@
             position: relative;
         }
         #overlay-media-layer.show { display: block; }
-        #overlay-media-layer img {
+        /* [NEW] 極端な縦横比の画像でも枠に空白ができないよう、背後に同じ画像を
+           ぼかして拡大表示した背景を敷く（前面は欠けずに全体表示のまま）。 */
+        #overlay-media-bg {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            filter: blur(28px) brightness(0.65) saturate(1.15);
+            transform: scale(1.15); /* ぼかしの縁が枠内に見切れないよう少し拡大 */
+            z-index: 0;
+        }
+        #overlay-media-layer img#overlay-media-img {
+            position: relative;
+            z-index: 1;
             width: 100%;
             max-height: 100%;
             object-fit: contain;
@@ -1121,6 +1133,9 @@
             border-bottom: 1px solid var(--border);
             font-family: 'Noto Sans JP', sans-serif;
             border-radius: 6px; transition: background 0.12s;
+            /* [FIX] 右上のボタン列（×/⇔/✏️/🔗）と長いタイトルが重なって読めなくなる問題への対応。
+               ボタン列の合計幅ぶんを右側に確保し、その手前で折り返させる。 */
+            padding-right: 156px;
         }
         #overlay-text {
             font-weight: 500; color: var(--text); line-height: 1.7;
@@ -3298,6 +3313,42 @@ min-height: 0;
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
 
+        /* [FIX] 1列表示は行の高さが44px前後しかなく、画像追加バー（高さ40px・2ボタン）が
+           ほぼ行全体を覆ってしまい、「カードを編集」と「画像を追加」の区別がつかず
+           誤って編集画面に入ってしまう不具合があった。行タップでの編集は既に別経路で
+           機能しているため、ここでは「画像を追加」専用の小さいアイコンボタンだけを
+           行の右端に独立して配置する。 */
+        body.mob-grid1 .card-media-add-btn,
+        body.mob-grid2 .card-media-add-btn {
+            position: static !important;
+            width: 32px !important; height: 32px !important;
+            flex-shrink: 0;
+            margin-left: auto;
+            background: var(--surface2) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border-radius: 8px !important;
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-edit-hint,
+        body.mob-grid2 .card-media-add-btn .cmab-edit-hint {
+            display: none !important; /* 行タップで編集できるため、ここでは不要 */
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-img-btn,
+        body.mob-grid2 .card-media-add-btn .cmab-img-btn {
+            border-left: none !important;
+            padding: 0 !important;
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-img-btn .label,
+        body.mob-grid2 .card-media-add-btn .cmab-img-btn .label {
+            display: none; /* アイコンのみにして省スペース化 */
+        }
+        body.mob-grid2 .card-media-add-btn {
+            margin-top: auto; /* 縦積みレイアウトの中でも右下に寄せる */
+            align-self: flex-end !important;
+        }
+
 /* ── グリッド2列 ── */
         body.mob-grid2 .grid-container {
             display: grid !important;
@@ -4036,7 +4087,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.7.0</span>
+    <span class="version-badge">v3.8.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4597,6 +4648,7 @@ min-height: 0;
     </div>
     <!-- オーバーレイ内の画像表示 -->
     <div id="overlay-media-layer">
+        <img id="overlay-media-bg" src="" alt="" aria-hidden="true">
         <img id="overlay-media-img" src="" alt="">
         <div id="overlay-media-controls">
             <button id="overlay-media-replace-btn" onclick="overlayMediaReplace()" data-i18n="btn_media_replace" data-i18n-title="btn_media_replace" title="画像を差し替え">🔄 差し替え</button>
@@ -10123,16 +10175,25 @@ function overlayHandleAudioUpload(e) {
 }
 
 // [NEW] カードに紐づく画像をオーバーレイ内に表示する
+// [FIX] 縦長・横長など極端な比率の画像で枠の左右／上下に大きな空白ができる問題への対応。
+// 手前に「全体が見える(contain)」画像、背後に同じ画像を「ぼかして拡大(cover)」した
+// 背景を敷くことで、画像を欠けさせずに枠を綺麗に埋める（Spotify/Apple Music等でも
+// 使われている一般的な手法）。
 function overlayShowMediaForCard(cardItem) {
     var layer = document.getElementById('overlay-media-layer');
     var img   = document.getElementById('overlay-media-img');
+    var bgImg = document.getElementById('overlay-media-bg');
     if (!layer || !img) return;
+    function setSrc(url) {
+        img.src = url;
+        if (bgImg) bgImg.src = url;
+    }
     var mediaId = cardItem ? cardItem.dataset.mediaId : null;
     if (!mediaId) {
         // mediaIdなしでも mediaUrl（受信シナリオ）があれば表示
         var remoteUrl = cardItem ? cardItem.dataset.mediaUrl : null;
-        if (remoteUrl) { img.src = remoteUrl; layer.classList.add('show'); }
-        else           { layer.classList.remove('show'); img.src = ''; }
+        if (remoteUrl) { setSrc(remoteUrl); layer.classList.add('show'); }
+        else           { layer.classList.remove('show'); setSrc(''); }
         return;
     }
     mediaDB.get(mediaId).then(function(record) {
@@ -10140,16 +10201,16 @@ function overlayShowMediaForCard(cardItem) {
             // ローカルIndexedDBに画像あり → 通常パス
             if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
             var overlayUrl = URL.createObjectURL(record.blob);
-            img.src = overlayUrl;
+            setSrc(overlayUrl);
             img.dataset.mediaObjectUrl = overlayUrl;
             layer.classList.add('show');
         } else if (cardItem && cardItem.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            img.src = cardItem.dataset.mediaUrl;
+            setSrc(cardItem.dataset.mediaUrl);
             layer.classList.add('show');
         } else {
             layer.classList.remove('show');
-            img.src = '';
+            setSrc('');
         }
     });
 }
