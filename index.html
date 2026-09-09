@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.8.1       +UI                                        ║
+  ║  Qcard PRO  v3.9.0                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1479,24 +1479,34 @@
         #overlay.edit-mode #overlay-edit-row { display: flex; }
         #overlay.edit-mode #speech-bar   { display: none; }
 
-        #overlay-title-edit {
-            display: block; width: 100%;
-            border: 1px solid var(--border); border-radius: 6px;
-            background: var(--surface2); color: var(--accent);
-            font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em;
-            padding: 6px 10px; outline: none; box-sizing: border-box;
-            font-family: 'Noto Sans JP', sans-serif;
+        /* [FIX] タイトル編集は別ウィンドウを開かず、表示中のタイトル自体を
+           直接編集(contenteditable)できるようにした。以前の専用input行は廃止。 */
+        #overlay-title[contenteditable="true"] {
+            outline: none;
+            cursor: text;
+            background: rgba(61,139,255,0.06);
+            padding-right: 28px; /* 右上の×ボタン分の余白 */
         }
-        #overlay-title-edit:focus { border-color: var(--accent); }
-        #overlay.edit-mode #overlay-title           { display: none; }
-        #overlay.edit-mode #overlay-title-edit-row  { display: flex; }
+        #overlay-title-clear-inline {
+            display: none;
+            position: absolute; top: 0; right: 0;
+            width: 22px; height: 22px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            cursor: pointer;
+            align-items: center; justify-content: center;
+        }
+        #overlay-title-clear-inline:hover { background: rgba(242,82,106,0.15); border-color: var(--danger); color: var(--danger); }
+        #overlay.edit-mode #overlay-title-clear-inline { display: flex; }
 
         .overlay-field-row {
             display: none; position: relative; align-items: stretch;
             gap: 6px; margin-bottom: 8px;
         }
         .overlay-field-row-grow { flex: 1; margin-bottom: 8px; }
-        .overlay-field-row #overlay-title-edit,
         .overlay-field-row #overlay-edit { margin-bottom: 0; }
         .overlay-field-clear {
             flex-shrink: 0; border: 1px solid var(--border);
@@ -3326,12 +3336,16 @@ min-height: 0;
            上下の余白が窮屈になったりして見た目が良くなかった。代わりに、画像削除の
            ✕ボタンと全く同じ位置・サイズの丸いバッジにし、画像の有無で
            ＋ ⇄ ✕ が同じ場所で入れ替わるだけのシンプルな見た目にする。 */
+        /* [FIX v3] 既存のモバイル用スタイル（min-height:40px!important 等）に
+           高さだけ負けて楕円になっていた。競合する全プロパティを明示的に上書きする。 */
         body.mob-grid1 .card-media-add-btn,
         body.mob-grid2 .card-media-add-btn {
             position: absolute !important;
             top: 6px !important; right: 6px !important;
             left: auto !important; bottom: auto !important;
             width: 24px !important; height: 24px !important;
+            min-width: 24px !important; min-height: 24px !important;
+            max-width: 24px !important; max-height: 24px !important;
             margin: 0 !important;
             background: rgba(8,12,20,0.75) !important;
             border: 1px solid rgba(255,255,255,0.25) !important;
@@ -3348,19 +3362,21 @@ min-height: 0;
         }
         body.mob-grid1 .card-media-add-btn .cmab-img-btn,
         body.mob-grid2 .card-media-add-btn .cmab-img-btn {
-            width: 100%; height: 100%;
+            width: 100% !important; height: 100% !important;
+            min-width: 0 !important; min-height: 0 !important;
+            max-width: none !important; max-height: none !important;
             padding: 0 !important;
             border-left: none !important;
-            border-radius: 50%;
+            border-radius: 50% !important;
         }
         body.mob-grid1 .card-media-add-btn .cmab-img-btn .label,
         body.mob-grid2 .card-media-add-btn .cmab-img-btn .label {
-            display: none; /* ✕ボタンと同じくアイコンのみにする */
+            display: none !important; /* ✕ボタンと同じくアイコンのみにする */
         }
         body.mob-grid1 .card-media-add-btn .icon,
         body.mob-grid2 .card-media-add-btn .icon {
-            font-size: 0.9rem;
-            color: #fff;
+            font-size: 0.9rem !important;
+            color: #fff !important;
         }
 
 /* ── グリッド2列 ── */
@@ -4101,7 +4117,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.8.1</span>
+    <span class="version-badge">v3.9.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4669,10 +4685,9 @@ min-height: 0;
             <button id="overlay-media-remove-btn"  onclick="overlayMediaRemove()"  data-i18n="btn_media_remove"  data-i18n-title="btn_media_remove"  title="画像を削除">🗑 削除</button>
         </div>
     </div>
-    <div id="overlay-title"></div>
-    <div id="overlay-title-edit-row" class="overlay-field-row">
-        <input type="text" id="overlay-title-edit" data-i18n-ph="overlay_title_ph" placeholder="タイトルを編集...">
-        <button class="overlay-field-clear" id="overlay-title-clear" onclick="overlayClearField('title')" title="タイトルを削除">×</button>
+    <div id="overlay-title-wrap" style="position:relative;">
+        <div id="overlay-title"></div>
+        <button type="button" id="overlay-title-clear-inline" class="title-clear-inline" onclick="overlayClearField('title')" title="タイトルを削除">×</button>
     </div>
     <div id="overlay-text"></div>
     <div id="overlay-edit-row" class="overlay-field-row overlay-field-row-grow">
@@ -12811,12 +12826,10 @@ function overlayClearField(field) {
     if (!editCardItem) return;
     if (field === 'title') {
         var t = editCardItem.querySelector('.title-input');
-        var titleEditEl = document.getElementById('overlay-title-edit');
         if (t) t.value = '';
-        titleEditEl.value = '';
         overlayTitle.innerText = '';
-        overlayTitle.style.display = 'none';
-        titleEditEl.focus();
+        if (isEditMode) { overlayTitle.focus(); }
+        else { overlayTitle.style.display = 'none'; }
     } else {
         // [NEW] 本文はタイトルより長文になりやすく消去の代償が大きいため、
         // ボタンを小さくした物理的な対策に加えて軽い確認を挟む（空欄なら確認不要）
@@ -12836,16 +12849,24 @@ function enterEditMode() {
     if (!editCardItem) return;
     overlayFindClose();
     isEditMode = true;
-    var titleEditEl   = document.getElementById('overlay-title-edit');
     var contentEditEl = document.getElementById('overlay-edit');
     var btn           = document.getElementById('edit-mode-btn');
-    var tInput = editCardItem.querySelector('.title-input');
-    titleEditEl.value = tInput ? tInput.value : overlayTitle.innerText;
-    titleEditEl.oninput = function() {
+
+    // [FIX] タイトルは別ウィンドウ（入力欄）を新しく開くのではなく、
+    // 表示中のタイトル自体をその場で直接編集(contenteditable)できるようにする。
+    overlayTitle.style.display = 'block'; // 空でも編集できるよう一時的に強制表示
+    overlayTitle.contentEditable = 'true';
+    overlayTitle.oninput = function() {
         if (!editCardItem) return;
         var t = editCardItem.querySelector('.title-input');
-        if (t) { t.value = titleEditEl.value; overlayTitle.innerText = titleEditEl.value; overlayTitle.style.display = titleEditEl.value.trim() ? 'block' : 'none'; saveCurrentGridDataWithIndicator(); }
+        // contenteditableは改行(<div>/<br>)が入り得るため、念のため単一行に矯正する
+        var val = overlayTitle.innerText.replace(/[\r\n]+/g, '');
+        if (t) { t.value = val; saveCurrentGridDataWithIndicator(); }
     };
+    overlayTitle.onkeydown = function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); overlayTitle.blur(); }
+    };
+
     var cInput = editCardItem.querySelector('.content-textarea');
     contentEditEl.value = cInput ? cInput.value : overlayText.innerText;
     contentEditEl.style.fontSize = currentFontSize + 'px';
@@ -12857,7 +12878,18 @@ function enterEditMode() {
     overlay.classList.add('edit-mode');
     btn.classList.add('active');
     btn.title = '表示モードに戻る (Esc)';
-    setTimeout(function(){ titleEditEl.focus(); }, 50);
+    setTimeout(function() {
+        overlayTitle.focus();
+        // カーソルを末尾に置く（新規入力の続きから打てるように）
+        try {
+            var range = document.createRange();
+            range.selectNodeContents(overlayTitle);
+            range.collapse(false);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } catch (err) {}
+    }, 50);
 }
 
 function exitEditMode() {
@@ -12865,8 +12897,10 @@ function exitEditMode() {
     isEditMode = false;
     var editTextarea = document.getElementById('overlay-edit');
     var btn          = document.getElementById('edit-mode-btn');
-    var titleEditEl2 = document.getElementById('overlay-title-edit');
-    if (titleEditEl2)  titleEditEl2.oninput  = null;
+    overlayTitle.contentEditable = 'false';
+    overlayTitle.oninput  = null;
+    overlayTitle.onkeydown = null;
+    overlayTitle.style.display = overlayTitle.innerText.trim() ? 'block' : 'none';
     if (editTextarea)  editTextarea.oninput   = null;
     overlay.classList.remove('edit-mode');
     if (btn) { btn.classList.remove('active'); btn.title = '編集モード'; }
