@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.9.0                                                   ║
+  ║  Qcard PRO  v3.9.1         カード検索UI                     ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4117,7 +4117,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.9.0</span>
+    <span class="version-badge">v3.9.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -9627,6 +9627,12 @@ function toggleSearchFilterView() {
     searchFilterActive = true;
     document.body.classList.add('search-filter-view');
     updateGrid();
+    // [FIX] updateGrid()はグリッドを丸ごと作り直すため、検索結果を示す
+    // .search-match / .search-hide クラスがリセットされてしまう。
+    // 絞り込み表示に入る前に、もう一度検索をかけ直して目印を復元する。
+    applySearch(currentQuery);
+    // [FIX] スワイプ表示のカード数が変わるため、古いインデックスが範囲外にならないよう先頭へ戻す
+    if (typeof window.mSetIdx === 'function') window.mSetIdx(0);
     var banner = document.getElementById('search-filter-banner');
     var text   = document.getElementById('search-filter-banner-text');
     if (banner) banner.classList.add('show');
@@ -9643,6 +9649,8 @@ function clearSearchFilterView() {
     if (banner) banner.classList.remove('show');
     updateGrid();
     if (currentQuery) applySearch(currentQuery);
+    // [FIX] スワイプ表示のカード数が変わるため、範囲外インデックスを避けて先頭へ戻す
+    if (typeof window.mSetIdx === 'function') window.mSetIdx(0);
 }
 
 // ===== OVERLAY =====
@@ -14109,6 +14117,16 @@ function rdSaveRate(v) {
         }
         var active = (typeof getActive === 'function') ? getActive() : null;
         var all = active ? (active.data || []) : [];
+        // [FIX] 検索の絞り込み表示中は、スワイプ表示もPC/グリッド表示と同じ
+        // 絞り込み結果を見せる（今まではここが未対応で、スワイプ表示だけ
+        // 絞り込みが反映されず、件数の食い違いで表示が崩れていた）。
+        if (typeof searchFilterActive !== 'undefined' && searchFilterActive &&
+            typeof currentQuery !== 'undefined' && currentQuery &&
+            typeof cardMatchesQuery === 'function' && typeof normalizeSearchText === 'function') {
+            var lowerQ = normalizeSearchText(currentQuery);
+            var filteredAll = all.filter(function(card) { return cardMatchesQuery(card, lowerQ); });
+            if (filteredAll.length) return filteredAll;
+        }
         if (appMode === 'edit') {
             // 編集モード：空カード含む全スロット
             var rows = (active && active.rows) ? active.rows : 3;
