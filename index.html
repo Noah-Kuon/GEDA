@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.7.0                                                   ║
+  ║  Qcard PRO  v3.10.0                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -429,6 +429,38 @@
             padding: 10px; z-index: 300;
         }
         .scenario-popover.open { display: block; }
+
+        /* [NEW] シナリオ行ホバー時に出る、カード一覧フライアウト */
+        #scenario-flyout {
+            display: none;
+            position: absolute;
+            top: 0; left: calc(100% + 8px);
+            width: 260px; max-height: 70vh;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+            padding: 10px; z-index: 320;
+            flex-direction: column;
+        }
+        #scenario-flyout.open { display: flex; }
+        #scenario-flyout-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+        .sf-item {
+            display: block; width: 100%; text-align: left;
+            background: none; border: none; border-radius: 6px;
+            color: var(--text); font-size: 0.76rem;
+            padding: 6px 8px; cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+        .sf-item:hover { background: var(--surface2); color: var(--accent); }
+        .sf-empty-hint { font-size: 0.72rem; color: var(--text-dim); padding: 8px 4px; }
+        /* [NEW] ジャンプ先カードを一時的にハイライトして視線を誘導する */
+        .grid-item.jump-highlight {
+            animation: gridJumpHighlight 1.4s ease-out;
+        }
+        @keyframes gridJumpHighlight {
+            0%   { box-shadow: 0 0 0 3px var(--accent); }
+            100% { box-shadow: 0 0 0 0px transparent; }
+        }
         .sp-search-input {
             width: 100%; box-sizing: border-box;
             background: var(--surface2); border: 1px solid var(--border);
@@ -660,7 +692,19 @@
             position: relative;
         }
         #overlay-media-layer.show { display: block; }
-        #overlay-media-layer img {
+        /* [NEW] 極端な縦横比の画像でも枠に空白ができないよう、背後に同じ画像を
+           ぼかして拡大表示した背景を敷く（前面は欠けずに全体表示のまま）。 */
+        #overlay-media-bg {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            filter: blur(28px) brightness(0.65) saturate(1.15);
+            transform: scale(1.15); /* ぼかしの縁が枠内に見切れないよう少し拡大 */
+            z-index: 0;
+        }
+        #overlay-media-layer img#overlay-media-img {
+            position: relative;
+            z-index: 1;
             width: 100%;
             max-height: 100%;
             object-fit: contain;
@@ -1100,7 +1144,11 @@
             background: var(--surface);
             border: 1px solid var(--border2);
             border-radius: 16px;
-            padding: 30px 36px 16px;
+            /* [FIX] ヘッダーのボタン列（top:14px, 高さ約28px = 14〜42px）と
+               本文の開始位置が重なっていたため、paddingを広げて構造的に分離する。
+               タイトル側に個別の右余白を持たせるやり方はやめ、常にボタンの下から
+               コンテンツが始まるようにする。 */
+            padding: 54px 36px 16px;
             box-shadow: 0 20px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(61,139,255,0.1), 0 0 32px rgba(61,139,255,0.05); /* [MOD] 影が強すぎたため軽減 */
             display: none;
             flex-direction: column;
@@ -1463,24 +1511,34 @@
         #overlay.edit-mode #overlay-edit-row { display: flex; }
         #overlay.edit-mode #speech-bar   { display: none; }
 
-        #overlay-title-edit {
-            display: block; width: 100%;
-            border: 1px solid var(--border); border-radius: 6px;
-            background: var(--surface2); color: var(--accent);
-            font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em;
-            padding: 6px 10px; outline: none; box-sizing: border-box;
-            font-family: 'Noto Sans JP', sans-serif;
+        /* [FIX] タイトル編集は別ウィンドウを開かず、表示中のタイトル自体を
+           直接編集(contenteditable)できるようにした。以前の専用input行は廃止。 */
+        #overlay-title[contenteditable="true"] {
+            outline: none;
+            cursor: text;
+            background: rgba(61,139,255,0.06);
+            padding-right: 28px; /* 右上の×ボタン分の余白 */
         }
-        #overlay-title-edit:focus { border-color: var(--accent); }
-        #overlay.edit-mode #overlay-title           { display: none; }
-        #overlay.edit-mode #overlay-title-edit-row  { display: flex; }
+        #overlay-title-clear-inline {
+            display: none;
+            position: absolute; top: 0; right: 0;
+            width: 22px; height: 22px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            cursor: pointer;
+            align-items: center; justify-content: center;
+        }
+        #overlay-title-clear-inline:hover { background: rgba(242,82,106,0.15); border-color: var(--danger); color: var(--danger); }
+        #overlay.edit-mode #overlay-title-clear-inline { display: flex; }
 
         .overlay-field-row {
             display: none; position: relative; align-items: stretch;
             gap: 6px; margin-bottom: 8px;
         }
         .overlay-field-row-grow { flex: 1; margin-bottom: 8px; }
-        .overlay-field-row #overlay-title-edit,
         .overlay-field-row #overlay-edit { margin-bottom: 0; }
         .overlay-field-clear {
             flex-shrink: 0; border: 1px solid var(--border);
@@ -3297,6 +3355,61 @@ min-height: 0;
         body.mob-grid1 .drag-handle { display: none !important; }
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
+        /* [FIX] 画像追加バッジ（右上の丸ボタン）と長いタイトルの末尾が重ならないよう、
+           バッジが出ている（＝画像未登録の）カードだけ少し右余白を確保する */
+        body.mob-grid1 .grid-item:not(.has-media) .mob-title-label { padding-right: 30px; box-sizing: border-box; }
+
+        /* [FIX] 1列表示は行の高さが44px前後しかなく、画像追加バー（高さ40px・2ボタン）が
+           ほぼ行全体を覆ってしまい、「カードを編集」と「画像を追加」の区別がつかず
+           誤って編集画面に入ってしまう不具合があった。行タップでの編集は既に別経路で
+           機能しているため、ここでは「画像を追加」専用の小さいアイコンボタンだけを
+           行の右端に独立して配置する。 */
+        /* [FIX v2] 前回の「行の右端に独立配置」案は、カード左端に寄って見えたり
+           上下の余白が窮屈になったりして見た目が良くなかった。代わりに、画像削除の
+           ✕ボタンと全く同じ位置・サイズの丸いバッジにし、画像の有無で
+           ＋ ⇄ ✕ が同じ場所で入れ替わるだけのシンプルな見た目にする。 */
+        /* [FIX v3] 既存のモバイル用スタイル（min-height:40px!important 等）に
+           高さだけ負けて楕円になっていた。競合する全プロパティを明示的に上書きする。 */
+        body.mob-grid1 .card-media-add-btn,
+        body.mob-grid2 .card-media-add-btn {
+            position: absolute !important;
+            top: 6px !important; right: 6px !important;
+            left: auto !important; bottom: auto !important;
+            width: 24px !important; height: 24px !important;
+            min-width: 24px !important; min-height: 24px !important;
+            max-width: 24px !important; max-height: 24px !important;
+            margin: 0 !important;
+            background: rgba(8,12,20,0.75) !important;
+            border: 1px solid rgba(255,255,255,0.25) !important;
+            border-radius: 50% !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            opacity: 0.85;
+            z-index: 10;
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-edit-hint,
+        body.mob-grid2 .card-media-add-btn .cmab-edit-hint {
+            display: none !important; /* 行タップで編集できるため、ここでは不要 */
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-img-btn,
+        body.mob-grid2 .card-media-add-btn .cmab-img-btn {
+            width: 100% !important; height: 100% !important;
+            min-width: 0 !important; min-height: 0 !important;
+            max-width: none !important; max-height: none !important;
+            padding: 0 !important;
+            border-left: none !important;
+            border-radius: 50% !important;
+        }
+        body.mob-grid1 .card-media-add-btn .cmab-img-btn .label,
+        body.mob-grid2 .card-media-add-btn .cmab-img-btn .label {
+            display: none !important; /* ✕ボタンと同じくアイコンのみにする */
+        }
+        body.mob-grid1 .card-media-add-btn .icon,
+        body.mob-grid2 .card-media-add-btn .icon {
+            font-size: 0.9rem !important;
+            color: #fff !important;
+        }
 
 /* ── グリッド2列 ── */
         body.mob-grid2 .grid-container {
@@ -4036,7 +4149,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.7.0</span>
+    <span class="version-badge">v3.10.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4208,6 +4321,13 @@ min-height: 0;
             <div class="sp-footer">
                 <button class="sp-manage-btn" type="button" title="名前クリックで変更・×で削除・ドラッグで並べ替え" onclick="scenarioManageClick()">⚙ 管理</button>
                 <button class="scenario-add-btn" id="scenario-add-btn" onclick="addScenario()" data-i18n="scenario_add">＋ 追加</button>
+            </div>
+
+            <!-- [NEW] シナリオ行にホバーすると出る、そのシナリオのカード一覧フライアウト -->
+            <div id="scenario-flyout">
+                <input type="text" id="scenario-flyout-search" class="sp-search-input"
+                       placeholder="🔍 このシナリオ内を検索…" oninput="filterScenarioFlyout(this.value)">
+                <div id="scenario-flyout-list"></div>
             </div>
         </div>
     </div>
@@ -4597,16 +4717,16 @@ min-height: 0;
     </div>
     <!-- オーバーレイ内の画像表示 -->
     <div id="overlay-media-layer">
+        <img id="overlay-media-bg" src="" alt="" aria-hidden="true">
         <img id="overlay-media-img" src="" alt="">
         <div id="overlay-media-controls">
             <button id="overlay-media-replace-btn" onclick="overlayMediaReplace()" data-i18n="btn_media_replace" data-i18n-title="btn_media_replace" title="画像を差し替え">🔄 差し替え</button>
             <button id="overlay-media-remove-btn"  onclick="overlayMediaRemove()"  data-i18n="btn_media_remove"  data-i18n-title="btn_media_remove"  title="画像を削除">🗑 削除</button>
         </div>
     </div>
-    <div id="overlay-title"></div>
-    <div id="overlay-title-edit-row" class="overlay-field-row">
-        <input type="text" id="overlay-title-edit" data-i18n-ph="overlay_title_ph" placeholder="タイトルを編集...">
-        <button class="overlay-field-clear" id="overlay-title-clear" onclick="overlayClearField('title')" title="タイトルを削除">×</button>
+    <div id="overlay-title-wrap" style="position:relative;">
+        <div id="overlay-title"></div>
+        <button type="button" id="overlay-title-clear-inline" class="title-clear-inline" onclick="overlayClearField('title')" title="タイトルを削除">×</button>
     </div>
     <div id="overlay-text"></div>
     <div id="overlay-edit-row" class="overlay-field-row overlay-field-row-grow">
@@ -8652,8 +8772,97 @@ function renderScenarioTabs() {
             };
         })(s.id));
 
+        // [NEW] ホバーで、そのシナリオのカード一覧フライアウトを表示する
+        tab.addEventListener('mouseenter', (function(scenario) {
+            return function() { scenarioFlyoutShow(scenario, tab); };
+        })(s));
+        tab.addEventListener('mouseleave', function() { scenarioFlyoutScheduleHide(); });
+
         container.appendChild(tab);
     });
+}
+
+// ── シナリオホバー時のカード一覧フライアウト ──
+var _sfScenario = null;
+var _sfHideTimer = null;
+
+function scenarioFlyoutShow(scenario, tabEl) {
+    clearTimeout(_sfHideTimer);
+    _sfScenario = scenario;
+    var flyout = document.getElementById('scenario-flyout');
+    var search = document.getElementById('scenario-flyout-search');
+    if (!flyout) return;
+    // タブの縦位置に合わせて表示する
+    flyout.style.top = tabEl.offsetTop + 'px';
+    if (search) search.value = '';
+    scenarioFlyoutRenderList('');
+    flyout.classList.add('open');
+}
+function scenarioFlyoutScheduleHide() {
+    clearTimeout(_sfHideTimer);
+    _sfHideTimer = setTimeout(function() {
+        var flyout = document.getElementById('scenario-flyout');
+        if (flyout) flyout.classList.remove('open');
+        _sfScenario = null;
+    }, 200);
+}
+(function initScenarioFlyoutHover() {
+    var flyout = document.getElementById('scenario-flyout');
+    if (!flyout) return;
+    flyout.addEventListener('mouseenter', function() { clearTimeout(_sfHideTimer); });
+    flyout.addEventListener('mouseleave', function() { scenarioFlyoutScheduleHide(); });
+})();
+
+function scenarioFlyoutRenderList(query) {
+    var listEl = document.getElementById('scenario-flyout-list');
+    if (!listEl || !_sfScenario) return;
+    listEl.innerHTML = '';
+    var q = normalizeSearchText(query || '');
+    var cards = (_sfScenario.data || []).filter(function(c) {
+        return (c.title || '').trim() || (c.content || '').trim();
+    });
+    var shown = cards.filter(function(c) {
+        if (!q) return true;
+        return normalizeSearchText(c.title || '').indexOf(q) !== -1;
+    });
+    if (!shown.length) {
+        var empty = document.createElement('div');
+        empty.className = 'sf-empty-hint';
+        empty.textContent = q ? '一致するタイトルがありません' : 'カードがありません';
+        listEl.appendChild(empty);
+        return;
+    }
+    var scenarioId = _sfScenario.id;
+    shown.forEach(function(c) {
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'sf-item';
+        item.textContent = c.title && c.title.trim() ? c.title : '（無題）';
+        item.addEventListener('click', function() {
+            clearTimeout(_sfHideTimer);
+            document.getElementById('scenario-flyout').classList.remove('open');
+            closeScenarioPopover();
+            jumpToScenarioCard(scenarioId, c.uri);
+        });
+        listEl.appendChild(item);
+    });
+}
+function filterScenarioFlyout(query) {
+    scenarioFlyoutRenderList(query);
+}
+
+// [NEW] 指定シナリオへ切り替えた上で、指定カードの位置までスクロールしてハイライトする
+function jumpToScenarioCard(scenarioId, cardUri) {
+    if (scenarioId !== activeScenarioId) switchScenario(scenarioId);
+    setTimeout(function() {
+        var target = grid.querySelector('.grid-item[data-uri="' + cardUri.replace(/"/g, '\\"') + '"]');
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.remove('jump-highlight');
+        void target.offsetWidth; // reflow でアニメーションを再トリガー
+        target.classList.add('jump-highlight');
+        setTimeout(function() { target.classList.remove('jump-highlight'); }, 1500);
+    }, 60);
 }
 
 function switchScenario(id) {
@@ -9546,6 +9755,12 @@ function toggleSearchFilterView() {
     searchFilterActive = true;
     document.body.classList.add('search-filter-view');
     updateGrid();
+    // [FIX] updateGrid()はグリッドを丸ごと作り直すため、検索結果を示す
+    // .search-match / .search-hide クラスがリセットされてしまう。
+    // 絞り込み表示に入る前に、もう一度検索をかけ直して目印を復元する。
+    applySearch(currentQuery);
+    // [FIX] スワイプ表示のカード数が変わるため、古いインデックスが範囲外にならないよう先頭へ戻す
+    if (typeof window.mSetIdx === 'function') window.mSetIdx(0);
     var banner = document.getElementById('search-filter-banner');
     var text   = document.getElementById('search-filter-banner-text');
     if (banner) banner.classList.add('show');
@@ -9562,6 +9777,8 @@ function clearSearchFilterView() {
     if (banner) banner.classList.remove('show');
     updateGrid();
     if (currentQuery) applySearch(currentQuery);
+    // [FIX] スワイプ表示のカード数が変わるため、範囲外インデックスを避けて先頭へ戻す
+    if (typeof window.mSetIdx === 'function') window.mSetIdx(0);
 }
 
 // ===== OVERLAY =====
@@ -10123,16 +10340,25 @@ function overlayHandleAudioUpload(e) {
 }
 
 // [NEW] カードに紐づく画像をオーバーレイ内に表示する
+// [FIX] 縦長・横長など極端な比率の画像で枠の左右／上下に大きな空白ができる問題への対応。
+// 手前に「全体が見える(contain)」画像、背後に同じ画像を「ぼかして拡大(cover)」した
+// 背景を敷くことで、画像を欠けさせずに枠を綺麗に埋める（Spotify/Apple Music等でも
+// 使われている一般的な手法）。
 function overlayShowMediaForCard(cardItem) {
     var layer = document.getElementById('overlay-media-layer');
     var img   = document.getElementById('overlay-media-img');
+    var bgImg = document.getElementById('overlay-media-bg');
     if (!layer || !img) return;
+    function setSrc(url) {
+        img.src = url;
+        if (bgImg) bgImg.src = url;
+    }
     var mediaId = cardItem ? cardItem.dataset.mediaId : null;
     if (!mediaId) {
         // mediaIdなしでも mediaUrl（受信シナリオ）があれば表示
         var remoteUrl = cardItem ? cardItem.dataset.mediaUrl : null;
-        if (remoteUrl) { img.src = remoteUrl; layer.classList.add('show'); }
-        else           { layer.classList.remove('show'); img.src = ''; }
+        if (remoteUrl) { setSrc(remoteUrl); layer.classList.add('show'); }
+        else           { layer.classList.remove('show'); setSrc(''); }
         return;
     }
     mediaDB.get(mediaId).then(function(record) {
@@ -10140,16 +10366,16 @@ function overlayShowMediaForCard(cardItem) {
             // ローカルIndexedDBに画像あり → 通常パス
             if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
             var overlayUrl = URL.createObjectURL(record.blob);
-            img.src = overlayUrl;
+            setSrc(overlayUrl);
             img.dataset.mediaObjectUrl = overlayUrl;
             layer.classList.add('show');
         } else if (cardItem && cardItem.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            img.src = cardItem.dataset.mediaUrl;
+            setSrc(cardItem.dataset.mediaUrl);
             layer.classList.add('show');
         } else {
             layer.classList.remove('show');
-            img.src = '';
+            setSrc('');
         }
     });
 }
@@ -12736,12 +12962,10 @@ function overlayClearField(field) {
     if (!editCardItem) return;
     if (field === 'title') {
         var t = editCardItem.querySelector('.title-input');
-        var titleEditEl = document.getElementById('overlay-title-edit');
         if (t) t.value = '';
-        titleEditEl.value = '';
         overlayTitle.innerText = '';
-        overlayTitle.style.display = 'none';
-        titleEditEl.focus();
+        if (isEditMode) { overlayTitle.focus(); }
+        else { overlayTitle.style.display = 'none'; }
     } else {
         // [NEW] 本文はタイトルより長文になりやすく消去の代償が大きいため、
         // ボタンを小さくした物理的な対策に加えて軽い確認を挟む（空欄なら確認不要）
@@ -12761,16 +12985,24 @@ function enterEditMode() {
     if (!editCardItem) return;
     overlayFindClose();
     isEditMode = true;
-    var titleEditEl   = document.getElementById('overlay-title-edit');
     var contentEditEl = document.getElementById('overlay-edit');
     var btn           = document.getElementById('edit-mode-btn');
-    var tInput = editCardItem.querySelector('.title-input');
-    titleEditEl.value = tInput ? tInput.value : overlayTitle.innerText;
-    titleEditEl.oninput = function() {
+
+    // [FIX] タイトルは別ウィンドウ（入力欄）を新しく開くのではなく、
+    // 表示中のタイトル自体をその場で直接編集(contenteditable)できるようにする。
+    overlayTitle.style.display = 'block'; // 空でも編集できるよう一時的に強制表示
+    overlayTitle.contentEditable = 'true';
+    overlayTitle.oninput = function() {
         if (!editCardItem) return;
         var t = editCardItem.querySelector('.title-input');
-        if (t) { t.value = titleEditEl.value; overlayTitle.innerText = titleEditEl.value; overlayTitle.style.display = titleEditEl.value.trim() ? 'block' : 'none'; saveCurrentGridDataWithIndicator(); }
+        // contenteditableは改行(<div>/<br>)が入り得るため、念のため単一行に矯正する
+        var val = overlayTitle.innerText.replace(/[\r\n]+/g, '');
+        if (t) { t.value = val; saveCurrentGridDataWithIndicator(); }
     };
+    overlayTitle.onkeydown = function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); overlayTitle.blur(); }
+    };
+
     var cInput = editCardItem.querySelector('.content-textarea');
     contentEditEl.value = cInput ? cInput.value : overlayText.innerText;
     contentEditEl.style.fontSize = currentFontSize + 'px';
@@ -12782,7 +13014,18 @@ function enterEditMode() {
     overlay.classList.add('edit-mode');
     btn.classList.add('active');
     btn.title = '表示モードに戻る (Esc)';
-    setTimeout(function(){ titleEditEl.focus(); }, 50);
+    setTimeout(function() {
+        overlayTitle.focus();
+        // カーソルを末尾に置く（新規入力の続きから打てるように）
+        try {
+            var range = document.createRange();
+            range.selectNodeContents(overlayTitle);
+            range.collapse(false);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } catch (err) {}
+    }, 50);
 }
 
 function exitEditMode() {
@@ -12790,8 +13033,10 @@ function exitEditMode() {
     isEditMode = false;
     var editTextarea = document.getElementById('overlay-edit');
     var btn          = document.getElementById('edit-mode-btn');
-    var titleEditEl2 = document.getElementById('overlay-title-edit');
-    if (titleEditEl2)  titleEditEl2.oninput  = null;
+    overlayTitle.contentEditable = 'false';
+    overlayTitle.oninput  = null;
+    overlayTitle.onkeydown = null;
+    overlayTitle.style.display = overlayTitle.innerText.trim() ? 'block' : 'none';
     if (editTextarea)  editTextarea.oninput   = null;
     overlay.classList.remove('edit-mode');
     if (btn) { btn.classList.remove('active'); btn.title = '編集モード'; }
@@ -14000,6 +14245,16 @@ function rdSaveRate(v) {
         }
         var active = (typeof getActive === 'function') ? getActive() : null;
         var all = active ? (active.data || []) : [];
+        // [FIX] 検索の絞り込み表示中は、スワイプ表示もPC/グリッド表示と同じ
+        // 絞り込み結果を見せる（今まではここが未対応で、スワイプ表示だけ
+        // 絞り込みが反映されず、件数の食い違いで表示が崩れていた）。
+        if (typeof searchFilterActive !== 'undefined' && searchFilterActive &&
+            typeof currentQuery !== 'undefined' && currentQuery &&
+            typeof cardMatchesQuery === 'function' && typeof normalizeSearchText === 'function') {
+            var lowerQ = normalizeSearchText(currentQuery);
+            var filteredAll = all.filter(function(card) { return cardMatchesQuery(card, lowerQ); });
+            if (filteredAll.length) return filteredAll;
+        }
         if (appMode === 'edit') {
             // 編集モード：空カード含む全スロット
             var rows = (active && active.rows) ? active.rows : 3;
