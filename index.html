@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.8.0   title                                              ║
+  ║  Qcard PRO  v3.8.1       +UI                                        ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1112,7 +1112,11 @@
             background: var(--surface);
             border: 1px solid var(--border2);
             border-radius: 16px;
-            padding: 30px 36px 16px;
+            /* [FIX] ヘッダーのボタン列（top:14px, 高さ約28px = 14〜42px）と
+               本文の開始位置が重なっていたため、paddingを広げて構造的に分離する。
+               タイトル側に個別の右余白を持たせるやり方はやめ、常にボタンの下から
+               コンテンツが始まるようにする。 */
+            padding: 54px 36px 16px;
             box-shadow: 0 20px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(61,139,255,0.1), 0 0 32px rgba(61,139,255,0.05); /* [MOD] 影が強すぎたため軽減 */
             display: none;
             flex-direction: column;
@@ -1133,9 +1137,6 @@
             border-bottom: 1px solid var(--border);
             font-family: 'Noto Sans JP', sans-serif;
             border-radius: 6px; transition: background 0.12s;
-            /* [FIX] 右上のボタン列（×/⇔/✏️/🔗）と長いタイトルが重なって読めなくなる問題への対応。
-               ボタン列の合計幅ぶんを右側に確保し、その手前で折り返させる。 */
-            padding-right: 156px;
         }
         #overlay-text {
             font-weight: 500; color: var(--text); line-height: 1.7;
@@ -3312,24 +3313,34 @@ min-height: 0;
         body.mob-grid1 .drag-handle { display: none !important; }
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
+        /* [FIX] 画像追加バッジ（右上の丸ボタン）と長いタイトルの末尾が重ならないよう、
+           バッジが出ている（＝画像未登録の）カードだけ少し右余白を確保する */
+        body.mob-grid1 .grid-item:not(.has-media) .mob-title-label { padding-right: 30px; box-sizing: border-box; }
 
         /* [FIX] 1列表示は行の高さが44px前後しかなく、画像追加バー（高さ40px・2ボタン）が
            ほぼ行全体を覆ってしまい、「カードを編集」と「画像を追加」の区別がつかず
            誤って編集画面に入ってしまう不具合があった。行タップでの編集は既に別経路で
            機能しているため、ここでは「画像を追加」専用の小さいアイコンボタンだけを
            行の右端に独立して配置する。 */
+        /* [FIX v2] 前回の「行の右端に独立配置」案は、カード左端に寄って見えたり
+           上下の余白が窮屈になったりして見た目が良くなかった。代わりに、画像削除の
+           ✕ボタンと全く同じ位置・サイズの丸いバッジにし、画像の有無で
+           ＋ ⇄ ✕ が同じ場所で入れ替わるだけのシンプルな見た目にする。 */
         body.mob-grid1 .card-media-add-btn,
         body.mob-grid2 .card-media-add-btn {
-            position: static !important;
-            width: 32px !important; height: 32px !important;
-            flex-shrink: 0;
-            margin-left: auto;
-            background: var(--surface2) !important;
-            border: 1px solid var(--border) !important;
+            position: absolute !important;
+            top: 6px !important; right: 6px !important;
+            left: auto !important; bottom: auto !important;
+            width: 24px !important; height: 24px !important;
+            margin: 0 !important;
+            background: rgba(8,12,20,0.75) !important;
+            border: 1px solid rgba(255,255,255,0.25) !important;
+            border-radius: 50% !important;
             box-shadow: none !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
-            border-radius: 8px !important;
+            opacity: 0.85;
+            z-index: 10;
         }
         body.mob-grid1 .card-media-add-btn .cmab-edit-hint,
         body.mob-grid2 .card-media-add-btn .cmab-edit-hint {
@@ -3337,16 +3348,19 @@ min-height: 0;
         }
         body.mob-grid1 .card-media-add-btn .cmab-img-btn,
         body.mob-grid2 .card-media-add-btn .cmab-img-btn {
-            border-left: none !important;
+            width: 100%; height: 100%;
             padding: 0 !important;
+            border-left: none !important;
+            border-radius: 50%;
         }
         body.mob-grid1 .card-media-add-btn .cmab-img-btn .label,
         body.mob-grid2 .card-media-add-btn .cmab-img-btn .label {
-            display: none; /* アイコンのみにして省スペース化 */
+            display: none; /* ✕ボタンと同じくアイコンのみにする */
         }
-        body.mob-grid2 .card-media-add-btn {
-            margin-top: auto; /* 縦積みレイアウトの中でも右下に寄せる */
-            align-self: flex-end !important;
+        body.mob-grid1 .card-media-add-btn .icon,
+        body.mob-grid2 .card-media-add-btn .icon {
+            font-size: 0.9rem;
+            color: #fff;
         }
 
 /* ── グリッド2列 ── */
@@ -4087,7 +4101,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.8.0</span>
+    <span class="version-badge">v3.8.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
