@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.21                                                   ║
+  ║  Qcard PRO  v3.10.22 UI- Modern-Update-001                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -14,43 +14,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qcard PRO</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        /*
+           ══════════════════════════════════════════════════════════════
+           G.E.D.A. DESIGN TOKENS — QCARD SKIN: "ARCHIVE" (v1)
+           ------------------------------------------------------------
+           このトークン層だけを差し替えれば別スキンになるよう設計している。
+           :root         = NIGHT（既定 / documentElement へ何も付与しない状態）
+           :root.light   = DAY（documentElement.classList に 'light' を付与）
+           将来、別スキンを追加する場合は :root.skin-xxx { ... } を増やし、
+           JS 側で documentElement のクラスを切り替えるだけでよい。
+           色以外（角丸・影・モーション・書体）もトークン化してあるので、
+           スキンごとに質感そのものを変えることもできる。
+           ══════════════════════════════════════════════════════════════
+        */
         :root {
-            --bg: #080c14;
-            --surface: #0e1525;
-            --surface2: #141d30;
-            --surface3: #1a2540;
-            --border: #1f2e4a;
-            --border2: #2a3d60;
-            --accent: #3d8bff;
-            --accent2: #6c63ff;
-            --accent-glow: rgba(61,139,255,0.18);
-            --text: #d8e4f8;
-            --text-muted: #5a7299;
-            --text-dim: #6a7fa5;
-            --success: #2dd4a4;
-            --warning: #f5a623;
-            --danger: #f2526a;
-            --save-color: #2dd4a4;
+            /* -- surfaces: 深宇宙のような静かな階層 -- */
+            --bg: #05070b;
+            --surface: #0a0e16;
+            --surface2: #10151f;
+            --surface3: #161d2b;
+            --border: #1d2536;
+            --border2: #2a3448;
+            --line: rgba(200,215,240,0.06);
+
+            /* -- accent: アーカイブの識別光。彩度を抑えた青 -- */
+            --accent: #5b9bf2;
+            --accent2: #8b7ff0;
+            --accent-glow: rgba(91,155,242,0.16);
+
+            /* -- text -- */
+            --text: #d6e0f0;
+            --text-muted: #6b7d99;
+            --text-dim: #445269;
+
+            /* -- status -- */
+            --success: #3ecf9a;
+            --warning: #d9a24b;
+            --danger: #e2657a;
+            --save-color: #3ecf9a;
+
+            /* -- structure: 角の少ない・静かな器 -- */
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius-lg: 6px;
+            --radius-xl: 10px;
+
+            /* -- depth: 主張しない影 -- */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+            --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+            --shadow-lg: 0 20px 60px rgba(0,0,0,0.55);
+            --shadow-ring: 0 0 0 1px var(--accent-glow);
+
+            /* -- motion: 沈黙を基本とし、応答にのみ動く -- */
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+            --dur-fast: 110ms;
+            --dur: 180ms;
+            --dur-slow: 320ms;
+
+            /* -- type -- */
+            --font-body: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+            --font-display: 'Syne', sans-serif;
+            --font-record: 'Noto Serif JP', serif;
         }
         :root.light {
-            --bg: #f0f4fb;
+            /* -- surfaces: 冷たい紙／青焼き図面のような明るさ（暖色クリームは使わない） -- */
+            --bg: #eef1f6;
             --surface: #ffffff;
-            --surface2: #f5f8ff;
-            --surface3: #eaf0fc;
-            --border: #d0daf0;
-            --border2: #b8c7e8;
-            --accent: #2563eb;
-            --accent2: #6c63ff;
-            --accent-glow: rgba(37,99,235,0.1);
-            --text: #1a2640;
-            --text-muted: #5a6e90;
-            --text-dim: #5f7090;
-            --success: #0d9f78;
-            --warning: #b55300;
-            --danger: #dc2626;
-            --save-color: #0d9f78;
+            --surface2: #f4f6fa;
+            --surface3: #e8ecf4;
+            --border: #d7dde8;
+            --border2: #c1c9da;
+            --line: rgba(20,30,55,0.07);
+
+            --accent: #2f6fe0;
+            --accent2: #6a5ae0;
+            --accent-glow: rgba(47,111,224,0.12);
+
+            --text: #16202f;
+            --text-muted: #57647c;
+            --text-dim: #94a0b5;
+
+            --success: #108a67;
+            --warning: #a5690a;
+            --danger: #c92f47;
+            --save-color: #108a67;
+
+            --shadow-sm: 0 1px 2px rgba(20,30,55,0.06);
+            --shadow-md: 0 8px 24px rgba(20,30,55,0.1);
+            --shadow-lg: 0 20px 60px rgba(20,30,55,0.16);
+            --shadow-ring: 0 0 0 1px var(--accent-glow);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,24 +113,28 @@
         body {
             background: var(--bg);
             color: var(--text);
-            font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
+            font-family: var(--font-body);
             height: 100vh; /* フォールバック（dvh非対応ブラウザ用） */
             height: 100dvh; /* [FIX] モバイルブラウザのアドレスバー分を除いた実高さを使用し、
                                 下部のナビゲーション（‹ N/N ›）が画面外に見切れる問題を解消 */
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* ─── NOISE TEXTURE ─── */
+        ::selection { background: var(--accent-glow); color: var(--text); }
+        :focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+
+        /* ─── NOISE TEXTURE：常に静かに存在する粒子。装飾ではなく「空間の質感」 ─── */
         body::before {
             content: '';
             position: fixed; inset: 0;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
-            pointer-events: none; z-index: 0; opacity: 0.4;
+            pointer-events: none; z-index: 0; opacity: 0.3;
         }
 
-        /* ─── TOP BAR ─── */
+        /* ─── TOP BAR：端末の最上段。装飾ではなく状態を示す一列 ─── */
         .top-bar {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
@@ -92,27 +151,38 @@
         .top-bar::after {
             content: '';
             position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0.3;
+            background: var(--line);
         }
 
+        /* [REDESIGN] 以前はグラデーション文字のロゴだったが、G.E.D.A.端末らしい
+           「静かなシステムマーク」に変更。中黒ドット＋レタースペースの文字組で、
+           ブランドロゴというより端末に刻印された識別子として見せる。 */
         .app-logo {
-            font-family: 'Syne', sans-serif;
-            font-size: 0.9rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            color: var(--text);
             white-space: nowrap;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .app-logo::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 5px var(--accent-glow);
             flex-shrink: 0;
         }
         .version-badge {
-            font-family: 'DM Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.58rem;
             color: var(--text-dim);
             border: 1px solid var(--border);
-            border-radius: 4px;
+            border-radius: var(--radius-sm);
             padding: 2px 6px;
             letter-spacing: 0.06em;
             flex-shrink: 0;
@@ -124,7 +194,7 @@
             display: flex;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             padding: 3px;
             gap: 2px;
             flex-shrink: 0;
@@ -136,7 +206,7 @@
             font-size: 0.68rem;
             font-weight: 600;
             padding: 4px 10px;
-            border-radius: 5px;
+            border-radius: 2px;
             cursor: pointer;
             transition: all 0.15s;
             letter-spacing: 0.04em;
@@ -147,10 +217,10 @@
             background: var(--surface3);
             color: var(--text);
             border: 1px solid var(--border2);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.21);
         }
-        .mode-btn.active.view-mode { color: var(--success); border-color: rgba(45,212,164,0.4); }
-        .mode-btn.active.edit-mode-tab { color: var(--accent); border-color: rgba(61,139,255,0.4); }
+        .mode-btn.active.view-mode { color: var(--success); border-color: rgba(62,207,154,0.4); }
+        .mode-btn.active.edit-mode-tab { color: var(--accent); border-color: rgba(91,155,242,0.4); }
 
         .ctrl-group {
             display: flex; align-items: center; gap: 6px;
@@ -162,7 +232,7 @@
             width: 40px;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 5px;
+            border-radius: 2px;
             color: var(--text);
             text-align: center;
             padding: 3px 2px;
@@ -174,7 +244,7 @@
         #cardRatioSelect {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 5px;
+            border-radius: 2px;
             color: var(--text);
             font-size: 0.7rem;
             padding: 3px 4px;
@@ -183,7 +253,7 @@
         #cardRatioCustom {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 5px;
+            border-radius: 2px;
             color: var(--text);
             text-align: center;
             padding: 3px 2px;
@@ -201,7 +271,7 @@
             border: 1px solid var(--border);
             color: var(--text-muted);
             padding: 5px 10px;
-            border-radius: 6px;
+            border-radius: 3px;
             font-size: 0.68rem;
             cursor: pointer;
             transition: all 0.15s;
@@ -209,12 +279,12 @@
             font-weight: 500;
         }
         .top-btn:hover { border-color: var(--border2); color: var(--text); }
-        .top-btn.danger:hover { background: rgba(242,82,106,0.12); border-color: var(--danger); color: var(--danger); }
+        .top-btn.danger:hover { background: rgba(226,101,122,0.12); border-color: var(--danger); color: var(--danger); }
 
         .theme-toggle {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 20px;
+            border-radius: 3px;
             padding: 3px 10px;
             cursor: pointer;
             font-size: 0.68rem;
@@ -232,7 +302,7 @@
             letter-spacing: 0.03em;
             transition: all 0.4s;
             padding: 3px 8px;
-            border-radius: 20px;
+            border-radius: 3px;
             flex-shrink: 0;
             user-select: none;
         }
@@ -273,7 +343,7 @@
             width: 100%;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             color: var(--text);
             font-size: 0.75rem;
             padding: 6px 32px 6px 30px;
@@ -309,7 +379,7 @@
             background: var(--surface2);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            border-radius: 7px;
+            border-radius: 3px;
             padding: 5px 11px;
             font-size: 0.72rem;
             font-weight: 500;
@@ -318,7 +388,7 @@
             white-space: nowrap;
         }
         #display-settings-btn:hover { border-color: var(--border2); color: var(--text); }
-        #display-settings-btn.active { background: rgba(61,139,255,0.12); border-color: var(--accent); color: var(--accent); }
+        #display-settings-btn.active { background: rgba(91,155,242,0.12); border-color: var(--accent); color: var(--accent); }
         #display-settings-popover {
             display: none;
             position: absolute;
@@ -326,9 +396,9 @@
             right: 0;
             background: var(--surface);
             border: 1px solid var(--border2);
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 14px;
-            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.28);
             z-index: 550;
             width: 280px;
             flex-direction: column;
@@ -342,7 +412,7 @@
         /* ─── [NEW] TOPバーのオーバーフローメニュー（ヘルプ／データ管理） ─── */
         #top-overflow-wrap { position: relative; flex-shrink: 0; }
         #top-overflow-btn { font-size: 0.9rem; padding: 4px 10px; line-height: 1; }
-        #top-overflow-btn.active { background: rgba(61,139,255,0.12); border-color: var(--accent); color: var(--accent); }
+        #top-overflow-btn.active { background: rgba(91,155,242,0.12); border-color: var(--accent); color: var(--accent); }
         #top-overflow-menu {
             display: none;
             position: absolute;
@@ -350,9 +420,9 @@
             right: 0;
             background: var(--surface);
             border: 1px solid var(--border2);
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 6px;
-            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.28);
             z-index: 550;
             min-width: 160px;
             flex-direction: column;
@@ -361,7 +431,7 @@
         #top-overflow-menu.open { display: flex; }
         .to-menu-item {
             display: block; width: 100%; text-align: left;
-            background: none; border: none; border-radius: 6px;
+            background: none; border: none; border-radius: 3px;
             color: var(--text); font-size: 0.74rem; font-weight: 500;
             padding: 8px 10px; cursor: pointer; white-space: nowrap;
             font-family: 'Noto Sans JP', sans-serif;
@@ -370,7 +440,7 @@
         #display-settings-popover #cardRatioSelect {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 5px;
+            border-radius: 2px;
             color: var(--text);
             font-size: 0.7rem;
             padding: 3px 4px;
@@ -379,7 +449,7 @@
         #display-settings-popover #cardRatioCustom {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 5px;
+            border-radius: 2px;
             color: var(--text);
             text-align: center;
             padding: 3px 2px;
@@ -407,12 +477,12 @@
         .scenario-selector-btn {
             display: flex; align-items: center; gap: 6px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 8px; padding: 6px 12px;
+            border-radius: 3px; padding: 6px 12px;
             font-size: 0.78rem; color: var(--text); cursor: pointer;
             max-width: 220px; font-family: inherit;
         }
         .scenario-selector-btn:hover { border-color: var(--accent); }
-        .scenario-selector-btn.open { border-color: var(--accent); background: rgba(61,139,255,0.08); }
+        .scenario-selector-btn.open { border-color: var(--accent); background: rgba(91,155,242,0.08); }
         .scenario-selector-btn .ssb-icon { flex-shrink: 0; font-size: 0.85rem; }
         .scenario-selector-btn .ssb-name {
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;
@@ -425,7 +495,7 @@
             position: absolute; top: 100%; left: 0; margin-top: 6px;
             width: 300px; max-height: 70vh; overflow-y: auto;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+            border-radius: 4px; box-shadow: 0 14px 36px rgba(0,0,0,0.315);
             padding: 10px; z-index: 300;
         }
         .scenario-popover.open { display: block; }
@@ -439,7 +509,7 @@
             position: fixed;
             width: 260px; max-height: 60vh;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+            border-radius: 4px; box-shadow: 0 14px 36px rgba(0,0,0,0.315);
             padding: 10px; z-index: 620;
             flex-direction: column;
         }
@@ -452,10 +522,10 @@
         }
         #scenario-flyout-list::-webkit-scrollbar { width: 6px; }
         #scenario-flyout-list::-webkit-scrollbar-track { background: transparent; }
-        #scenario-flyout-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        #scenario-flyout-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
         .sf-item {
             display: block; width: 100%; text-align: left;
-            background: none; border: none; border-radius: 6px;
+            background: none; border: none; border-radius: 3px;
             color: var(--text); font-size: 0.76rem;
             padding: 6px 8px; cursor: pointer;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -474,7 +544,7 @@
         .sp-search-input {
             width: 100%; box-sizing: border-box;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; padding: 6px 8px; font-size: 0.78rem;
+            border-radius: 3px; padding: 6px 8px; font-size: 0.78rem;
             color: var(--text); margin-bottom: 8px;
         }
         .sp-search-input:focus { outline: none; border-color: var(--accent); }
@@ -485,17 +555,17 @@
             font-family: 'DM Mono', monospace;
         }
         .sp-recent-item {
-            padding: 5px 8px; border-radius: 6px; font-size: 0.76rem;
+            padding: 5px 8px; border-radius: 3px; font-size: 0.76rem;
             cursor: pointer; color: var(--text);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .sp-recent-item:hover { background: var(--surface3); }
-        .sp-recent-item.active { background: rgba(61,139,255,0.12); color: var(--accent); }
+        .sp-recent-item.active { background: rgba(91,155,242,0.12); color: var(--accent); }
         .sp-empty-hint { font-size: 0.7rem; color: var(--text-dim); padding: 4px 8px; }
         .sp-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 6px; }
         .sp-manage-btn {
             background: transparent; border: 1px solid var(--border);
-            color: var(--text-dim); border-radius: 7px; padding: 4px 10px;
+            color: var(--text-dim); border-radius: 3px; padding: 4px 10px;
             font-size: 0.72rem; cursor: pointer;
         }
         .sp-manage-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -506,13 +576,13 @@
         .scenario-tab {
             position: relative; display: flex; align-items: center; gap: 5px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 7px; padding: 4px 10px 4px 8px;
+            border-radius: 3px; padding: 4px 10px 4px 8px;
             cursor: pointer; transition: all 0.15s; width: 100%; box-sizing: border-box;
         }
-        .scenario-tab.active { border-color: var(--accent); background: rgba(61,139,255,0.1); }
+        .scenario-tab.active { border-color: var(--accent); background: rgba(91,155,242,0.1); }
         .scenario-tab:hover:not(.active) { border-color: var(--border2); background: var(--surface3); }
         .scenario-tab.dragging { opacity: 0.4; border-style: dashed; }
-        .scenario-tab.drop-swap-target { border-color: var(--warning) !important; box-shadow: 0 0 0 2px rgba(245,166,35,0.4) !important; }
+        .scenario-tab.drop-swap-target { border-color: var(--warning) !important; box-shadow: 0 0 0 2px rgba(217,162,75,0.4) !important; }
         .scenario-tab.drop-insert-before::before,
         .scenario-tab.drop-insert-after::after {
             content: '';
@@ -531,15 +601,15 @@
 
         /* [NEW] 検索：一致カードを含むシナリオのタブに枠色＋件数バッジを表示 */
         .scenario-tab.search-hit {
-            border-color: rgba(245,166,35,0.7) !important;
-            box-shadow: 0 0 0 1px rgba(245,166,35,0.25);
+            border-color: rgba(217,162,75,0.7) !important;
+            box-shadow: 0 0 0 1px rgba(217,162,75,0.25);
         }
         .scenario-tab .search-hit-badge {
             display: none;
             align-items: center; justify-content: center;
             min-width: 16px; height: 16px; padding: 0 4px;
-            background: rgba(245,166,35,0.85); color: #1a1a1a;
-            border-radius: 8px; font-size: 0.6rem; font-weight: 700;
+            background: rgba(217,162,75,0.85); color: #1a1a1a;
+            border-radius: 3px; font-size: 0.6rem; font-weight: 700;
             font-family: 'DM Mono', monospace;
             margin-left: 2px;
         }
@@ -549,9 +619,9 @@
         #search-filter-banner {
             display: none;
             align-items: center; gap: 8px;
-            background: rgba(245,166,35,0.1);
-            border: 1px solid rgba(245,166,35,0.35);
-            border-radius: 8px;
+            background: rgba(217,162,75,0.1);
+            border: 1px solid rgba(217,162,75,0.35);
+            border-radius: 3px;
             padding: 6px 12px;
             font-size: 0.75rem;
             color: var(--text);
@@ -561,7 +631,7 @@
         #search-filter-banner .sfb-clear {
             margin-left: auto;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; padding: 3px 10px; font-size: 0.7rem;
+            border-radius: 3px; padding: 3px 10px; font-size: 0.7rem;
             color: var(--text-muted); cursor: pointer;
         }
         .search-count { cursor: pointer; } /* [NEW] クリックで絞り込みビューを開けることを示す */
@@ -577,7 +647,7 @@
         }
         .scenario-tab .tab-key {
             font-family: 'DM Mono', monospace;
-            font-size: 0.56rem; background: var(--border); border-radius: 3px;
+            font-size: 0.56rem; background: var(--border); border-radius: 2px;
             padding: 1px 4px; color: var(--accent); font-weight: 700; flex-shrink: 0;
         }
         .scenario-tab.active .tab-key { background: var(--accent); color: white; }
@@ -591,12 +661,12 @@
         .scenario-tab .tab-delete {
             background: none; border: none; font-size: 0.75rem; color: var(--text-dim);
             cursor: pointer; line-height: 1; padding: 0 2px; flex-shrink: 0;
-            border-radius: 3px; transition: color 0.15s, background 0.15s;
+            border-radius: 2px; transition: color 0.15s, background 0.15s;
         }
-        .scenario-tab .tab-delete:hover { color: var(--danger); background: rgba(242,82,106,0.1); }
+        .scenario-tab .tab-delete:hover { color: var(--danger); background: rgba(226,101,122,0.1); }
         .scenario-add-btn {
             background: transparent; border: 1px dashed var(--border);
-            color: var(--text-dim); border-radius: 7px; padding: 4px 10px;
+            color: var(--text-dim); border-radius: 3px; padding: 4px 10px;
             font-size: 0.72rem; cursor: pointer; white-space: nowrap;
             transition: all 0.15s;
         }
@@ -627,7 +697,7 @@
         .grid-item {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 8px 10px;
             display: flex; flex-direction: column;
             cursor: default; overflow: hidden; position: relative;
@@ -642,21 +712,21 @@
         .content-textarea { overflow-y: auto !important; }
         .content-textarea::-webkit-scrollbar { width: 3px; }
         .content-textarea::-webkit-scrollbar-track { background: transparent; }
-        .content-textarea::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        .content-textarea::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
         .content-textarea::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
         /* グリッドラッパー全体の控えめスクロールバー */
         .grid-wrapper::-webkit-scrollbar { width: 3px; }
         .grid-wrapper::-webkit-scrollbar-track { background: transparent; }
-        .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
         .grid-wrapper::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-        .grid-item:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.3); transform: translateY(-1px); }
-        .grid-item.shortcut-active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(45,212,164,0.25); }
+        .grid-item:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow), 0 4px 16px rgba(0,0,0,0.21); transform: translateY(-1px); }
+        .grid-item.shortcut-active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(62,207,154,0.25); }
         .grid-item.dragging { opacity: 0.35; transform: scale(0.95); border-style: dashed; }
 
         /* [NEW] ドラッグ中：スワップ予告（カード中央にドラッグした時、対象カードの縁が光る） */
         .grid-item.drop-swap-target {
             border-color: var(--warning) !important;
-            box-shadow: 0 0 0 2px rgba(245,166,35,0.4) !important;
+            box-shadow: 0 0 0 2px rgba(217,162,75,0.4) !important;
         }
 
         /* [NEW] ドラッグ中：挿入予告（カードの境界に縦線が光る） */
@@ -676,7 +746,7 @@
         .grid-item.drop-insert-before::before { left: -5px; }
         .grid-item.drop-insert-after::after    { right: -5px; }
         @keyframes insertLinePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .grid-item.search-match { border-color: rgba(245,166,35,0.6); box-shadow: 0 0 0 1px rgba(245,166,35,0.2); }
+        .grid-item.search-match { border-color: rgba(217,162,75,0.6); box-shadow: 0 0 0 1px rgba(217,162,75,0.2); }
         .grid-item.search-hide { opacity: 0.18; pointer-events: none; }
 
         /* VIEW MODE styles */
@@ -695,7 +765,7 @@
             width: 100%;
             max-height: 55%;
             margin-bottom: 14px;
-            border-radius: 10px;
+            border-radius: 4px;
             overflow: hidden;
             background: var(--surface2);
             flex-shrink: 0;
@@ -736,7 +806,7 @@
         #overlay-media-controls button {
             background: rgba(8,12,20,0.75);
             border: 1px solid rgba(255,255,255,0.25);
-            border-radius: 8px;
+            border-radius: 3px;
             color: #fff;
             font-size: 0.68rem;
             padding: 6px 10px;
@@ -773,7 +843,7 @@
             position: absolute;
             inset: 0;
             z-index: 5;
-            border-radius: 9px;
+            border-radius: 3px;
             overflow: hidden;
             background: var(--surface2);
         }
@@ -823,11 +893,11 @@
             overflow: hidden;
             background: rgba(10,14,22,0.78);
             border: 0;
-            border-radius: 8px;
+            border-radius: 3px;
             color: rgba(255,255,255,0.82);
             font-size: 0.68rem;
             cursor: default;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.126);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             transition: opacity 0.16s ease, background 0.16s ease;
@@ -894,13 +964,13 @@
         .link-row {
             display: flex; align-items: center; gap: 6px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 7px; padding: 5px 8px;
+            border-radius: 3px; padding: 5px 8px;
         }
         .link-row .link-icon { font-size: 0.8rem; flex-shrink: 0; }
         .link-row .link-label-input {
             border: none; background: transparent; color: var(--text);
             font-size: 0.74rem; flex-shrink: 0; width: 90px;
-            padding: 2px 4px; border-radius: 4px;
+            padding: 2px 4px; border-radius: 2px;
         }
         .link-row .link-label-input:focus { background: var(--surface3); outline: none; }
         body.view-mode .link-row .link-label-input,
@@ -941,7 +1011,7 @@
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: min(420px, 90vw); max-height: 70vh; overflow-y: auto;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+            border-radius: 5px; box-shadow: 0 24px 60px rgba(0,0,0,0.35);
             padding: 16px; z-index: 601;
         }
         .card-link-picker.show { display: block; }
@@ -952,7 +1022,7 @@
             font-family: 'DM Mono', monospace;
         }
         .clp-item {
-            padding: 7px 10px; border-radius: 7px; cursor: pointer;
+            padding: 7px 10px; border-radius: 3px; cursor: pointer;
             font-size: 0.8rem; color: var(--text);
         }
         .clp-item:hover { background: var(--surface3); }
@@ -962,7 +1032,7 @@
         .clp-uri-row { display: flex; gap: 6px; align-items: stretch; margin-top: 6px; }
         .clp-uri-input { flex: 1; min-width: 0; }
         .clp-uri-add-btn {
-            flex-shrink: 0; padding: 0 10px; border-radius: 7px;
+            flex-shrink: 0; padding: 0 10px; border-radius: 3px;
             border: 1px solid var(--border); background: var(--surface2); color: var(--text);
             cursor: pointer; font-size: 0.72rem; font-weight: 600;
         }
@@ -1050,7 +1120,7 @@
         .grid-item.has-media .item-num {
             background: rgba(8,12,20,0.55);
             color: #e2e8f5;
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 1px 6px;
             backdrop-filter: blur(2px);
         }
@@ -1059,7 +1129,7 @@
         .shortcut-badge {
             font-family: 'DM Mono', monospace;
             font-size: 0.55rem; background: var(--surface2);
-            border: 1px solid var(--border); border-radius: 3px;
+            border: 1px solid var(--border); border-radius: 2px;
             padding: 1px 4px; color: var(--accent2); font-weight: 700; letter-spacing: 0.04em;
             opacity: 0; transition: opacity 0.12s;
         }
@@ -1086,7 +1156,7 @@
             display: flex; align-items: center; gap: 3px;
             background: rgba(8,12,20,0.6); color: #cbd5e1;
             border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 10px; padding: 2px 6px;
+            border-radius: 4px; padding: 2px 6px;
             font-size: 0.62rem; cursor: pointer;
             -webkit-tap-highlight-color: transparent;
             transition: background 0.12s, padding 0.15s;
@@ -1097,14 +1167,14 @@
             opacity: 0; max-width: 0; transition: opacity 0.15s, max-width 0.15s;
         }
         .item-status-slot .status-hidden-btn:hover {
-            background: rgba(61,139,255,0.85);
+            background: rgba(91,155,242,0.85);
             color: #fff;
             max-width: 120px;
         }
         .item-status-slot .status-hidden-btn:hover .shi-label {
             opacity: 1; max-width: 80px; margin-left: 1px;
         }
-        .search-highlight { background: rgba(245,166,35,0.35); border-radius: 2px; }
+        .search-highlight { background: rgba(217,162,75,0.35); border-radius: 2px; }
 
         .title-input {
             width: 100%; border: none; outline: none;
@@ -1126,14 +1196,14 @@
             position: absolute; top: -1px; right: 0;
             width: 15px; height: 15px;
             border: none; background: var(--surface2);
-            color: var(--text-dim); border-radius: 3px;
+            color: var(--text-dim); border-radius: 2px;
             font-size: 0.62rem; line-height: 1;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 5; opacity: 0;
             transition: all 0.15s;
         }
         .grid-item:hover .field-clear-btn { opacity: 1; }
-        .field-clear-btn:hover { background: rgba(242,82,106,0.18); color: var(--danger); border-color: var(--danger); }
+        .field-clear-btn:hover { background: rgba(226,101,122,0.18); color: var(--danger); border-color: var(--danger); }
         .field-row.title-row { padding-right: 18px; }
         .field-row.title-row .field-clear-btn { top: -2px; }
         .field-row.content-row { flex: 1; padding-right: 18px; display: flex; }
@@ -1153,44 +1223,54 @@
             width: 85%; height: 55%;
             background: var(--surface);
             border: 1px solid var(--border2);
-            border-radius: 16px;
+            border-radius: 5px;
             /* [FIX] ヘッダーのボタン列（top:14px, 高さ約28px = 14〜42px）と
                本文の開始位置が重なっていたため、paddingを広げて構造的に分離する。
                タイトル側に個別の右余白を持たせるやり方はやめ、常にボタンの下から
                コンテンツが始まるようにする。 */
             padding: 54px 36px 16px;
-            box-shadow: 0 20px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(61,139,255,0.1), 0 0 32px rgba(61,139,255,0.05); /* [MOD] 影が強すぎたため軽減 */
+            box-shadow: 0 20px 48px rgba(0,0,0,0.28), 0 0 0 1px rgba(91,155,242,0.1), 0 0 32px rgba(91,155,242,0.05); /* [MOD] 影が強すぎたため軽減 */
             display: none;
             flex-direction: column;
             z-index: 500; overflow-y: auto;
         }
         #overlay::before {
             content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, var(--accent), var(--accent2));
-            border-radius: 16px 16px 0 0;
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: var(--accent);
+            opacity: 0.55;
+        }
+        /* [REDESIGN] フラッシュカードと同じ「識別コーナー」を主要カードにも一貫させる */
+        #overlay::after {
+            content: '';
+            position: absolute; top: 12px; left: 12px;
+            width: 8px; height: 8px;
+            border-top: 1px solid var(--border2);
+            border-left: 1px solid var(--border2);
+            opacity: 0.6;
+            pointer-events: none;
         }
         #overlay::-webkit-scrollbar { width: 6px; }
         #overlay::-webkit-scrollbar-track { background: transparent; }
-        #overlay::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        #overlay::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
         #overlay-title {
             font-size: 0.88rem; font-weight: 700; color: var(--accent);
             letter-spacing: 0.04em; margin-bottom: 14px; padding-bottom: 10px;
             border-bottom: 1px solid var(--border);
             font-family: 'Noto Sans JP', sans-serif;
-            border-radius: 6px; transition: background 0.12s;
+            border-radius: 3px; transition: background 0.12s;
         }
         #overlay-text {
             font-weight: 500; color: var(--text); line-height: 1.7;
             white-space: pre-wrap; word-wrap: break-word; padding-bottom: 64px;
             font-family: 'Noto Sans JP', sans-serif;
-            border-radius: 6px; transition: background 0.12s;
+            border-radius: 3px; transition: background 0.12s;
         }
         /* [NEW] ダブルクリックで編集モードに入れることの発見しやすさのため、
            ホバー時にごく薄い背景を出す（編集モード中はこれらの要素自体が非表示になるので出番はない） */
         #overlay-title:hover,
         #overlay-text:hover {
-            background: rgba(61,139,255,0.05);
+            background: rgba(91,155,242,0.05);
         }
         /* ══ カード メタゾーン ══════════════════════════════════════ */
         #overlay-meta {
@@ -1225,7 +1305,7 @@
         #meta-row-clipboard { gap: 8px; padding-bottom: 10px; flex-wrap: wrap; }
         .meta-clip-btn {
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 7px; padding: 5px 10px; font-size: 0.72rem;
+            border-radius: 3px; padding: 5px 10px; font-size: 0.72rem;
             color: var(--text); cursor: pointer; white-space: nowrap;
         }
         .meta-clip-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -1240,7 +1320,7 @@
             font-size: 0.68rem; color: var(--text-dim); cursor: pointer;
             flex-shrink: 0; padding: 0;
         }
-        .meta-clip-clear-btn:hover { border-color: #f2526a; color: #f2526a; }
+        .meta-clip-clear-btn:hover { border-color: #e2657a; color: #e2657a; }
         .meta-icon {
             font-size: 0.9rem;
             width: 20px;
@@ -1284,16 +1364,16 @@
             align-items: center;
             gap: 4px;
             background: var(--accent-glow);
-            border: 1px solid rgba(61,139,255,0.25);
+            border: 1px solid rgba(91,155,242,0.25);
             color: var(--accent);
             font-size: 0.62rem;
             font-family: 'DM Mono', monospace;
             padding: 2px 8px 2px 7px;
-            border-radius: 20px;
+            border-radius: 3px;
             cursor: default;
             transition: background 0.15s;
         }
-        .meta-tag-chip:hover { background: rgba(61,139,255,0.2); }
+        .meta-tag-chip:hover { background: rgba(91,155,242,0.2); }
         .meta-tag-chip .chip-remove {
             font-size: 0.65rem;
             color: var(--accent);
@@ -1324,12 +1404,12 @@
             font-family: 'DM Mono', monospace;
             font-size: 0.6rem;
             padding: 2px 8px;
-            border-radius: 20px;
+            border-radius: 3px;
             border: 1px solid;
         }
-        .meta-study-badge.again  { color:#f87171; border-color:rgba(248,113,113,0.3); background:rgba(248,113,113,0.08); }
-        .meta-study-badge.hint   { color:#fbbf24; border-color:rgba(251,191,36,0.3);  background:rgba(251,191,36,0.08);  }
-        .meta-study-badge.done   { color:#34d399; border-color:rgba(52,211,153,0.3);  background:rgba(52,211,153,0.08);  }
+        .meta-study-badge.again  { color:#e2657a; border-color:rgba(248,113,113,0.3); background:rgba(248,113,113,0.08); }
+        .meta-study-badge.hint   { color:#d9a24b; border-color:rgba(251,191,36,0.3);  background:rgba(251,191,36,0.08);  }
+        .meta-study-badge.done   { color:#3ecf9a; border-color:rgba(52,211,153,0.3);  background:rgba(52,211,153,0.08);  }
         .meta-study-badge.none   { color:var(--text-dim); border-color:var(--border); background:transparent; }
         /* 閲覧・録音・朗読モードではメタゾーンを折りたたむ（タグのみ表示） */
         body.view-mode     #meta-editable-rows,
@@ -1351,7 +1431,7 @@
             background: var(--surface2);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            border-radius: 6px;         /* 他ボタンと統一 */
+            border-radius: 3px;         /* 他ボタンと統一 */
             font-size: 0.78rem;         /* 他ボタンと統一 */
             width: 30px;                /* 他ボタンと統一 */
             height: 28px;               /* 他ボタンと統一 */
@@ -1394,7 +1474,7 @@
             line-height: 1.4;
             color: var(--text-muted);
             background: var(--surface2);
-            border-radius: 9px;
+            border-radius: 3px;
             pointer-events: none; /* タップはカード本体（親要素）が受け取る */
             z-index: 2;
         }
@@ -1409,18 +1489,18 @@
             align-items: center; justify-content: center;
             flex-direction: column; gap: 4px;
             border: 1.5px dashed var(--accent);
-            border-radius: 9px;
-            background: rgba(61,139,255,0.06);
+            border-radius: 3px;
+            background: rgba(91,155,242,0.06);
             color: var(--accent);
             font-size: 0.68rem;
             cursor: pointer;
             z-index: 3;
         }
-        .grid-paste-hint:hover { background: rgba(61,139,255,0.12); }
+        .grid-paste-hint:hover { background: rgba(91,155,242,0.12); }
         .grid-paste-hint .gph-icon { font-size: 1.3rem; }
         /* hide-toggle ボタン */
         #hide-toggle-btn.active {
-            background: rgba(61,139,255,0.15);
+            background: rgba(91,155,242,0.15);
             border-color: var(--accent);
             color: var(--accent);
         }
@@ -1453,19 +1533,19 @@
             pointer-events: none;
         }
         .speech-sentence.no-speech:hover { background: none; }
-        .speech-sentence { cursor: pointer; border-radius: 3px; transition: background 0.15s; }
+        .speech-sentence { cursor: pointer; border-radius: 2px; transition: background 0.15s; }
         .speech-sentence:hover { background: var(--accent-glow); }
-        .speech-sentence.speech-active { background: rgba(45,212,164,0.22); }
+        .speech-sentence.speech-active { background: rgba(62,207,154,0.22); }
 
         #edit-mode-btn {
             position: absolute; top: 14px; right: 50px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; font-size: 0.8rem; width: 30px; height: 28px;
+            border-radius: 3px; font-size: 0.8rem; width: 30px; height: 28px;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: all 0.15s; z-index: 10; line-height: 1;
         }
         #edit-mode-btn:hover { border-color: var(--accent); }
-        #edit-mode-btn.active { background: rgba(61,139,255,0.15); border-color: var(--accent); }
+        #edit-mode-btn.active { background: rgba(91,155,242,0.15); border-color: var(--accent); }
 
         /* ─── 本文内検索バー ─── */
         #overlay-find-bar {
@@ -1473,15 +1553,15 @@
             position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
             align-items: center; gap: 6px;
             background: var(--surface2); border: 1px solid var(--border2);
-            border-radius: 8px; padding: 5px 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+            border-radius: 3px; padding: 5px 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.245);
             z-index: 50;
         }
         #overlay-find-bar.active { display: flex; }
         #overlay-find-bar .find-icon { font-size: 0.75rem; color: var(--text-muted); }
         #overlay-find-input {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 5px; color: var(--text);
+            border-radius: 2px; color: var(--text);
             font-size: 0.78rem; padding: 4px 8px; outline: none;
             width: 160px; font-family: 'Noto Sans JP', sans-serif;
         }
@@ -1493,7 +1573,7 @@
         #overlay-find-count.no-match { color: var(--danger); }
         .find-nav-btn, .find-close-btn {
             background: var(--surface); border: 1px solid var(--border);
-            color: var(--text-muted); border-radius: 5px;
+            color: var(--text-muted); border-radius: 2px;
             width: 24px; height: 24px; font-size: 0.68rem;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: all 0.15s; line-height: 1;
@@ -1501,13 +1581,13 @@
         .find-nav-btn:hover, .find-close-btn:hover { border-color: var(--accent); color: var(--accent); }
         .find-close-btn:hover { border-color: var(--danger); color: var(--danger); }
 
-        .overlay-find-hit { background: rgba(245,166,35,0.4); border-radius: 2px; color: inherit; }
+        .overlay-find-hit { background: rgba(217,162,75,0.4); border-radius: 2px; color: inherit; }
         .overlay-find-hit.find-current { background: var(--accent); color: #fff; }
         textarea.find-highlight-active { box-shadow: 0 0 0 2px var(--accent) inset; }
 
         #overlay-edit {
             display: block; width: 100%; flex: 1;
-            border: 1px solid var(--border); border-radius: 8px;
+            border: 1px solid var(--border); border-radius: 3px;
             background: var(--surface2); color: var(--text);
             font-size: inherit; font-weight: 500; line-height: 1.7;
             padding: 12px 14px; outline: none;
@@ -1526,14 +1606,14 @@
         #overlay-title[contenteditable="true"] {
             outline: none;
             cursor: text;
-            background: rgba(61,139,255,0.06);
+            background: rgba(91,155,242,0.06);
             padding-right: 28px; /* 右上の×ボタン分の余白 */
         }
         #overlay-title-clear-inline {
             display: none;
             position: absolute; top: 0; right: 0;
             width: 22px; height: 22px;
-            border-radius: 6px;
+            border-radius: 3px;
             border: 1px solid var(--border);
             background: var(--surface2);
             color: var(--text-dim);
@@ -1541,7 +1621,7 @@
             cursor: pointer;
             align-items: center; justify-content: center;
         }
-        #overlay-title-clear-inline:hover { background: rgba(242,82,106,0.15); border-color: var(--danger); color: var(--danger); }
+        #overlay-title-clear-inline:hover { background: rgba(226,101,122,0.15); border-color: var(--danger); color: var(--danger); }
         #overlay.edit-mode #overlay-title-clear-inline { display: flex; }
 
         .overlay-field-row {
@@ -1553,28 +1633,28 @@
         .overlay-field-clear {
             flex-shrink: 0; border: 1px solid var(--border);
             background: var(--surface2); color: var(--text-dim);
-            border-radius: 6px; width: 30px; height: 30px; cursor: pointer;
+            border-radius: 3px; width: 30px; height: 30px; cursor: pointer;
             font-size: 0.9rem; line-height: 1; transition: all 0.15s;
             align-self: flex-start;
         }
         /* [FIX] 本文の✕ボタンをタイトルと同じ小さいサイズに統一。
            以前はボックスの高さいっぱいに伸びており、新設した下辺のリサイズハンドルの
            すぐ隣に大きな✕ボタンが位置してしまい、誤って本文を消去しやすい配置になっていた。 */
-        .overlay-field-clear:hover { background: rgba(242,82,106,0.15); border-color: var(--danger); color: var(--danger); }
+        .overlay-field-clear:hover { background: rgba(226,101,122,0.15); border-color: var(--danger); color: var(--danger); }
 
         #close-btn {
             position: absolute; top: 12px; right: 16px;
             font-size: 1.3rem; cursor: pointer; color: var(--text-dim);
             z-index: 600; line-height: 1; transition: color 0.15s;
             width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-            border-radius: 6px;
+            border-radius: 3px;
         }
-        #close-btn:hover { color: var(--danger); background: rgba(242,82,106,0.1); }
+        #close-btn:hover { color: var(--danger); background: rgba(226,101,122,0.1); }
 
         #overlay-drag-handle {
             position: absolute; top: 0; left: 0; right: 0;
             height: 36px; cursor: move; z-index: 5;
-            border-radius: 16px 16px 0 0;
+            border-radius: 5px 5px 0 0;
         }
         #overlay-drag-handle::after {
             content: '';
@@ -1657,7 +1737,7 @@
         #audio-upload-btn {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 3px;
             color: var(--text-muted);
             font-size: 0.68rem;
             padding: 4px 10px;
@@ -1675,7 +1755,7 @@
         }
         .speech-btn {
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; color: var(--text); font-size: 0.8rem;
+            border-radius: 3px; color: var(--text); font-size: 0.8rem;
             width: 32px; height: 28px; cursor: pointer; transition: all 0.15s;
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
@@ -1684,9 +1764,9 @@
         .speech-btn#speech-play-btn.speaking { border-color: var(--success); color: var(--success); }
         /* [NEW] 録音モード：再生ボタン自体が録音中表示になる（経過時間つき） */
         .speech-btn#speech-play-btn.recording {
-            border-color: #f2526a;
-            color: #f2526a;
-            background: rgba(242,82,106,0.12);
+            border-color: #e2657a;
+            color: #e2657a;
+            background: rgba(226,101,122,0.12);
             animation: mobRecBlink 1s step-end infinite;
             width: auto;
             min-width: 34px;
@@ -1694,8 +1774,8 @@
             font-size: 0.7rem;
             white-space: nowrap;
         }
-        #speech-clicklock-btn.locked { border-color: var(--warning); color: var(--warning); background: rgba(245,166,35,0.12); }
-        #speech-clicklock-btn.unlocked { border-color: var(--success); color: var(--success); background: rgba(45,212,164,0.12); }
+        #speech-clicklock-btn.locked { border-color: var(--warning); color: var(--warning); background: rgba(217,162,75,0.12); }
+        #speech-clicklock-btn.unlocked { border-color: var(--success); color: var(--success); background: rgba(62,207,154,0.12); }
 
         /* クリック朗読OFF時：本文クリックでは何も起きないことを示す */
         body.speech-click-locked .speech-sentence { cursor: text; }
@@ -1703,7 +1783,7 @@
         #speech-status { flex: 1; font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.04em; font-family: 'DM Mono', monospace; }
         #speech-rate {
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 5px; color: var(--text); font-size: 0.65rem;
+            border-radius: 2px; color: var(--text); font-size: 0.65rem;
             padding: 2px 4px; cursor: pointer; outline: none;
         }
 
@@ -1713,7 +1793,7 @@
         #size-panel-btn {
             position: absolute; top: 14px; right: 86px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; font-size: 0.78rem;
+            border-radius: 3px; font-size: 0.78rem;
             width: 30px; height: 28px; cursor: pointer;
             display: none;           /* 閲覧モード時のみ表示 */
             align-items: center; justify-content: center;
@@ -1724,19 +1804,19 @@
         body.edit-mode-active #size-panel-btn,
         body.interview-mode #size-panel-btn { display: flex; }
         #size-panel-btn:hover  { border-color: var(--accent); color: var(--accent); }
-        #size-panel-btn.active { background: rgba(61,139,255,0.15); border-color: var(--accent); color: var(--accent); }
+        #size-panel-btn.active { background: rgba(91,155,242,0.15); border-color: var(--accent); color: var(--accent); }
 
         /* パネル本体：ボタン直下にドロップダウン */
         #size-panel {
             position: absolute; top: 48px; right: 14px;
             background: var(--surface2);
             border: 1px solid var(--border2);
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 10px 12px;
             display: none;
             flex-direction: column; gap: 8px;
             z-index: 30;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.315);
             /* [FIX] min-widthで固定していたため、カード幅が狭いと右端(right:14px)から
                はみ出し、overflow-y:auto の影響でoverflow-xも自動的にautoとなり
                見えない場所へクリップされてしまっていた。カード幅に収まるよう可変化する。 */
@@ -1768,15 +1848,15 @@
             font-weight: 600; min-width: 40px; text-align: center;
         }
         /* [NEW] クリックで直接数値入力できることを示すヒント */
-        .sp-val-editable { cursor: text; border-radius: 4px; }
-        .sp-val-editable:hover { background: rgba(61,139,255,0.12); text-decoration: underline dotted; }
+        .sp-val-editable { cursor: text; border-radius: 2px; }
+        .sp-val-editable:hover { background: rgba(91,155,242,0.12); text-decoration: underline dotted; }
         .sp-val-input {
             width: 44px;
             font-family: 'DM Mono', monospace;
             font-size: 0.68rem; font-weight: 600;
             color: var(--accent);
             background: var(--surface); border: 1px solid var(--accent);
-            border-radius: 4px; text-align: center;
+            border-radius: 2px; text-align: center;
             padding: 1px 2px;
             outline: none;
         }
@@ -1786,14 +1866,14 @@
         .sp-val-input[type=number] { -moz-appearance: textfield; }
         .sp-btn {
             background: var(--surface3); border: 1px solid var(--border2);
-            border-radius: 5px; color: var(--text-muted);
+            border-radius: 2px; color: var(--text-muted);
             font-size: 0.8rem; width: 26px; height: 24px;
             cursor: pointer; transition: all 0.12s; flex-shrink: 0;
             display: flex; align-items: center; justify-content: center;
             font-family: 'DM Mono', monospace; font-weight: 700;
             line-height: 1; padding: 0; user-select: none;
         }
-        .sp-btn:hover  { border-color: var(--accent); color: var(--accent); background: rgba(61,139,255,0.1); }
+        .sp-btn:hover  { border-color: var(--accent); color: var(--accent); background: rgba(91,155,242,0.1); }
         .sp-btn:active { transform: scale(0.88); }
         .sp-divider { height: 1px; background: var(--border); margin: 2px 0; }
 
@@ -1808,13 +1888,13 @@
         }
         kbd {
             display: inline-block; background: var(--surface2);
-            border: 1px solid var(--border); border-radius: 3px;
+            border: 1px solid var(--border); border-radius: 2px;
             padding: 1px 5px; font-size: 0.58rem; color: var(--accent2);
             font-family: 'DM Mono', monospace; font-weight: 700;
         }
         .scenario-count {
-            font-size: 0.6rem; background: rgba(61,139,255,0.12);
-            border: 1px solid rgba(61,139,255,0.25); border-radius: 10px;
+            font-size: 0.6rem; background: rgba(91,155,242,0.12);
+            border: 1px solid rgba(91,155,242,0.25); border-radius: 4px;
             padding: 1px 6px; color: var(--accent); font-family: 'DM Mono', monospace;
         }
 
@@ -1822,11 +1902,11 @@
         #shortcut-toast {
             position: fixed; bottom: 42px; left: 50%; transform: translateX(-50%) translateY(10px);
             background: var(--surface); border: 1px solid var(--border2);
-            border-radius: 20px; padding: 7px 18px;
+            border-radius: 3px; padding: 7px 18px;
             font-size: 0.72rem; color: var(--text); font-weight: 500;
             z-index: 800; opacity: 0; transition: opacity 0.2s, transform 0.2s;
             pointer-events: none; white-space: nowrap;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.28);
         }
         #shortcut-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -1834,7 +1914,7 @@
         #timer-widget {
             position: fixed; bottom: 50px; right: 20px; width: 178px;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.28);
             z-index: 700; overflow: hidden; user-select: none; transition: box-shadow 0.2s;
             display: none;
         }
@@ -1863,15 +1943,15 @@
         #timer-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
         .t-preset {
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 5px; color: var(--text-muted); font-size: 0.67rem;
+            border-radius: 2px; color: var(--text-muted); font-size: 0.67rem;
             padding: 4px 2px; cursor: pointer; transition: all 0.15s;
             font-family: 'DM Mono', monospace;
         }
         .t-preset:hover    { border-color: var(--accent); color: var(--accent); }
-        .t-preset.selected { border-color: var(--accent); background: rgba(61,139,255,0.12); color: var(--accent); font-weight: 700; }
+        .t-preset.selected { border-color: var(--accent); background: rgba(91,155,242,0.12); color: var(--accent); font-weight: 700; }
         #timer-controls { display: flex; gap: 6px; }
         #timer-start-btn {
-            flex: 1; background: var(--accent); border: none; border-radius: 6px;
+            flex: 1; background: var(--accent); border: none; border-radius: 3px;
             color: white; font-size: 0.72rem; font-weight: 700; padding: 6px 4px;
             cursor: pointer; transition: opacity 0.15s; letter-spacing: 0.03em;
             font-family: 'DM Mono', monospace;
@@ -1880,12 +1960,12 @@
         #timer-start-btn.running { background: var(--warning); color: #1f2937; }
         #timer-reset-btn {
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 6px; color: var(--text-muted); font-size: 1rem;
+            border-radius: 3px; color: var(--text-muted); font-size: 1rem;
             width: 32px; cursor: pointer; transition: all 0.15s;
         }
         #timer-reset-btn:hover { border-color: var(--danger); color: var(--danger); }
         #timer-flash {
-            position: fixed; inset: 0; background: rgba(242,82,106,0.15);
+            position: fixed; inset: 0; background: rgba(226,101,122,0.15);
             z-index: 900; pointer-events: none; opacity: 0;
         }
         #timer-flash.flash { animation: flashAnim 1.4s ease-out forwards; }
@@ -1933,14 +2013,14 @@
             width: 100%;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 4px;
             padding: 10px 13px;
             cursor: pointer;
             margin-bottom: 7px;
             transition: all 0.15s;
             text-align: left;
         }
-        .dm-action:hover { border-color: var(--accent); background: rgba(61,139,255,0.06); }
+        .dm-action:hover { border-color: var(--accent); background: rgba(91,155,242,0.06); }
         .dm-action .dm-icon { font-size: 1rem; flex-shrink: 0; width: 22px; text-align: center; }
         .dm-action .dm-label { font-size: 0.73rem; font-weight: 600; color: var(--text); }
         .dm-action .dm-desc  { font-size: 0.6rem; color: var(--text-muted); margin-top: 1px; }
@@ -1972,9 +2052,9 @@
             color: var(--text-dim);
             line-height: 1.6;
             padding: 7px 10px;
-            background: rgba(242,82,106,0.06);
-            border: 1px solid rgba(242,82,106,0.18);
-            border-radius: 7px;
+            background: rgba(226,101,122,0.06);
+            border: 1px solid rgba(226,101,122,0.18);
+            border-radius: 3px;
             margin-bottom: 10px;
         }
         /* 共有URL入力 */
@@ -1982,7 +2062,7 @@
             width: 100%;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             color: var(--text);
             font-size: 0.7rem;
             padding: 8px 10px;
@@ -1998,10 +2078,10 @@
         .modal-btn {
             flex: 1; display: flex; align-items: center; justify-content: center;
             gap: 6px; background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 8px; color: var(--text); font-size: 0.75rem; font-weight: 600;
+            border-radius: 3px; color: var(--text); font-size: 0.75rem; font-weight: 600;
             padding: 9px 8px; cursor: pointer; transition: all 0.15s;
         }
-        .modal-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(61,139,255,0.08); }
+        .modal-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(91,155,242,0.08); }
         .modal-btn-icon { font-size: 0.88rem; color: var(--accent); }
 
         /* ─── TUTORIAL OVERLAY ─── */
@@ -2016,27 +2096,32 @@
             width: 520px; max-width: 94vw;
             background: var(--surface);
             border: 1px solid var(--border2);
-            border-radius: 20px;
+            border-radius: 3px;
             overflow: hidden;
-            box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(61,139,255,0.1);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.56), 0 0 0 1px rgba(91,155,242,0.1);
             transform: translateY(20px);
             animation: slideUp 0.4s 0.1s forwards;
         }
         @keyframes slideUp { to { transform: translateY(0); } }
         #tutorial-modal::before {
             content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: var(--accent);
+            opacity: 0.55;
         }
         .tutorial-header {
             padding: 28px 32px 20px;
             border-bottom: 1px solid var(--border);
         }
         .tutorial-logo {
-            font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            letter-spacing: 0.06em; margin-bottom: 6px;
+            font-family: var(--font-mono); font-size: 1rem; font-weight: 500;
+            color: var(--text);
+            letter-spacing: 0.1em; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tutorial-logo::before {
+            content: ''; width: 7px; height: 7px; border-radius: 50%;
+            background: var(--accent); box-shadow: 0 0 5px var(--accent-glow);
         }
         .tutorial-subtitle {
             font-size: 0.8rem; color: var(--text-muted); font-weight: 400; line-height: 1.5;
@@ -2048,12 +2133,12 @@
         .tutorial-step {
             display: flex; gap: 14px; align-items: flex-start;
             padding: 12px 14px; background: var(--surface2);
-            border: 1px solid var(--border); border-radius: 10px;
+            border: 1px solid var(--border); border-radius: 4px;
             transition: border-color 0.15s;
         }
         .tutorial-step:hover { border-color: var(--border2); }
         .step-icon {
-            width: 36px; height: 36px; border-radius: 8px;
+            width: 36px; height: 36px; border-radius: 3px;
             background: var(--surface3); border: 1px solid var(--border2);
             display: flex; align-items: center; justify-content: center;
             font-size: 1.1rem; flex-shrink: 0;
@@ -2070,13 +2155,13 @@
             display: flex; flex-direction: column; gap: 10px;
         }
         .tutorial-start-btn {
-            width: 100%; padding: 13px; border: none; border-radius: 10px;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            width: 100%; padding: 13px; border: none; border-radius: 4px;
+            background: var(--accent);
             color: white; font-size: 0.85rem; font-weight: 700;
             cursor: pointer; letter-spacing: 0.04em;
             transition: opacity 0.15s, transform 0.15s;
             font-family: 'Noto Sans JP', sans-serif;
-            box-shadow: 0 4px 20px rgba(61,139,255,0.4);
+            box-shadow: var(--shadow-sm);
         }
         .tutorial-start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .tutorial-skip {
@@ -2086,7 +2171,7 @@
         .tutorial-skip:hover { color: var(--text-muted); }
 
         /* ─── [NEW] INTERVIEW MODE ─── */
-        .mode-btn.active.interview-mode { color: #f2526a; border-color: rgba(242,82,106,0.4); }
+        .mode-btn.active.interview-mode { color: #e2657a; border-color: rgba(226,101,122,0.4); }
         body.interview-mode .grid-item { cursor: pointer; }
         body.interview-mode .drag-handle { display: none; }
         body.interview-mode .title-input,
@@ -2116,31 +2201,31 @@
             display: none;
             align-items: center;
             gap: 10px;
-            background: rgba(242,82,106,0.1);
-            border: 1px solid rgba(242,82,106,0.4);
-            border-radius: 10px;
+            background: rgba(226,101,122,0.1);
+            border: 1px solid rgba(226,101,122,0.4);
+            border-radius: 4px;
             padding: 10px 14px;
             margin-top: 12px;
         }
         #itv-bar.active { display: flex; }
         #itv-rec-dot {
             width: 10px; height: 10px;
-            background: #f2526a;
+            background: #e2657a;
             border-radius: 50%;
             animation: itvBlink 1s step-end infinite;
             flex-shrink: 0;
         }
         @keyframes itvBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
         #itv-rec-label {
-            font-size: 0.72rem; color: #f2526a; font-weight: 700;
+            font-size: 0.72rem; color: #e2657a; font-weight: 700;
             font-family: 'DM Mono', monospace; flex: 1;
         }
         #itv-elapsed {
             font-family: 'DM Mono', monospace;
-            font-size: 0.72rem; color: #f2526a; font-weight: 700;
+            font-size: 0.72rem; color: #e2657a; font-weight: 700;
         }
         #itv-done-btn {
-            background: #f2526a; border: none; border-radius: 6px;
+            background: #e2657a; border: none; border-radius: 3px;
             color: white; font-size: 0.72rem; font-weight: 700;
             padding: 5px 12px; cursor: pointer; transition: opacity 0.15s;
             flex-shrink: 0;
@@ -2166,24 +2251,24 @@
         .itv-rec-item {
             display: flex; align-items: center; gap: 8px;
             background: var(--surface2); border: 1px solid var(--border);
-            border-radius: 7px; padding: 6px 10px;
+            border-radius: 3px; padding: 6px 10px;
             cursor: pointer; transition: border-color 0.15s;
         }
         .itv-rec-item:hover { border-color: var(--accent); }
-        .itv-rec-item.playing { border-color: var(--success); background: rgba(45,212,164,0.08); }
+        .itv-rec-item.playing { border-color: var(--success); background: rgba(62,207,154,0.08); }
         .itv-rec-play { font-size: 0.8rem; color: var(--accent); flex-shrink: 0; }
         .itv-rec-item.playing .itv-rec-play { color: var(--success); }
         .itv-rec-date { font-size: 0.7rem; color: var(--text-muted); flex: 1; font-family: 'DM Mono', monospace; }
         .itv-rec-dl {
             background: none; border: none; color: var(--text-dim);
             font-size: 0.75rem; cursor: pointer; padding: 2px 4px;
-            border-radius: 3px; transition: color 0.15s;
+            border-radius: 2px; transition: color 0.15s;
         }
         .itv-rec-dl:hover { color: var(--accent); }
         .itv-rec-del {
             background: none; border: none; color: var(--text-dim);
             font-size: 0.75rem; cursor: pointer; padding: 2px 4px;
-            border-radius: 3px; transition: color 0.15s;
+            border-radius: 2px; transition: color 0.15s;
         }
         .itv-rec-del:hover { color: var(--danger); }
 
@@ -2202,9 +2287,9 @@
         .interview-mode-banner {
             display: none;
             position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
-            background: rgba(242,82,106,0.12); border: 1px solid rgba(242,82,106,0.35);
-            border-radius: 20px; padding: 6px 16px;
-            font-size: 0.68rem; color: #f2526a; font-weight: 600;
+            background: rgba(226,101,122,0.12); border: 1px solid rgba(226,101,122,0.35);
+            border-radius: 3px; padding: 6px 16px;
+            font-size: 0.68rem; color: #e2657a; font-weight: 600;
             z-index: 600; pointer-events: none; letter-spacing: 0.04em;
         }
         body.interview-mode .interview-mode-banner { display: block; }
@@ -2213,8 +2298,8 @@
         .view-mode-banner {
             display: none;
             position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
-            background: rgba(45,212,164,0.12); border: 1px solid rgba(45,212,164,0.35);
-            border-radius: 20px; padding: 6px 16px;
+            background: rgba(62,207,154,0.12); border: 1px solid rgba(62,207,154,0.35);
+            border-radius: 3px; padding: 6px 16px;
             font-size: 0.68rem; color: var(--success); font-weight: 600;
             z-index: 600; pointer-events: none;
             letter-spacing: 0.04em;
@@ -2233,8 +2318,8 @@
             right: 0;
             background: var(--surface);
             border: 1px solid var(--border2);
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+            border-radius: 3px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.245);
             z-index: 600;
             min-width: 160px;
             padding: 6px;
@@ -2245,7 +2330,7 @@
         .ss-option {
             background: none;
             border: none;
-            border-radius: 6px;
+            border-radius: 3px;
             color: var(--text-muted);
             font-size: 0.78rem;
             padding: 8px 12px;
@@ -2257,7 +2342,7 @@
         .ss-option:hover { background: var(--surface2); color: var(--text); }
         .ss-option.active {
             color: var(--accent);
-            background: rgba(61,139,255,0.08);
+            background: rgba(91,155,242,0.08);
         }
         .ss-divider {
             border: none;
@@ -2273,8 +2358,8 @@
         #qcard-camera-modal.open { display:flex; }
         .qcard-camera-panel {
             width:min(96vw,720px); max-height:96dvh; background:var(--surface);
-            border:1px solid var(--border2); border-radius:16px; overflow:hidden;
-            box-shadow:0 24px 80px rgba(0,0,0,.6); display:flex; flex-direction:column;
+            border:1px solid var(--border2); border-radius:5px; overflow:hidden;
+            box-shadow:0 24px 80px rgba(0,0,0,0.42); display:flex; flex-direction:column;
         }
         .qcard-camera-head { padding:10px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
         .qcard-camera-title { font-weight:700; font-size:.82rem; flex:1; }
@@ -2282,7 +2367,7 @@
         #qcard-camera-video-wrap { background:#000; position:relative; width:100%; aspect-ratio:3/4; max-height:72dvh; }
         #qcard-camera-video { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
         .qcard-camera-controls { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); }
-        .qcard-camera-controls button { flex:1; min-height:44px; border:1px solid var(--border); border-radius:9px; background:var(--surface2); color:var(--text); font:inherit; cursor:pointer; }
+        .qcard-camera-controls button { flex:1; min-height:44px; border:1px solid var(--border); border-radius:3px; background:var(--surface2); color:var(--text); font:inherit; cursor:pointer; }
         #qcard-camera-shoot { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
         #qcard-camera-switch { flex:0 0 auto; width:88px; }
         #qcard-camera-close { flex:0 0 auto; width:70px; }
@@ -2292,12 +2377,12 @@
   position: fixed;
   bottom: 20px; left: 20px;
   width: 320px; height: 180px;
-  border: 2px solid #3d8bff;
-  border-radius: 8px;
+  border: 2px solid #5b9bf2;
+  border-radius: 3px;
   overflow: visible;
   background: #000;
   z-index: 800;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.42);
   display: none;
 }
 #pip-capture.minimized {
@@ -2323,7 +2408,7 @@
 }
 #pip-cap-canvas {
   width: 100%; height: 100%;
-  border-radius: 6px;
+  border-radius: 3px;
   display: block;
   cursor: grab;
 }
@@ -2331,7 +2416,7 @@
 .pip-resize-handle {
   position: absolute;
   width: 14px; height: 14px;
-  background: #3d8bff;
+  background: #5b9bf2;
   border-radius: 2px;
   z-index: 10000;
 }
@@ -2347,21 +2432,21 @@
   gap: 6px;
   background: #0e1525;
   border: 1px solid #1f2e4a;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 3px 3px;
   padding: 4px 8px;
   font-size: 0.65rem;
   color: #5a7299;
 }
 #pip-cap-controls input[type=range] {
   width: 80px;
-  accent-color: #3d8bff;
+  accent-color: #5b9bf2;
 }
-#pip-zoom-label { color: #3d8bff; font-weight: 700; min-width: 30px; }
+#pip-zoom-label { color: #5b9bf2; font-weight: 700; min-width: 30px; }
 #pip-cap-close {
   position: absolute;
   top: -10px; right: -10px;
   width: 22px; height: 22px;
-  background: #f2526a;
+  background: #e2657a;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.7rem; color: white;
@@ -2371,7 +2456,7 @@
   position: absolute;
   top: -10px; left: -10px;
   width: 22px; height: 22px;
-  background: #2dd4a4;
+  background: #3ecf9a;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.65rem; color: white;
@@ -2392,7 +2477,7 @@
             height: 40px !important;
             min-height: 40px !important;
             padding: 0 !important;
-            border-radius: 8px !important;
+            border-radius: 3px!important;
             background: rgba(10,14,22,0.82) !important;
             border: 0 !important;
             flex-direction: row !important;
@@ -2412,7 +2497,7 @@
             margin: 0 !important;
             padding: 0 8px !important;
             border: 0 !important;
-            border-radius: 0 !important;
+            border-radius: 0!important;
             background: transparent !important;
             box-sizing: border-box !important;
             justify-content: center;
@@ -2465,7 +2550,7 @@
         .mode-btn {
             padding: 6px 7px;
             font-size: 0.75rem;
-            border-radius: 6px;
+            border-radius: 3px;
             flex-shrink: 0; /* [FIX] 個々のボタンは潰さず、必要なら親要素をスクロールさせる */
         }
         /* テキストラベル非表示・絵文字のみ */
@@ -2474,7 +2559,7 @@
         /* テーマトグル：アイコンのみ */
         .theme-toggle {
             padding: 6px 8px;
-            border-radius: 6px;
+            border-radius: 3px;
             font-size: 0.82rem;
         }
         #themeLabel { display: none; }
@@ -2487,7 +2572,7 @@
             width: 36px; height: 36px;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             cursor: pointer;
             font-size: 1rem;
             color: var(--text-muted);
@@ -2569,7 +2654,7 @@
             width: 52px;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 3px;
             color: var(--text);
             text-align: center;
             padding: 5px 4px;
@@ -2592,7 +2677,7 @@
             background: var(--surface2);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            border-radius: 8px;
+            border-radius: 3px;
             padding: 10px 14px;
             font-size: 0.78rem;
             font-weight: 600;
@@ -2630,7 +2715,7 @@
             flex-shrink: 0;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 7px;
+            border-radius: 3px;
             padding: 2px 6px;
         }
         #grid-size-bar .gs-icon {
@@ -2668,7 +2753,7 @@
         .ds-lang-btn {
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 3px;
             color: var(--text-muted);
             font-size: 1.2rem;
             padding: 4px 8px;
@@ -2680,14 +2765,14 @@
         .ds-lang-btn:hover { color: var(--text); border-color: var(--border2); }
         .ds-lang-btn.active {
             color: var(--accent);
-            border-color: rgba(61,139,255,0.55);
-            background: rgba(61,139,255,0.1);
+            border-color: rgba(91,155,242,0.55);
+            background: rgba(91,155,242,0.1);
         }
         /* .lang-option は ds-lang-btn / モバイルドロワーボタン共通のアクティブ状態管理クラス */
         .lang-option.active {
             color: var(--accent);
-            border-color: rgba(61,139,255,0.55) !important;
-            background: rgba(61,139,255,0.1) !important;
+            border-color: rgba(91,155,242,0.55) !important;
+            background: rgba(91,155,242,0.1) !important;
         }
 
         /* ── モバイル：grid-size-bar は非表示（ドロワー内で管理） ── */
@@ -2701,7 +2786,7 @@
             background: var(--surface2);
             border: 1px solid var(--border);
             color: var(--text-muted);
-            border-radius: 8px;
+            border-radius: 3px;
             padding: 5px 9px;
             font-size: 0.92rem;
             cursor: pointer;
@@ -2710,14 +2795,14 @@
         }
         #mob-flip-btn.active {
             color: var(--accent);
-            border-color: rgba(61,139,255,0.55);
-            background: rgba(61,139,255,0.12);
+            border-color: rgba(91,155,242,0.55);
+            background: rgba(91,155,242,0.12);
         }
         #learningModeToggleBtn.reversed,
         #studyBarToggleBtn.reversed,
         #mobStudyBarToggleBtn.reversed {
             color: var(--accent) !important;
-            border-color: rgba(61,139,255,0.55) !important;
+            border-color: rgba(91,155,242,0.55) !important;
         }
         #mob-scenario-wrap {
             display: flex !important;
@@ -2734,7 +2819,7 @@
             gap: 6px;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             color: var(--text);
             font-size: 0.78rem;
             padding: 6px 10px;
@@ -2762,7 +2847,7 @@
             border: none;
             font-size: 1.5rem;
             line-height: 1;
-            box-shadow: 0 6px 20px rgba(61,139,255,0.45), 0 2px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 6px 20px rgba(91,155,242,0.45), 0 2px 6px rgba(0,0,0,0.21);
             z-index: 760;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
@@ -2784,8 +2869,8 @@
             max-height: 72vh;
             background: var(--surface);
             border-top: 1px solid var(--border2);
-            border-radius: 16px 16px 0 0;
-            box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+            border-radius: 5px 5px 0 0;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.28);
             z-index: 901;
             padding: 8px 0 max(10px, env(safe-area-inset-bottom)) 0;
             flex-direction: column;
@@ -2813,7 +2898,7 @@
         #mob-scenario-sheet-add {
             margin: 10px 16px 0;
             padding: 10px;
-            border-radius: 10px;
+            border-radius: 4px;
             border: 1px dashed var(--border2);
             background: transparent;
             color: var(--accent);
@@ -2825,7 +2910,7 @@
         .mss-row-wrap {
             position: relative;
             overflow: visible;
-            border-radius: 10px;
+            border-radius: 4px;
             margin-bottom: 6px;
         }
         .mss-row-del {
@@ -2836,7 +2921,7 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 0.78rem;
             border: none;
-            border-radius: 10px;
+            border-radius: 4px;
             -webkit-tap-highlight-color: transparent;
         }
         .mss-row {
@@ -2845,7 +2930,7 @@
             padding: 12px 12px;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 4px;
             font-size: 0.85rem;
             color: var(--text);
             touch-action: none; /* [FIX] pan-y だと純粋な縦ドラッグをブラウザがスクロールとして奪ってしまい、
@@ -2859,7 +2944,7 @@
         .mss-row.active {
             border-color: var(--accent);
             background: var(--surface2); /* [FIX] 不透明にする（下の削除ボタンが透けないように） */
-            box-shadow: inset 0 0 0 999px rgba(61,139,255,0.08); /* アクセントの色味は要素内部で重ねて表現 */
+            box-shadow: inset 0 0 0 999px rgba(91,155,242,0.08); /* アクセントの色味は要素内部で重ねて表現 */
         }
         .mss-row.dragging-swipe { transition: none; }
         .mss-row-grip { color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; letter-spacing: -1px; }
@@ -2876,7 +2961,7 @@
             color: var(--text); font-size: 0.85rem;
             font-family: 'Noto Sans JP', sans-serif;
             padding: 4px 2px;
-            border-radius: 4px;
+            border-radius: 2px;
             -webkit-user-select: text; user-select: text;
         }
         .mss-row-name-input:focus { background: var(--surface3, rgba(255,255,255,0.06)); }
@@ -2893,7 +2978,7 @@
             transform: scale(0.97);
             border-style: dashed;
             border-color: var(--accent);
-            box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.245);
             background: var(--surface3, var(--surface2));
         }
         .mss-row-wrap.drop-insert-before::before,
@@ -2914,9 +2999,9 @@
             left: 50%; bottom: 84px;
             transform: translateX(-50%);
             background: var(--surface); border: 1px solid var(--border2);
-            border-radius: 12px;
+            border-radius: 4px;
             padding: 10px 10px 10px 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.28);
             z-index: 950;
             align-items: center; gap: 14px;
             font-size: 0.78rem;
@@ -2942,14 +3027,14 @@
             flex-shrink: 0;
             background: var(--surface2);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 3px;
             padding: 2px;
         }
         .mob-view-btn {
             background: transparent;
             border: none;
             color: var(--text-dim);
-            border-radius: 6px;
+            border-radius: 3px;
             width: 30px; height: 28px;
             font-size: 0.9rem;
             cursor: pointer;
@@ -2960,7 +3045,7 @@
         .mob-view-btn.active {
             background: var(--surface);
             color: var(--text);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.14);
         }
 
         /* ═══════════════════════════════════════════
@@ -3006,7 +3091,7 @@ min-height: 0;
             border:1px solid var(--accent);
             background:var(--accent);
             color:var(--surface);
-            border-radius:20px;
+            border-radius:3px;
             padding:6px 13px;
             font-size:0.72rem;
             font-weight:700;
@@ -3066,7 +3151,7 @@ min-height: 0;
             flex: 1;
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 14px;
+            border-radius: 5px;
             padding: 20px;
             display: flex;
             flex-direction: column;
@@ -3108,7 +3193,7 @@ min-height: 0;
             align-self: flex-start;
             background: var(--surface3);
             border: 1px solid var(--border2);
-            border-radius: 20px;
+            border-radius: 3px;
             padding: 5px 12px;
             font-size: 0.72rem;
             color: var(--text-muted);
@@ -3135,7 +3220,7 @@ min-height: 0;
         .mob-clip-bar .mob-clip-more-btn { margin-left:auto; }
         .mob-clip-copy-btn {
             background: var(--surface3); border: 1px solid var(--border);
-            border-radius: 20px; padding: 6px 14px; font-size: 0.74rem;
+            border-radius: 3px; padding: 6px 14px; font-size: 0.74rem;
             color: var(--text); cursor: pointer;
         }
         .mob-clip-copy-btn:active { background: var(--surface2); }
@@ -3164,8 +3249,8 @@ min-height: 0;
         #media-source-sheet.open { display: flex; }
         .media-source-panel {
             width: min(100%, 430px); background: var(--surface);
-            border: 1px solid var(--border); border-radius: 16px;
-            box-shadow: 0 16px 48px rgba(0,0,0,0.45); padding: 10px;
+            border: 1px solid var(--border); border-radius: 5px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.315); padding: 10px;
             transform: translateY(8px); animation: mediaSourceIn 0.16s ease-out forwards;
         }
         @keyframes mediaSourceIn { to { transform: translateY(0); } }
@@ -3176,7 +3261,7 @@ min-height: 0;
         .media-source-option {
             width: 100%; display: flex; align-items: center; gap: 12px;
             background: var(--surface2); border: 1px solid var(--border);
-            color: var(--text); border-radius: 11px; padding: 13px 14px;
+            color: var(--text); border-radius: 4px; padding: 13px 14px;
             margin-top: 6px; text-align: left; cursor: pointer;
             font-size: 0.82rem; -webkit-tap-highlight-color: transparent;
         }
@@ -3186,7 +3271,7 @@ min-height: 0;
         .media-source-option .media-source-sub { font-size: 0.65rem; color: var(--text-dim); }
         .media-source-cancel {
             width: 100%; background: transparent; border: none; color: var(--text-dim);
-            border-radius: 10px; padding: 11px 8px 7px; margin-top: 2px; font-size: 0.74rem; cursor: pointer;
+            border-radius: 4px; padding: 11px 8px 7px; margin-top: 2px; font-size: 0.74rem; cursor: pointer;
         }
         .media-source-cancel:active { background: var(--surface2); }
         @media (min-width: 641px) {
@@ -3211,13 +3296,13 @@ min-height: 0;
             display: none;
             position: absolute; bottom: 100%; right: 0; margin-bottom: 6px;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+            border-radius: 4px; box-shadow: 0 10px 28px rgba(0,0,0,0.28);
             padding: 6px; z-index: 20; min-width: 220px;
         }
         .mob-clip-menu.open { display: flex; flex-direction: column; gap: 2px; }
         .mob-clip-menu-item {
             background: transparent; border: none; text-align: left;
-            padding: 8px 10px; border-radius: 7px; font-size: 0.76rem;
+            padding: 8px 10px; border-radius: 3px; font-size: 0.76rem;
             color: var(--text); cursor: pointer; white-space: nowrap;
         }
         .mob-clip-menu-item:active { background: var(--surface2); }
@@ -3240,19 +3325,19 @@ min-height: 0;
         .mob-link-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
         .mob-link-chip {
             background: var(--surface3); border: 1px solid var(--border);
-            border-radius: 14px; padding: 4px 10px; font-size: 0.68rem;
+            border-radius: 5px; padding: 4px 10px; font-size: 0.68rem;
             color: var(--text); cursor: pointer; white-space: nowrap;
         }
         .mob-link-chip:active { background: var(--surface2); }
         .mob-link-chip.broken { color: var(--danger); border-color: var(--danger); cursor: default; }
         .mob-link-add-btn {
             background: var(--surface3); border: 1px solid var(--border);
-            border-radius: 14px; padding: 4px 10px; font-size: 0.68rem;
+            border-radius: 5px; padding: 4px 10px; font-size: 0.68rem;
             color: var(--text-dim); cursor: pointer; white-space: nowrap;
         }
         .mob-link-add-btn:active { background: var(--surface2); }
 
-        .mob-editable { cursor: text; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
+        .mob-editable { cursor: text; border-radius: 3px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s; }
         .mob-editable:focus { background: var(--surface2); box-shadow: 0 0 0 1px var(--accent); }
         .mob-card-title.mob-editable:empty::before  { content: 'タイトルを入力'; color: var(--text-dim); }
         .mob-card-content.mob-editable:empty::before{ content: '本文を入力';     color: var(--text-dim); }
@@ -3268,7 +3353,7 @@ min-height: 0;
         }
         body.reading-mode .mob-card-content   { display: none; }
         body.reading-mode .mob-card-sentences  { display: block; }
-        .mob-sentence { display: inline; cursor: pointer; border-radius: 3px; padding: 1px 2px; transition: background 0.12s; -webkit-tap-highlight-color: transparent; }
+        .mob-sentence { display: inline; cursor: pointer; border-radius: 2px; padding: 1px 2px; transition: background 0.12s; -webkit-tap-highlight-color: transparent; }
         .mob-sentence:active, .mob-sentence.mob-sentence-active { background: rgba(167,139,250,0.18); color: var(--text); }
 
         /* ── 読み上げエリア ── */
@@ -3286,14 +3371,14 @@ min-height: 0;
 
         #mob-speech-btn {
             background: var(--surface2); border: 1px solid var(--border);
-            color: var(--text-muted); border-radius: 8px;
+            color: var(--text-muted); border-radius: 3px;
             padding: 7px 18px; font-size: 0.78rem;
             cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
         }
-        #mob-speech-btn.speaking { color: var(--accent); border-color: var(--accent); background: rgba(61,139,255,0.1); }
-        #mob-speech-btn.recording { color: #f2526a; border-color: #f2526a; background: rgba(242,82,106,0.12); animation: mobRecBlink 1s step-end infinite; }
+        #mob-speech-btn.speaking { color: var(--accent); border-color: var(--accent); background: rgba(91,155,242,0.1); }
+        #mob-speech-btn.recording { color: #e2657a; border-color: #e2657a; background: rgba(226,101,122,0.12); animation: mobRecBlink 1s step-end infinite; }
         @keyframes mobRecBlink { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
-        #mob-speech-rate { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 5px 6px; font-size: 0.72rem; }
+        #mob-speech-rate { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 3px; padding: 5px 6px; font-size: 0.72rem; }
 
         /* ── 朗読バー（モバイル） ── */
         #reading-bar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
@@ -3321,7 +3406,7 @@ min-height: 0;
         #mobile-counter { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-dim); }
         /* [NEW] 件数表示をタップしてカード番号を直接入力できるようにする */
         #mobile-counter.mob-counter-editable {
-            cursor: pointer; border-radius: 6px; padding: 2px 8px;
+            cursor: pointer; border-radius: 3px; padding: 2px 8px;
             -webkit-tap-highlight-color: transparent;
         }
         #mobile-counter.mob-counter-editable:active { background: var(--surface2); }
@@ -3331,7 +3416,7 @@ min-height: 0;
             font-size: 0.72rem; font-weight: 700;
             color: var(--accent);
             background: var(--surface); border: 1px solid var(--accent);
-            border-radius: 6px; text-align: center;
+            border-radius: 3px; text-align: center;
             padding: 1px 2px;
             outline: none;
         }
@@ -3391,7 +3476,7 @@ min-height: 0;
             margin: 0 !important;
             background: rgba(8,12,20,0.75) !important;
             border: 1px solid rgba(255,255,255,0.25) !important;
-            border-radius: 50% !important;
+            border-radius: 50%!important;
             box-shadow: none !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
@@ -3409,7 +3494,7 @@ min-height: 0;
             max-width: none !important; max-height: none !important;
             padding: 0 !important;
             border-left: none !important;
-            border-radius: 50% !important;
+            border-radius: 50%!important;
         }
         body.mob-grid1 .card-media-add-btn .cmab-img-btn .label,
         body.mob-grid2 .card-media-add-btn .cmab-img-btn .label {
@@ -3452,7 +3537,7 @@ min-height: 0;
         body.mob-grid1 .grid-wrapper::-webkit-scrollbar,
         body.mob-grid2 .grid-wrapper::-webkit-scrollbar { width: 3px; }
         body.mob-grid1 .grid-wrapper::-webkit-scrollbar-thumb,
-        body.mob-grid2 .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+        body.mob-grid2 .grid-wrapper::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
         /* [FIX] モバイル1列・2列：非表示カードは visibility:hidden にせず、
            半透明＋破線枠＋案内バッジで「タップして復元できる」状態にする。
@@ -3485,13 +3570,13 @@ min-height: 0;
     }
 
     /* ─── READING MODE ─── */
-    .mode-btn.active.reading-mode-btn { color: #a78bfa; border-color: rgba(167,139,250,0.4); }
+    .mode-btn.active.reading-mode-btn { color: #8b7ff0; border-color: rgba(167,139,250,0.4); }
     body.reading-mode .grid-item { cursor: pointer; }
     body.reading-mode .drag-handle { display: none; }
     body.reading-mode .title-input,
     body.reading-mode .content-textarea { pointer-events: none; user-select: none; }
     body.reading-mode .grid-item.reading-active {
-        border-color: #a78bfa !important;
+        border-color: #8b7ff0 !important;
         box-shadow: 0 0 0 2px rgba(167,139,250,0.2) !important;
     }
     /* 朗読バー */
@@ -3509,7 +3594,7 @@ min-height: 0;
         background: var(--surface2);
         border: 1px solid var(--border);
         color: var(--text-muted);
-        border-radius: 6px;
+        border-radius: 3px;
         padding: 5px 11px;
         font-size: 0.75rem;
         cursor: pointer;
@@ -3518,7 +3603,7 @@ min-height: 0;
     }
     .rd-btn:hover { border-color: var(--border2); color: var(--text); }
     .rd-btn:disabled { opacity: 0.3; pointer-events: none; }
-    .rd-btn.active { color: #a78bfa; border-color: #a78bfa; background: rgba(167,139,250,0.08); }
+    .rd-btn.active { color: #8b7ff0; border-color: #8b7ff0; background: rgba(167,139,250,0.08); }
     #rd-info {
         font-family: 'DM Mono', monospace;
         font-size: 0.65rem;
@@ -3542,7 +3627,7 @@ min-height: 0;
         flex-shrink: 0;
         user-select: none;
     }
-    #rd-title-toggle-label input { accent-color: #a78bfa; cursor: pointer; }
+    #rd-title-toggle-label input { accent-color: #8b7ff0; cursor: pointer; }
 
     /* 控えめな速度トリガー＋ポップオーバー */
     #rd-rate-wrap { position: relative; flex-shrink: 0; }
@@ -3550,7 +3635,7 @@ min-height: 0;
         background: transparent;
         border: 1px solid var(--border);
         color: var(--text-dim);
-        border-radius: 6px;
+        border-radius: 3px;
         padding: 4px 9px;
         font-size: 0.68rem;
         font-family: 'DM Mono', monospace;
@@ -3559,7 +3644,7 @@ min-height: 0;
         white-space: nowrap;
     }
     #rd-rate-trigger:hover { color: var(--text); border-color: var(--border2); }
-    #rd-rate-current { color: #a78bfa; font-weight: 700; }
+    #rd-rate-current { color: #8b7ff0; font-weight: 700; }
     #rd-rate-popover {
         display: none;
         position: absolute;
@@ -3568,9 +3653,9 @@ min-height: 0;
         left: auto;
         background: var(--surface);
         border: 1px solid var(--border2);
-        border-radius: 8px;
+        border-radius: 3px;
         padding: 5px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.175);
         gap: 3px;
         flex-wrap: wrap;
         width: 168px;
@@ -3582,7 +3667,7 @@ min-height: 0;
         background: var(--surface2);
         border: 1px solid var(--border);
         color: var(--text-dim);
-        border-radius: 5px;
+        border-radius: 2px;
         padding: 4px 7px;
         font-size: 0.68rem;
         font-family: 'DM Mono', monospace;
@@ -3593,8 +3678,8 @@ min-height: 0;
     .rd-rate-btn:hover { color: var(--text); border-color: var(--border2); }
     .rd-rate-btn.selected {
         background: rgba(167,139,250,0.15);
-        border-color: #a78bfa;
-        color: #a78bfa;
+        border-color: #8b7ff0;
+        color: #8b7ff0;
         font-weight: 700;
     }
     /* 朗読モード時はカード単体読み上げUIを非表示 */
@@ -3624,19 +3709,19 @@ min-height: 0;
     #mob-study-actions button { flex-shrink: 0; white-space: nowrap; }
     #mob-shuffle-btn, #mob-unshuffle-btn, #mob-study-reset-btn {
         background: var(--surface2); border: 1px solid var(--border);
-        color: var(--text-muted); border-radius: 7px;
+        color: var(--text-muted); border-radius: 3px;
         padding: 5px 11px; font-size: 0.7rem; /* [FIX] 縦スペース確保のためコンパクト化 */
         cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
     }
     #mobStudyBarToggleBtn { padding: 5px 11px !important; font-size: 0.7rem !important; }
     #mob-shuffle-btn:active, #mob-unshuffle-btn:active { border-color: var(--accent); color: var(--accent); }
-    #mob-study-reset-btn { color: var(--danger); border-color: rgba(242,82,106,0.3); }
-    #mob-study-reset-btn:active { background: rgba(242,82,106,0.1); }
+    #mob-study-reset-btn { color: var(--danger); border-color: rgba(226,101,122,0.3); }
+    #mob-study-reset-btn:active { background: rgba(226,101,122,0.1); }
     #mob-study-progress-bar-wrap { display: flex; height: 3px; border-radius: 2px; overflow: hidden; margin-top: 2px; }
     .mob-study-prog-seg { height: 100%; transition: width 0.4s ease; }
-    #mob-study-progress-again { background: #f87171; }
-    #mob-study-progress-hint  { background: #fbbf24; }
-    #mob-study-progress-done  { background: #34d399; }
+    #mob-study-progress-again { background: #e2657a; }
+    #mob-study-progress-hint  { background: #d9a24b; }
+    #mob-study-progress-done  { background: #3ecf9a; }
     #mob-study-progress-text  { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-dim); text-align: center; margin-top: 1px; }
     /* 学習モード評価ボタン（モバイル） */
     #mob-study-eval {
@@ -3668,7 +3753,7 @@ min-height: 0;
     }
     /* ─── STUDY MODE ─── */
     .mode-btn.study-mode-btn { }
-    .mode-btn.active.study-mode-btn { color: #34d399; border-color: rgba(52,211,153,0.4); }
+    .mode-btn.active.study-mode-btn { color: #3ecf9a; border-color: rgba(52,211,153,0.4); }
 
     #study-bar {
         display: none;
@@ -3694,7 +3779,7 @@ min-height: 0;
         white-space: nowrap;
         user-select: none;
     }
-    #study-audio-toggle { accent-color: #34d399; }
+    #study-audio-toggle { accent-color: #3ecf9a; }
     .study-progress-text {
         font-size: 0.65rem;
         font-family: 'DM Mono', monospace;
@@ -3703,7 +3788,7 @@ min-height: 0;
         cursor: pointer; /* [NEW] 各状態（✅/💡/❌/─）をクリックして絞り込み可能にする */
     }
     /* [NEW] クリック可能な4状態を視覚的に少し区別（見た目は極力現状維持） */
-    .study-progress-text .sp-seg { padding: 0 2px; border-radius: 3px; transition: background 0.12s, color 0.12s; }
+    .study-progress-text .sp-seg { padding: 0 2px; border-radius: 2px; transition: background 0.12s, color 0.12s; }
     .study-progress-text .sp-seg:hover  { background: var(--surface3); }
     .study-progress-text .sp-seg.active { background: var(--accent); color: #fff; }
 
@@ -3717,7 +3802,7 @@ min-height: 0;
     .mob-study-filter-btn {
         flex-shrink: 0;
         background: var(--surface2); border: 1px solid var(--border);
-        border-radius: 7px; color: var(--text-muted);
+        border-radius: 3px; color: var(--text-muted);
         font-family: 'DM Mono', monospace; font-size: 0.64rem;
         padding: 3px 9px; cursor: pointer;
         -webkit-tap-highlight-color: transparent;
@@ -3739,7 +3824,7 @@ min-height: 0;
     }
     #mob-study-empty-text, #study-empty-text { font-size: 0.85rem; }
     #mob-study-empty-back-btn, #study-empty-back-btn {
-        background: var(--accent); border: none; border-radius: 8px;
+        background: var(--accent); border: none; border-radius: 3px;
         color: #fff; font-size: 0.78rem; font-weight: 700;
         padding: 9px 18px; cursor: pointer;
     }
@@ -3754,7 +3839,7 @@ min-height: 0;
         padding: 8px 12px;
         background: var(--surface2);
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: 4px;
         gap: 8px;
         flex-shrink: 0;
         flex-wrap: wrap;
@@ -3769,7 +3854,7 @@ min-height: 0;
         background: var(--surface);
         border: 1px solid var(--border);
         color: var(--text-muted);
-        border-radius: 8px;
+        border-radius: 3px;
         padding: 4px 12px;
         font-size: 0.72rem;
         cursor: pointer;
@@ -3777,8 +3862,8 @@ min-height: 0;
         white-space: nowrap;
     }
     .study-ctrl-btn:hover  { border-color: var(--accent); color: var(--accent); }
-    .study-ctrl-btn.danger { color: var(--danger); border-color: rgba(242,82,106,0.3); }
-    .study-ctrl-btn.danger:hover { background: rgba(242,82,106,0.1); }
+    .study-ctrl-btn.danger { color: var(--danger); border-color: rgba(226,101,122,0.3); }
+    .study-ctrl-btn.danger:hover { background: rgba(226,101,122,0.1); }
     .study-ctrl-label {
         display: flex;
         align-items: center;
@@ -3789,7 +3874,7 @@ min-height: 0;
         white-space: nowrap;
         user-select: none;
     }
-    .study-ctrl-label input { accent-color: #34d399; }
+    .study-ctrl-label input { accent-color: #3ecf9a; }
     /* オーバーレイ内進捗バー */
     #study-overlay-progress {
         height: 3px;
@@ -3807,9 +3892,9 @@ min-height: 0;
         flex-shrink: 0;
     }
     .study-prog-seg { height: 100%; transition: width 0.4s ease; }
-    #study-progress-again { background: #f87171; }
-    #study-progress-hint  { background: #fbbf24; }
-    #study-progress-done  { background: #34d399; }
+    #study-progress-again { background: #e2657a; }
+    #study-progress-hint  { background: #d9a24b; }
+    #study-progress-done  { background: #3ecf9a; }
 
     /* [MOD] グリッド上の学習ステータスバッジ：
        独立した絶対配置はやめ、.item-status-slot 内の要素として表示する。
@@ -3846,30 +3931,50 @@ min-height: 0;
     .study-face {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 36px 32px 28px;
+        border-radius: var(--radius-lg);
+        padding: 40px 34px 30px;
         min-height: 220px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        transition: transform 0.1s;
+        gap: 14px;
+        box-shadow: var(--shadow-lg);
+        transition: transform var(--dur-fast) var(--ease), border-color var(--dur) var(--ease);
+        position: relative;
     }
-    .study-face:active { transform: scale(0.98); }
+    /* [REDESIGN] 記録カードらしい印: 左上に静かな識別コーナー */
+    .study-face::before {
+        content: '';
+        position: absolute; top: 14px; left: 14px;
+        width: 10px; height: 10px;
+        border-top: 1px solid var(--border2);
+        border-left: 1px solid var(--border2);
+        opacity: 0.7;
+    }
+    .study-face::after {
+        content: '';
+        position: absolute; bottom: 14px; right: 14px;
+        width: 10px; height: 10px;
+        border-bottom: 1px solid var(--border2);
+        border-right: 1px solid var(--border2);
+        opacity: 0.7;
+    }
+    .study-face:active { transform: scale(0.985); }
     #study-card-num {
-        font-family: 'DM Mono', monospace;
+        font-family: var(--font-mono);
         font-size: 0.6rem;
         color: var(--text-dim);
         align-self: flex-start;
+        letter-spacing: 0.04em;
     }
     #study-card-title-disp {
-        font-size: 1.3rem;
-        font-weight: 700;
+        font-family: var(--font-record);
+        font-size: 1.4rem;
+        font-weight: 500;
         color: var(--text);
         text-align: center;
-        line-height: 1.5;
+        line-height: 1.6;
     }
     #study-card-tap-hint {
         font-size: 0.7rem;
@@ -3900,7 +4005,7 @@ min-height: 0;
     }
     .study-eval-btn {
         border: none;
-        border-radius: 10px;
+        border-radius: 4px;
         padding: 10px 20px;
         font-size: 0.82rem;
         font-weight: 700;
@@ -3908,9 +4013,9 @@ min-height: 0;
         transition: all 0.15s;
         -webkit-tap-highlight-color: transparent;
     }
-    .study-eval-btn.again { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
-    .study-eval-btn.hint  { background: rgba(251,191,36,0.15);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
-    .study-eval-btn.done  { background: rgba(52,211,153,0.15);  color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+    .study-eval-btn.again { background: rgba(248,113,113,0.15); color: #e2657a; border: 1px solid rgba(248,113,113,0.3); }
+    .study-eval-btn.hint  { background: rgba(251,191,36,0.15);  color: #d9a24b; border: 1px solid rgba(251,191,36,0.3); }
+    .study-eval-btn.done  { background: rgba(52,211,153,0.15);  color: #3ecf9a; border: 1px solid rgba(52,211,153,0.3); }
     .study-eval-btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
     .study-eval-btn:active { transform: scale(0.96); }
 
@@ -4011,9 +4116,9 @@ min-height: 0;
             padding: 15px 16px 14px;
             box-sizing: border-box;
             border: 1px solid var(--border2);
-            border-radius: 8px;
+            border-radius: 3px;
             background: color-mix(in srgb, var(--surface) 96%, transparent);
-            box-shadow: 0 12px 38px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.025) inset;
+            box-shadow: 0 12px 38px rgba(0,0,0,0.175), 0 0 0 1px rgba(255,255,255,0.025) inset;
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
         }
@@ -4034,12 +4139,14 @@ min-height: 0;
             width: 28px;
             height: 28px;
             border: 1px solid var(--border2);
+            box-shadow: inset 0 0 0 1px var(--accent-glow);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--text-muted);
-            font-size: 0.62rem;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
             letter-spacing: 0;
         }
         .geda-panel-kicker {
@@ -4058,7 +4165,7 @@ min-height: 0;
         }
         .geda-panel-ja {
             margin-top: 3px;
-            font-family: 'Noto Sans JP', sans-serif;
+            font-family: var(--font-record);
             font-size: 0.62rem;
             color: var(--text-muted);
             letter-spacing: .05em;
@@ -4158,7 +4265,7 @@ min-height: 0;
 
 <!-- TOP BAR -->
 <div class="top-bar">
-    <div class="app-logo">Qcard PRO</div>
+    <div class="app-logo">QCARD <span style="color:var(--text-dim);font-weight:400;">/ Q-ARCHIVE</span></div>
     <span class="version-badge">v3.10.1</span>
     <div class="divider"></div>
 
@@ -4269,7 +4376,7 @@ min-height: 0;
         <button class="mob-drawer-btn" onclick="studyUnshuffle(); mobDrawerClose()" data-i18n="drawer_unshuffle">↩ 元の順番に戻す</button>
         <div class="mob-drawer-row" style="margin-top:4px">
             <label style="font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <input type="checkbox" id="mob-study-audio-toggle" style="accent-color:#34d399;"
+                <input type="checkbox" id="mob-study-audio-toggle" style="accent-color:#3ecf9a;"
                     onchange="studyAudioToggleChange(this.checked); document.getElementById('study-audio-toggle') && (document.getElementById('study-audio-toggle').checked=this.checked)">
                 <span data-i18n="drawer_audio_toggle">クリック時に音声を再生</span>
             </label>
@@ -4291,7 +4398,7 @@ min-height: 0;
         <div class="mob-drawer-label" data-i18n="drawer_rename">シナリオ名を編集</div>
         <div class="mob-drawer-row">
             <input type="text" id="mob-scenario-name-input"
-                style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 10px;font-size:0.8rem;"
+                style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:7px 10px;font-size:0.8rem;"
                 placeholder="シナリオ名">
             <button class="mob-drawer-btn" style="margin-bottom:0;white-space:nowrap;padding:7px 12px;" onclick="mobRenameScenario()" data-i18n="drawer_save">保存</button>
         </div>
@@ -4585,7 +4692,7 @@ min-height: 0;
             <button id="mob-shuffle-btn"     onclick="studyShuffle()"   data-i18n="drawer_shuffle"    title="シャッフル">🔀 シャッフル</button>
             <button id="mob-unshuffle-btn"   onclick="studyUnshuffle()" data-i18n="btn_unshuffle"     title="元の順番" style="display:none">↩ 元順</button>
             <button id="mob-study-reset-btn" onclick="studyResetAll()"  data-i18n="mob_study_reset"   title="学習記録をリセット">🗑 リセット</button>
-            <button id="mobStudyBarToggleBtn" onclick="toggleLearningDirection()" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
+            <button id="mobStudyBarToggleBtn" onclick="toggleLearningDirection()" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:3px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
         </div>
         <div id="mob-study-progress-bar-wrap">
             <div id="mob-study-progress-again" class="mob-study-prog-seg"></div>
@@ -4926,11 +5033,11 @@ min-height: 0;
 
 <!-- DATA MODAL -->
 <div id="data-modal-backdrop" onclick="closeDataModal()" style="display:none;position:fixed;inset:0;background:rgba(4,8,18,0.7);z-index:1000;backdrop-filter:blur(4px);"></div>
-<div id="data-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1001;width:400px;max-width:94vw;background:var(--surface);border:1px solid var(--border2);border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,0.6);overflow:hidden;">
+<div id="data-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1001;width:400px;max-width:94vw;background:var(--surface);border:1px solid var(--border2);border-radius:5px;box-shadow:0 24px 80px rgba(0,0,0,0.42);overflow:hidden;">
     <!-- ヘッダー -->
     <div style="padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between;">
         <span style="font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--text);letter-spacing:0.06em;">データ管理</span>
-        <span onclick="closeDataModal()" style="cursor:pointer;color:var(--text-dim);font-size:1.2rem;line-height:1;padding:2px 6px;transition:color 0.15s;border-radius:4px;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</span>
+        <span onclick="closeDataModal()" style="cursor:pointer;color:var(--text-dim);font-size:1.2rem;line-height:1;padding:2px 6px;transition:color 0.15s;border-radius:2px;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</span>
     </div>
     <!-- タブバー -->
     <div class="dm-tabs">
@@ -5020,13 +5127,13 @@ min-height: 0;
                     <div><div class="dm-label">プラグインを読み込む</div><div class="dm-desc">神経衰弱・タロット・ゲームなど</div></div>
                 </button>
                 <input type="file" id="importFilePlugin" accept=".qplugin,.js" style="display:none" onchange="pluginLoad(event)">
-                <div id="plugin-status" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.25);border-radius:8px;">
+                <div id="plugin-status" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(139,127,240,0.08);border:1px solid rgba(139,127,240,0.25);border-radius:3px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
                         <div>
                             <div id="plugin-name" style="font-size:0.75rem;font-weight:700;color:var(--accent2);margin-bottom:2px;"></div>
                             <div id="plugin-desc" style="font-size:0.62rem;color:var(--text-muted);"></div>
                         </div>
-                        <button onclick="pluginUnload()" style="background:rgba(242,82,106,0.12);border:1px solid rgba(242,82,106,0.3);border-radius:6px;color:var(--danger);font-size:0.65rem;padding:4px 9px;cursor:pointer;">解除</button>
+                        <button onclick="pluginUnload()" style="background:rgba(226,101,122,0.12);border:1px solid rgba(226,101,122,0.3);border-radius:3px;color:var(--danger);font-size:0.65rem;padding:4px 9px;cursor:pointer;">解除</button>
                     </div>
                 </div>
             </div>
@@ -5037,7 +5144,7 @@ min-height: 0;
             <button class="dm-action" onclick="document.getElementById('importFileJSON').click()">
                 <span class="dm-icon">📦</span>
                 <div>
-                    <div class="dm-label">QCF / QCP <span style="font-family:'DM Mono',monospace;font-size:0.52rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:3px;padding:1px 4px;margin-left:4px;">推奨</span></div>
+                    <div class="dm-label">QCF / QCP <span style="font-family:'DM Mono',monospace;font-size:0.52rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:2px;padding:1px 4px;margin-left:4px;">推奨</span></div>
                     <div class="dm-desc">.qcf .qcp .json に対応</div>
                 </div>
             </button>
@@ -5073,7 +5180,7 @@ min-height: 0;
             <input type="file" id="importFileObsidian" accept=".zip,.md,.markdown" multiple style="display:none" onchange="importObsidian(event)">
             <hr class="dm-divider">
             <div class="dm-section-label">テキストを貼り付け</div>
-            <textarea id="paste-import-area" placeholder="QCF・JSON・Markdown をここに貼り付け…" style="width:100%;height:56px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.7rem;padding:8px 10px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="paste-import-area" placeholder="QCF・JSON・Markdown をここに貼り付け…" style="width:100%;height:56px;resize:vertical;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:0.7rem;padding:8px 10px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
             <button class="dm-action" style="margin-top:6px;" onclick="importFromPaste()">
                 <span class="dm-icon">📥</span>
                 <div><div class="dm-label">読み込む</div></div>
@@ -5104,35 +5211,35 @@ min-height: 0;
             <div id="qcf-meta-panel" style="display:flex;flex-direction:column;gap:8px;">
                 <div style="display:flex;gap:8px;align-items:center;">
                     <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:64px;flex-shrink:0;">タイトル</label>
-                    <input id="qcf-meta-title" type="text" placeholder="シナリオタイトル" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;" oninput="qcfMetaSave()">
+                    <input id="qcf-meta-title" type="text" placeholder="シナリオタイトル" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;" oninput="qcfMetaSave()">
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:64px;flex-shrink:0;">作成者名</label>
-                    <input id="qcf-meta-authorname" type="text" placeholder="表示名" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;" oninput="qcfMetaSave()">
+                    <input id="qcf-meta-authorname" type="text" placeholder="表示名" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;" oninput="qcfMetaSave()">
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:64px;flex-shrink:0;">作成者ID</label>
-                    <input id="qcf-meta-authorid" type="text" placeholder="obs_xxxx" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text-muted);font-size:0.65rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
+                    <input id="qcf-meta-authorid" type="text" placeholder="obs_xxxx" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text-muted);font-size:0.65rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
                 </div>
                 <div style="display:flex;gap:8px;align-items:flex-start;">
                     <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:64px;flex-shrink:0;padding-top:5px;">説明</label>
-                    <textarea id="qcf-meta-desc" rows="2" placeholder="このシナリオの説明..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;resize:none;line-height:1.5;" oninput="qcfMetaSave()"></textarea>
+                    <textarea id="qcf-meta-desc" rows="2" placeholder="このシナリオの説明..." style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;resize:none;line-height:1.5;" oninput="qcfMetaSave()"></textarea>
                 </div>
                 <div style="display:flex;gap:8px;align-items:flex-start;">
                     <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;width:64px;flex-shrink:0;padding-top:5px;">タグ</label>
                     <div style="flex:1;">
                         <div id="qcf-tags-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;min-height:6px;"></div>
-                        <input id="qcf-tag-input" type="text" placeholder="#タグ" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.68rem;padding:3px 7px;outline:none;box-sizing:border-box;" onkeydown="qcfTagKeydown(event)">
+                        <input id="qcf-tag-input" type="text" placeholder="#タグ" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.68rem;padding:3px 7px;outline:none;box-sizing:border-box;" onkeydown="qcfTagKeydown(event)">
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                     <div style="display:flex;gap:6px;align-items:center;">
                         <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;white-space:nowrap;">バージョン</label>
-                        <input id="qcf-meta-version" type="text" placeholder="1.0" style="width:60px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
+                        <input id="qcf-meta-version" type="text" placeholder="1.0" style="width:60px;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.72rem;padding:4px 8px;outline:none;font-family:'DM Mono',monospace;" oninput="qcfMetaSave()">
                     </div>
                     <div style="display:flex;gap:6px;align-items:center;">
                         <label style="font-size:0.62rem;color:var(--text-dim);font-family:'DM Mono',monospace;white-space:nowrap;">ライセンス</label>
-                        <select id="qcf-meta-license" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.68rem;padding:3px 4px;cursor:pointer;" onchange="qcfMetaSave()">
+                        <select id="qcf-meta-license" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);font-size:0.68rem;padding:3px 4px;cursor:pointer;" onchange="qcfMetaSave()">
                             <option value="private">private</option>
                             <option value="share">share</option>
                             <option value="commercial">commercial</option>
@@ -5172,7 +5279,7 @@ min-height: 0;
             </div>
             <hr class="dm-divider">
             <div class="dm-section-label">危険な操作</div>
-            <button class="dm-action" style="border-color:rgba(242,82,106,0.35);" onclick="closeDataModal(); clearAll();">
+            <button class="dm-action" style="border-color:rgba(226,101,122,0.35);" onclick="closeDataModal(); clearAll();">
                 <span class="dm-icon" style="color:var(--danger);">🗑</span>
                 <div><div class="dm-label" style="color:var(--danger);">全消去</div><div class="dm-desc">現在のシナリオの全カードを削除します（元に戻せません）</div></div>
             </button>
@@ -5187,7 +5294,7 @@ min-height: 0;
         <span style="font-size:0.75rem;">🧩</span>
         <span id="plugin-layer-name" style="font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:800;color:var(--text);letter-spacing:0.06em;flex:1;"></span>
         <span id="plugin-layer-author" style="font-size:0.62rem;color:var(--text-muted);font-family:'DM Mono',monospace;"></span>
-        <button onclick="pluginUnload()" style="background:rgba(242,82,106,0.1);border:1px solid rgba(242,82,106,0.3);border-radius:6px;color:var(--danger);font-size:0.68rem;padding:5px 12px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(242,82,106,0.2)'" onmouseout="this.style.background='rgba(242,82,106,0.1)'">✕ プラグイン終了</button>
+        <button onclick="pluginUnload()" style="background:rgba(226,101,122,0.1);border:1px solid rgba(226,101,122,0.3);border-radius:3px;color:var(--danger);font-size:0.68rem;padding:5px 12px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(226,101,122,0.2)'" onmouseout="this.style.background='rgba(226,101,122,0.1)'">✕ プラグイン終了</button>
     </div>
     <div id="plugin-content" style="flex:1;overflow:auto;"></div>
 </div>
@@ -5570,7 +5677,7 @@ function mediaDebugV11EnsurePanel() {
     panel.style.cssText = [
         'position:fixed','left:8px','right:8px','bottom:8px','z-index:2147483647',
         'background:rgba(0,0,0,.90)','color:#fff','font:12px/1.45 monospace',
-        'border-radius:10px','box-shadow:0 4px 20px rgba(0,0,0,.35)',
+        'border-radius:10px','box-shadow:0 4px 20px rgba(0,0,0,0.245)',
         'padding:8px','display:none','max-height:42vh','overflow:hidden'
     ].join(';');
 
@@ -5583,7 +5690,7 @@ function mediaDebugV11EnsurePanel() {
     var copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.textContent = 'コピー';
-    copyBtn.style.cssText = 'font:12px sans-serif;padding:4px 7px;border:1px solid #888;border-radius:6px;background:#222;color:#fff;';
+    copyBtn.style.cssText = 'font:12px sans-serif;padding:4px 7px;border:1px solid #888;border-radius:3px;background:#222;color:#fff;';
     copyBtn.onclick = function() {
         var text = mediaDebugV11Export();
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -9157,9 +9264,9 @@ function bulkProgressShow(done, total) {
         _bulkProgressEl.id = 'bulk-import-progress';
         _bulkProgressEl.style.cssText =
             'position:fixed;right:14px;bottom:14px;z-index:2500;' +
-            'background:var(--surface);border:1px solid var(--border2);border-radius:10px;' +
+            'background:var(--surface);border:1px solid var(--border2);border-radius:4px;' +
             'padding:8px 12px;font-family:\'DM Mono\',monospace;font-size:0.68rem;color:var(--text-dim);' +
-            'box-shadow:0 8px 24px rgba(0,0,0,0.35);display:flex;align-items:center;gap:8px;' +
+            'box-shadow:0 8px 24px rgba(0,0,0,0.245);display:flex;align-items:center;gap:8px;' +
             'transition:opacity 0.3s ease;';
         var bar = document.createElement('div');
         bar.style.cssText = 'width:64px;height:4px;border-radius:2px;background:var(--surface3);overflow:hidden;flex-shrink:0;';
@@ -11112,7 +11219,7 @@ function qcfTagsRender(tags) {
     var list = document.getElementById('qcf-tags-list');
     if (!list) return;
     list.innerHTML = tags.map(function(tag, i) {
-        return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(61,139,255,0.12);border:1px solid rgba(61,139,255,0.3);border-radius:4px;padding:2px 6px;font-size:0.6rem;color:var(--accent);font-family:\'DM Mono\',monospace;">'
+        return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(91,155,242,0.12);border:1px solid rgba(91,155,242,0.3);border-radius:2px;padding:2px 6px;font-size:0.6rem;color:var(--accent);font-family:\'DM Mono\',monospace;">'
             + tag
             + '<span onclick="qcfTagRemove(' + i + ')" style="cursor:pointer;opacity:0.6;font-size:0.7rem;margin-left:2px;" title="削除">×</span></span>';
     }).join('');
@@ -11196,7 +11303,7 @@ function pluginLoad(e) {
             var bd = document.createElement('div');
             bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.88);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
             bd.innerHTML =
-                '<div style="background:var(--surface);border:1px solid rgba(108,99,255,0.4);border-radius:16px;padding:28px 30px;width:360px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.8)">' +
+                '<div style="background:var(--surface);border:1px solid rgba(139,127,240,0.4);border-radius:5px;padding:28px 30px;width:360px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.56)">' +
                 '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
                 '<span style="font-size:1.4rem;">🧩</span>' +
                 '<div>' +
@@ -11204,10 +11311,10 @@ function pluginLoad(e) {
                 (manifest.author ? '<div style="font-size:0.62rem;color:var(--text-muted);font-family:\'DM Mono\',monospace;">by ' + manifest.author + (manifest.version ? ' · v' + manifest.version : '') + '</div>' : '') +
                 '</div></div>' +
                 (manifest.description ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">' + manifest.description + '</div>' : '') +
-                '<div style="font-size:0.65rem;color:var(--text-dim);background:rgba(242,82,106,0.07);border:1px solid rgba(242,82,106,0.2);border-radius:7px;padding:8px 10px;margin-bottom:18px;line-height:1.7;">⚠️ プラグインはJavaScriptを実行します。信頼できる作者のファイルのみ読み込んでください。</div>' +
+                '<div style="font-size:0.65rem;color:var(--text-dim);background:rgba(226,101,122,0.07);border:1px solid rgba(226,101,122,0.2);border-radius:3px;padding:8px 10px;margin-bottom:18px;line-height:1.7;">⚠️ プラグインはJavaScriptを実行します。信頼できる作者のファイルのみ読み込んでください。</div>' +
                 '<div style="display:flex;gap:8px;">' +
-                '<button id="plg-ok"     style="flex:1;background:linear-gradient(135deg,rgba(108,99,255,0.2),rgba(61,139,255,0.15));border:1px solid rgba(108,99,255,0.4);color:var(--text);border-radius:8px;padding:10px;font-size:0.75rem;font-weight:700;cursor:pointer;">読み込む</button>' +
-                '<button id="plg-cancel" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:8px;padding:10px;font-size:0.75rem;cursor:pointer;">キャンセル</button>' +
+                '<button id="plg-ok"     style="flex:1;background:linear-gradient(135deg,rgba(139,127,240,0.2),rgba(91,155,242,0.15));border:1px solid rgba(139,127,240,0.4);color:var(--text);border-radius:3px;padding:10px;font-size:0.75rem;font-weight:700;cursor:pointer;">読み込む</button>' +
+                '<button id="plg-cancel" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:3px;padding:10px;font-size:0.75rem;cursor:pointer;">キャンセル</button>' +
                 '</div></div>';
             document.body.appendChild(bd);
 
@@ -12339,13 +12446,13 @@ function importJSON(e) {
             var metaHtml = '';
             if (isQcf || isQcp) {
                 var previews = isQcf ? [list[0]] : list.slice(0, 3);
-                metaHtml = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;">';
+                metaHtml = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 12px;margin-bottom:14px;">';
                 previews.forEach(function(s, i) {
                     var hStatus = hashResults[i];
                     var hashBadge = hStatus === 'verified'
-                        ? '<span style="color:var(--success);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--success);border-radius:3px;padding:1px 5px;">✓ Verified</span>'
+                        ? '<span style="color:var(--success);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--success);border-radius:2px;padding:1px 5px;">✓ Verified</span>'
                         : hStatus === 'mismatch'
-                        ? '<span style="color:var(--danger);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--danger);border-radius:3px;padding:1px 5px;" title="ファイルが改変されている可能性があります">⚠ Hash Mismatch</span>'
+                        ? '<span style="color:var(--danger);font-family:\'DM Mono\',monospace;font-size:0.58rem;border:1px solid var(--danger);border-radius:2px;padding:1px 5px;" title="ファイルが改変されている可能性があります">⚠ Hash Mismatch</span>'
                         : '<span style="color:var(--text-dim);font-family:\'DM Mono\',monospace;font-size:0.58rem;">hash なし</span>';
                     metaHtml +=
                         (i > 0 ? '<div style="border-top:1px solid var(--border);margin:8px 0;"></div>' : '') +
@@ -12371,24 +12478,24 @@ function importJSON(e) {
                 return scenarios.find(function(ex){ return ex.qcfId && ex.qcfId === s.qcfId; });
             });
             var dupHtml = duplicates.length > 0
-                ? '<div style="font-size:0.63rem;color:var(--warning,#f5a623);background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.25);border-radius:7px;padding:7px 10px;margin-bottom:12px;">⚠️ ' + duplicates.length + ' 件の重複 QCF ID を検出。「新規追加」では別シナリオとして追加されます。</div>'
+                ? '<div style="font-size:0.63rem;color:var(--warning,#d9a24b);background:rgba(217,162,75,0.08);border:1px solid rgba(217,162,75,0.25);border-radius:3px;padding:7px 10px;margin-bottom:12px;">⚠️ ' + duplicates.length + ' 件の重複 QCF ID を検出。「新規追加」では別シナリオとして追加されます。</div>'
                 : '';
 
             var bd = document.createElement('div');
             bd.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,18,0.88);z-index:3000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
             bd.innerHTML =
-                '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:26px 28px;width:400px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.8);max-height:90vh;overflow-y:auto;">' +
+                '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:5px;padding:26px 28px;width:400px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,0.56);max-height:90vh;overflow-y:auto;">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
                 '<span style="font-family:\'DM Mono\',monospace;font-size:0.6rem;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;">インポート</span>' +
-                '<span style="font-family:\'DM Mono\',monospace;font-size:0.56rem;color:' + typeBadge + ';border:1px solid ' + typeBadge + ';border-radius:3px;padding:1px 6px;">' + typeLabel + '</span>' +
+                '<span style="font-family:\'DM Mono\',monospace;font-size:0.56rem;color:' + typeBadge + ';border:1px solid ' + typeBadge + ';border-radius:2px;padding:1px 6px;">' + typeLabel + '</span>' +
                 '</div>' +
                 '<div style="font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:3px;">' + file.name + '</div>' +
                 '<div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:14px;">シナリオ ' + list.length + ' 件</div>' +
                 metaHtml + dupHtml +
                 '<div style="display:flex;flex-direction:column;gap:7px;">' +
-                '<button id="imp-add"     style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">➕ 新規追加　<span style="color:var(--text-muted);font-weight:400;">既存シナリオを保持して追加（推奨）</span></button>' +
-                '<button id="imp-replace" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">🔄 全置換　<span style="color:var(--danger);font-weight:400;">既存データを消去して置き換え</span></button>' +
-                '<button id="imp-cancel"  style="background:transparent;border:none;color:var(--text-dim);border-radius:8px;padding:8px;font-size:0.7rem;cursor:pointer;text-align:center;">キャンセル</button>' +
+                '<button id="imp-add"     style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:3px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">➕ 新規追加　<span style="color:var(--text-muted);font-weight:400;">既存シナリオを保持して追加（推奨）</span></button>' +
+                '<button id="imp-replace" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:3px;padding:10px 14px;font-size:0.74rem;font-weight:600;cursor:pointer;text-align:left;">🔄 全置換　<span style="color:var(--danger);font-weight:400;">既存データを消去して置き換え</span></button>' +
+                '<button id="imp-cancel"  style="background:transparent;border:none;color:var(--text-dim);border-radius:3px;padding:8px;font-size:0.7rem;cursor:pointer;text-align:center;">キャンセル</button>' +
                 '</div></div>';
 
             document.body.appendChild(bd);
