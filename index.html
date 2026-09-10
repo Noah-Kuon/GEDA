@@ -454,9 +454,9 @@
         #scenario-flyout-list::-webkit-scrollbar-track { background: transparent; }
         #scenario-flyout-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .sf-item {
-            display: flex; align-items: center; width: 100%; text-align: left;
+            display: block; width: 100%; text-align: left;
             background: none; border: none; border-radius: 6px;
-            color: var(--text); font-size: 0.76rem; line-height: 1.4;
+            color: var(--text); font-size: 0.76rem;
             padding: 6px 8px; cursor: pointer;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             font-family: 'Noto Sans JP', sans-serif;
@@ -1130,9 +1130,10 @@
             font-size: 0.62rem; line-height: 1;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 5; opacity: 0;
+            pointer-events: none; /* [NEW] 見えていない間は誤タップ対象にしない */
             transition: all 0.15s;
         }
-        .grid-item:hover .field-clear-btn { opacity: 1; }
+        .grid-item:hover .field-clear-btn { opacity: 1; pointer-events: auto; }
         .field-clear-btn:hover { background: rgba(242,82,106,0.18); color: var(--danger); border-color: var(--danger); }
         .field-row.title-row { padding-right: 18px; }
         .field-row.title-row .field-clear-btn { top: -2px; }
@@ -3389,14 +3390,28 @@ min-height: 0;
             min-width: 24px !important; min-height: 24px !important;
             max-width: 24px !important; max-height: 24px !important;
             margin: 0 !important;
-            background: rgba(8,12,20,0.75) !important;
-            border: 1px solid rgba(255,255,255,0.25) !important;
+            /* [MOD] ダーク固定色をやめ、テーマ変数に追従させる（ライトモードでの浮き上がりを解消） */
+            background: var(--surface2) !important;
+            border: 1px solid var(--border2) !important;
             border-radius: 50% !important;
             box-shadow: none !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
-            opacity: 0.85;
+            /* [MOD] 全カードに常駐するボタンのため、通常時は控えめに。タップ時のみ強調 */
+            opacity: 0.55;
+            transition: opacity 0.15s, border-color 0.15s;
             z-index: 10;
+        }
+        /* [NEW] タップ中は視認性を上げて押した実感を出す（ホバーの無いモバイル向けフィードバック） */
+        body.mob-grid1 .card-media-add-btn:active,
+        body.mob-grid2 .card-media-add-btn:active {
+            opacity: 1 !important;
+            border-color: var(--accent) !important;
+        }
+        /* [NEW] 2列モードのみ、タイトル削除ボタン（右上）と対角の右下へ配置をずらして衝突を回避する。
+           1列モードはタイトル行自体が非表示のため衝突が無く、従来どおり右上のまま。 */
+        body.mob-grid2 .card-media-add-btn {
+            top: auto !important; bottom: 6px !important;
         }
         body.mob-grid1 .card-media-add-btn .cmab-edit-hint,
         body.mob-grid2 .card-media-add-btn .cmab-edit-hint {
@@ -3418,7 +3433,12 @@ min-height: 0;
         body.mob-grid1 .card-media-add-btn .icon,
         body.mob-grid2 .card-media-add-btn .icon {
             font-size: 0.9rem !important;
-            color: #fff !important;
+            /* [MOD] 白固定ではなくテーマの控えめなテキスト色に。押した時だけアクセントカラーに */
+            color: var(--text-dim) !important;
+        }
+        body.mob-grid1 .card-media-add-btn:active .icon,
+        body.mob-grid2 .card-media-add-btn:active .icon {
+            color: var(--accent) !important;
         }
 
 /* ── グリッド2列 ── */
@@ -9112,13 +9132,98 @@ if (!localStorage.getItem('kp_ratio_migrated_v262')) {
 var cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 var cardRatioCustomValue = parseFloat(localStorage.getItem('kp_card_ratio_custom')) || 1.4;
 
+// [NEW] シナリオ単位で表示モードを一時的に上書きする仕組み。
+// 「フィット」はスクロールを禁止して全カードを1画面に収める表示のため、
+// 大量インポート直後にこのモードのままだと、画面外に出るカードが存在せず
+// 遅延読み込みの恩恵が受けられない（全画像が一斉に読み込まれる）。
+// そのため大量インポート時は該当シナリオだけ ratioModeOverride='auto' を設定し、
+// スクロール＋遅延読み込みが機能する表示に一時的に切り替える。
+// グローバル設定（cardRatioMode）自体は変更しないため、他のシナリオには影響しない。
+// ユーザーが比率メニューから手動で選び直した時点でこの上書きは解除される。
+function getEffectiveCardRatioMode() {
+    var active = (typeof getActive === 'function') ? getActive() : null;
+    return (active && active.ratioModeOverride) ? active.ratioModeOverride : cardRatioMode;
+}
+
+// [NEW] 大量インポート対策：この枚数を超えるシナリオをインポートした場合、
+// 「フィット」表示のままだと全カードを1画面に押し込もうとして
+// （画面外＝遅延読み込み対象のカードが存在しなくなり）全画像が一斉に読み込まれてしまう。
+// グローバル設定が「フィット」の時に限り、対象シナリオだけ ratioModeOverride='auto' にする。
+var BULK_IMPORT_AUTO_THRESHOLD = 12;
+function applyBulkImportDisplayDefaults(newScenarios) {
+    if (!Array.isArray(newScenarios)) return false;
+    if ((localStorage.getItem('kp_card_ratio_mode') || 'fit') !== 'fit') return false;
+    var switched = false;
+    newScenarios.forEach(function(s) {
+        if (s && Array.isArray(s.data) && s.data.length > BULK_IMPORT_AUTO_THRESHOLD) {
+            s.ratioModeOverride = 'auto';
+            switched = true;
+        }
+    });
+    return switched;
+}
+// ユーザーが比率メニューを手動操作した際、上記の一時上書きを解除する
+function clearBulkImportRatioOverride() {
+    var active = (typeof getActive === 'function') ? getActive() : null;
+    if (active && active.ratioModeOverride) delete active.ratioModeOverride;
+}
+
+// [NEW] 大量インポート中の画像読み込み進捗を、消えるトーストの代わりに
+// 常時見える控えめなバッジで表示する（右下固定・完了後は少し待ってフェードアウト）。
+var _bulkProgressEl = null;
+function bulkProgressShow(done, total) {
+    if (!_bulkProgressEl) {
+        _bulkProgressEl = document.createElement('div');
+        _bulkProgressEl.id = 'bulk-import-progress';
+        _bulkProgressEl.style.cssText =
+            'position:fixed;right:14px;bottom:14px;z-index:2500;' +
+            'background:var(--surface);border:1px solid var(--border2);border-radius:10px;' +
+            'padding:8px 12px;font-family:\'DM Mono\',monospace;font-size:0.68rem;color:var(--text-dim);' +
+            'box-shadow:0 8px 24px rgba(0,0,0,0.35);display:flex;align-items:center;gap:8px;' +
+            'transition:opacity 0.3s ease;';
+        var bar = document.createElement('div');
+        bar.style.cssText = 'width:64px;height:4px;border-radius:2px;background:var(--surface3);overflow:hidden;flex-shrink:0;';
+        var fill = document.createElement('div');
+        fill.id = 'bulk-import-progress-fill';
+        fill.style.cssText = 'height:100%;width:0%;background:var(--accent);transition:width 0.2s ease;';
+        bar.appendChild(fill);
+        var label = document.createElement('span');
+        label.id = 'bulk-import-progress-label';
+        label.style.whiteSpace = 'nowrap';
+        _bulkProgressEl.appendChild(bar);
+        _bulkProgressEl.appendChild(label);
+        document.body.appendChild(_bulkProgressEl);
+    }
+    _bulkProgressEl.style.display = 'flex';
+    _bulkProgressEl.style.opacity = '1';
+    var pct = total > 0 ? Math.round(done / total * 100) : 0;
+    var fillEl  = document.getElementById('bulk-import-progress-fill');
+    var labelEl = document.getElementById('bulk-import-progress-label');
+    if (fillEl)  fillEl.style.width = pct + '%';
+    if (labelEl) labelEl.textContent = '画像を読み込み中… ' + done + ' / ' + total;
+}
+function bulkProgressDone(total) {
+    if (!_bulkProgressEl) return;
+    var fillEl  = document.getElementById('bulk-import-progress-fill');
+    var labelEl = document.getElementById('bulk-import-progress-label');
+    if (fillEl)  fillEl.style.width = '100%';
+    if (labelEl) labelEl.textContent = '画像の読み込みが完了しました（' + total + '枚）';
+    setTimeout(function() {
+        if (!_bulkProgressEl) return;
+        _bulkProgressEl.style.opacity = '0';
+        setTimeout(function() { if (_bulkProgressEl) _bulkProgressEl.style.display = 'none'; }, 320);
+    }, 2200);
+}
+
 function applyCardRatio() {
     var sel = document.getElementById('cardRatioSelect');
     var customInput = document.getElementById('cardRatioCustom');
+    // [MOD] グローバル設定ではなく、シナリオごとの一時上書きを考慮した「実効モード」を見る
+    var effectiveMode = getEffectiveCardRatioMode();
     // [MOD] fitモードを選択肢の判定に追加
     if (sel) {
     var knownValues = ['auto', 'fit', '1:1', '1:1.4'];
-    var newValue = (knownValues.indexOf(cardRatioMode) !== -1) ? cardRatioMode : 'custom';
+    var newValue = (knownValues.indexOf(effectiveMode) !== -1) ? effectiveMode : 'custom';
 
     if (sel.value !== newValue) {
         sel.value = newValue;
@@ -9130,9 +9235,9 @@ function applyCardRatio() {
     }
 
     var ratio = null; // 高さ ÷ 幅（fitモードでは使わない）
-    if (cardRatioMode === '1:1')   ratio = 1;
-    else if (cardRatioMode === '1:1.4') ratio = 1.4;
-    else if (cardRatioMode === 'custom') ratio = cardRatioCustomValue;
+    if (effectiveMode === '1:1')   ratio = 1;
+    else if (effectiveMode === '1:1.4') ratio = 1.4;
+    else if (effectiveMode === 'custom') ratio = cardRatioCustomValue;
 
     // 既存の.grid-itemクラス指定（height:160px）を上書きするためstyleタグを動的生成
     var styleEl = document.getElementById('card-ratio-style');
@@ -9142,7 +9247,7 @@ function applyCardRatio() {
         document.head.appendChild(styleEl);
     }
 
-    if (cardRatioMode === 'fit') {
+    if (effectiveMode === 'fit') {
         // フィット：grid-wrapperをflex列にし、grid-containerをflex:1で引き伸ばす。
         styleEl.textContent =
             'body:not(.mob-grid1):not(.mob-grid2):not(.mob-swipe) .grid-wrapper { padding: 6px !important; overflow: hidden !important; }' +
@@ -9165,6 +9270,9 @@ function applyCardRatio() {
 function onCardRatioChange(value) {
     cardRatioMode = value;
     localStorage.setItem('kp_card_ratio_mode', value);
+    // [NEW] ユーザーが明示的に選び直した場合は、大量インポート時に自動設定した
+    // シナリオ単位の一時上書きは役目を終えたとみなし解除する
+    clearBulkImportRatioOverride();
     updateGrid(); 
 }
 
@@ -9175,6 +9283,7 @@ function onCardRatioCustomChange(value) {
     cardRatioMode = 'custom';
     localStorage.setItem('kp_card_ratio_custom', v);
     localStorage.setItem('kp_card_ratio_mode', 'custom');
+    clearBulkImportRatioOverride();
     updateGrid();
 }
 
@@ -9264,7 +9373,7 @@ function updateGrid() {
     if (rowsEl) rowsEl.value = rows;
     
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-    grid.style.gridTemplateRows = (cardRatioMode === 'fit') ? 'repeat(' + rows + ', 1fr)' : '';
+    grid.style.gridTemplateRows = (getEffectiveCardRatioMode() === 'fit') ? 'repeat(' + rows + ', 1fr)' : '';
     
     grid.classList.toggle('single-card-mode', rows === 1 && cols === 1);
     
@@ -12015,12 +12124,15 @@ async function importObsidian(e) {
         if (!imported.length) { showToast(t('toast_no_data')); return; }
         var capacity = 8 - scenarios.length;
         if (capacity <= 0) { showToast('シナリオ上限（8個）に達しています'); return; }
-        imported.slice(0, capacity).forEach(function(s){ scenarios.push(s); });
+        var obsImported = imported.slice(0, capacity);
+        obsImported.forEach(function(s){ scenarios.push(s); });
         activeScenarioId = imported[0].id;
+        var obsAutoSwitched = applyBulkImportDisplayDefaults(obsImported);
         saveScenarios(); renderScenarioTabs();
         document.getElementById('colsInput').value = getActiveCols();
         updateGrid();
-        showToast('ObsidianのMarkdownを ' + Math.min(imported.length, capacity) + ' シナリオ読み込みました');
+        showToast('ObsidianのMarkdownを ' + Math.min(imported.length, capacity) + ' シナリオ読み込みました' +
+            (obsAutoSwitched ? '（枚数が多いため表示を自動モードに切替）' : ''));
         closeDataModal();
     } catch (err) {
         console.error('[importObsidian] import failed:', err);
@@ -12045,16 +12157,18 @@ function importFromPaste() {
         return;
     }
 
+    var pasteImported = [];
     result.scenarios.forEach(function(s) {
-        if (scenarios.length < 8) scenarios.push(s);
+        if (scenarios.length < 8) { scenarios.push(s); pasteImported.push(s); }
     });
     activeScenarioId = result.activeId || result.scenarios[0].id;
+    var pasteAutoSwitched = applyBulkImportDisplayDefaults(pasteImported);
     saveScenarios(); renderScenarioTabs();
     document.getElementById('colsInput').value = getActiveCols();
     updateGrid();
     ta.value = '';
     var label = result.meta && result.meta.typeLabel ? result.meta.typeLabel : format;
-    showToast(label + '（貼り付け）をインポート'); closeDataModal();
+    showToast(label + '（貼り付け）をインポート' + (pasteAutoSwitched ? '（枚数が多いため表示を自動モードに切替）' : '')); closeDataModal();
 }
 
 // QMS Phase 0: ファイルImport入口
@@ -12067,14 +12181,16 @@ function importMD(e) {
         if (!result || result.scenarios.length === 0) {
             showToast(t('toast_no_data')); return;
         }
+        var mdImported = [];
         result.scenarios.forEach(function(s) {
-            if (scenarios.length < 8) scenarios.push(s);
+            if (scenarios.length < 8) { scenarios.push(s); mdImported.push(s); }
         });
         activeScenarioId = result.activeId || result.scenarios[0].id;
+        var mdAutoSwitched = applyBulkImportDisplayDefaults(mdImported);
         saveScenarios(); renderScenarioTabs();
         document.getElementById('colsInput').value = getActiveCols();
         updateGrid();
-        showToast(t('toast_md_file')); closeDataModal();
+        showToast(t('toast_md_file') + (mdAutoSwitched ? '（枚数が多いため表示を自動モードに切替）' : '')); closeDataModal();
     });
     e.target.value = '';
 }
@@ -12305,24 +12421,27 @@ function importJSON(e) {
                     if (ex) { s.qcfId = qcfUid(); s.id = scnUid(); s.name = (s.title || s.name) + ' (インポート)'; }
                     scenarios.push(s);
                 });
-                afterImport(list[0] ? list[0].id : null); close();
+                afterImport(list[0] ? list[0].id : null, list); close();
             };
             document.getElementById('imp-replace').onclick = function() {
                 if (!confirm(t('confirm_replace'))) return;
                 scenarios = list; activeScenarioId = activeId || list[0].id;
-                afterImport(null); close();
+                afterImport(null, list); close();
             };
         } catch(err) { showToast('読み込み失敗：' + err.message); }
     });
     e.target.value = '';
 }
 
-function afterImport(focusId) {
+function afterImport(focusId, newScenarios) {
     if (focusId) activeScenarioId = focusId;
+    // [NEW] 大量インポート対策①：新規シナリオが多いなら自動モードへ一時的に切替
+    var autoSwitched = newScenarios ? applyBulkImportDisplayDefaults(newScenarios) : false;
     saveScenarios(); renderScenarioTabs();
     document.getElementById('colsInput').value = getActiveCols();
     updateGrid();
-    showToast(t('toast_import_done')); closeDataModal();
+    showToast(t('toast_import_done') + (autoSwitched ? '（枚数が多いため表示を自動モードに切替）' : ''));
+    closeDataModal();
 }
 
 function importCSV(e) {
@@ -12557,6 +12676,24 @@ function ankiBuildContentFromFields(fields, fldNames) {
 
 // 抽出した画像バイナリを、既存の画像最適化パイプラインに乗せてmediaDBへ保存する
 // （mediaSaveImageFile() と同じ保存ロジックを、DOM要素なしで呼べる形にしたもの）
+// [NEW] 大量インポート対策②：画像1枚の保存が完了するたびにグリッド全体
+// （renderGrid、grid.innerHTML=''による総入れ替え）を作り直すのではなく、
+// 該当カードのDOM要素だけを直接更新する。
+// 全体再構築だと、まだ読み込み中の「別カード」のPromiseが、その時点で
+// 既に破棄された古いDOM要素を対象に img.src を設定しようとして失敗する
+// ケースがあり、「操作すると一部の画像が反映されない」不具合の原因になっていた。
+function patchGridItemMedia(scenario, cardIndex, mediaId) {
+    if (typeof getActive !== 'function' || getActive() !== scenario) return; // 表示中でなくてもデータは保存済みなので問題ない
+    if (typeof grid === 'undefined' || !grid) return;
+    var items = grid.querySelectorAll('.grid-item');
+    var item = items[cardIndex];
+    if (!item) return;
+    item.dataset.mediaId = mediaId;
+    item.classList.add('has-media');
+    var img = item.querySelector('.card-media-layer img');
+    if (img && typeof mediaLoadForCard === 'function') mediaLoadForCard(mediaId, item, img);
+}
+
 function ankiSaveImageBlob(mediaId, bytes, filename) {
     var blob = new Blob([bytes], { type: ankiGuessMime(filename) });
     return optimizeImageToWebP(blob).then(function(result) {
@@ -12706,7 +12843,12 @@ function importAnki(e) {
                 totalCards++;
 
                 if (imgFilename && mediaReverse[imgFilename] !== undefined) {
-                    pendingImages.push({ card: card, filename: imgFilename, numName: mediaReverse[imgFilename] });
+                    // [MOD] 個別カードのDOM要素をあとで直接更新できるよう、
+                    // 所属シナリオとカードのインデックスも一緒に記録しておく
+                    pendingImages.push({
+                        card: card, filename: imgFilename, numName: mediaReverse[imgFilename],
+                        scenario: scenario, cardIndex: scenario.data.length - 1
+                    });
                 }
             });
 
@@ -12717,6 +12859,11 @@ function importAnki(e) {
                 s.cols = 3;
                 s.rows = Math.max(3, Math.ceil(s.data.length / 3));
             });
+
+            // [NEW] 大量インポート対策①：フィット表示のままだと大量カードが
+            // 1画面に押し込まれ、遅延読み込みが機能せず全画像が一斉に読み込まれてしまう。
+            // 一定枚数を超えたシナリオだけ「自動」表示へ一時的に切り替える。
+            var autoSwitchedToAuto = applyBulkImportDisplayDefaults(importedScenarios);
 
             // [MOD] テキストは画像処理を待たずに、ここで先に確定保存する。
             // 画像1枚あたりの変換（WebP化）はメインスレッドで時間がかかるため、
@@ -12744,24 +12891,30 @@ function importAnki(e) {
             closeDataModal();
 
             if (!pendingImages.length) {
-                showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました');
+                showToast('Ankiから' + totalCards + '枚のカードを' + importedScenarios.length + '個のシナリオに読み込みました' +
+                    (autoSwitchedToAuto ? '（枚数が多いため表示を自動モードに切替）' : ''));
                 return;
             }
 
             // [NEW] 画像はここから非同期・少数ずつ処理する。
             // テキストは既に保存済みなので、画像処理が重くても
             // 「一切取り込めなかった」という事態にはならない。
-            showToast('カードを保存しました。画像を処理中… (0/' + pendingImages.length + ')');
+            showToast('カードを保存しました。画像を読み込んでいます…' +
+                (autoSwitchedToAuto ? '（枚数が多いため表示を自動モードに切替）' : ''));
+            bulkProgressShow(0, pendingImages.length);
             var BATCH_SIZE = 5;
             var done = 0;
 
             function processImageBatch(startIdx) {
                 var batch = pendingImages.slice(startIdx, startIdx + BATCH_SIZE);
                 if (!batch.length) {
-                    // 全画像処理が完了。最後にもう一度保存して画面へ反映する。
+                    // 全画像処理が完了。
+                    // [FIX] 個々のカードは処理完了のたびに直接DOM更新済みのため、
+                    // ここでグリッド全体を作り直す必要はない（作り直すと、処理中に別の
+                    // 操作でグリッドが再描画された場合、まだ読み込み中の画像のDOM参照が
+                    // 失われて反映されなくなることがあったため、あえて呼ばない）。
                     saveScenarios();
-                    updateGrid();
-                    showToast('画像の読み込みが完了しました（' + done + '/' + pendingImages.length + '枚）');
+                    bulkProgressDone(pendingImages.length);
                     return;
                 }
                 var batchPromises = batch.map(function(item) {
@@ -12770,17 +12923,19 @@ function importAnki(e) {
                     return entry.async('uint8array').then(function(bytes) {
                         var mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
                         item.card.mediaId = mediaId;
-                        return ankiSaveImageBlob(mediaId, bytes, item.filename);
+                        return ankiSaveImageBlob(mediaId, bytes, item.filename).then(function() {
+                            // [FIX] グリッド全体の再構築ではなく、該当カードのDOM要素だけを
+                            // その場で直接更新する（全体再構築は他カードの読み込み中Promiseを
+                            // 巻き込んで、操作のタイミング次第で画像が反映されない不具合の原因だった）
+                            patchGridItemMedia(item.scenario, item.cardIndex, mediaId);
+                        });
                     }).catch(function(){ /* 1枚失敗しても全体は続行する */ });
                 });
                 Promise.all(batchPromises).then(function() {
                     done += batch.length;
-                    // バッチごとに保存・再描画し、少しずつ画像が反映されていく様子を見せる
+                    // バッチごとに保存し、少しずつ画像が反映されていく様子を見せる
                     saveScenarios();
-                    if (typeof getActive === 'function' && getActive() === importedScenarios[0]) {
-                        updateGrid();
-                    }
-                    showToast('画像を処理中… (' + done + '/' + pendingImages.length + ')');
+                    bulkProgressShow(done, pendingImages.length);
                     // メインスレッドを一度解放してから次のバッチへ（UIが固まって見えるのを防ぐ）
                     setTimeout(function() { processImageBatch(startIdx + BATCH_SIZE); }, 30);
                 });
