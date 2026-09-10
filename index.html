@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.21                                                   ║
+  ║  Qcard PRO  v3.10.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -1130,9 +1130,10 @@
             font-size: 0.62rem; line-height: 1;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; z-index: 5; opacity: 0;
+            pointer-events: none; /* [NEW] 見えていない間は誤タップ対象にしない */
             transition: all 0.15s;
         }
-        .grid-item:hover .field-clear-btn { opacity: 1; }
+        .grid-item:hover .field-clear-btn { opacity: 1; pointer-events: auto; }
         .field-clear-btn:hover { background: rgba(242,82,106,0.18); color: var(--danger); border-color: var(--danger); }
         .field-row.title-row { padding-right: 18px; }
         .field-row.title-row .field-clear-btn { top: -2px; }
@@ -3389,14 +3390,28 @@ min-height: 0;
             min-width: 24px !important; min-height: 24px !important;
             max-width: 24px !important; max-height: 24px !important;
             margin: 0 !important;
-            background: rgba(8,12,20,0.75) !important;
-            border: 1px solid rgba(255,255,255,0.25) !important;
+            /* [MOD] ダーク固定色をやめ、テーマ変数に追従させる（ライトモードでの浮き上がりを解消） */
+            background: var(--surface2) !important;
+            border: 1px solid var(--border2) !important;
             border-radius: 50% !important;
             box-shadow: none !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
-            opacity: 0.85;
+            /* [MOD] 全カードに常駐するボタンのため、通常時は控えめに。タップ時のみ強調 */
+            opacity: 0.55;
+            transition: opacity 0.15s, border-color 0.15s;
             z-index: 10;
+        }
+        /* [NEW] タップ中は視認性を上げて押した実感を出す（ホバーの無いモバイル向けフィードバック） */
+        body.mob-grid1 .card-media-add-btn:active,
+        body.mob-grid2 .card-media-add-btn:active {
+            opacity: 1 !important;
+            border-color: var(--accent) !important;
+        }
+        /* [NEW] 2列モードのみ、タイトル削除ボタン（右上）と対角の右下へ配置をずらして衝突を回避する。
+           1列モードはタイトル行自体が非表示のため衝突が無く、従来どおり右上のまま。 */
+        body.mob-grid2 .card-media-add-btn {
+            top: auto !important; bottom: 6px !important;
         }
         body.mob-grid1 .card-media-add-btn .cmab-edit-hint,
         body.mob-grid2 .card-media-add-btn .cmab-edit-hint {
@@ -3418,7 +3433,12 @@ min-height: 0;
         body.mob-grid1 .card-media-add-btn .icon,
         body.mob-grid2 .card-media-add-btn .icon {
             font-size: 0.9rem !important;
-            color: #fff !important;
+            /* [MOD] 白固定ではなくテーマの控えめなテキスト色に。押した時だけアクセントカラーに */
+            color: var(--text-dim) !important;
+        }
+        body.mob-grid1 .card-media-add-btn:active .icon,
+        body.mob-grid2 .card-media-add-btn:active .icon {
+            color: var(--accent) !important;
         }
 
 /* ── グリッド2列 ── */
