@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.0                                                   ║
+  ║  Qcard PRO  v3.10.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -431,18 +431,28 @@
         .scenario-popover.open { display: block; }
 
         /* [NEW] シナリオ行ホバー時に出る、カード一覧フライアウト */
+        /* [FIX] 親(.scenario-popover)の overflow-y:auto は仕様上 overflow-x も
+           自動的に auto 扱いになり、右にはみ出すフライアウトが切り取られてしまっていた。
+           position:fixed にして、親のoverflow・位置に一切影響されないようにする。 */
         #scenario-flyout {
             display: none;
-            position: absolute;
-            top: 0; left: calc(100% + 8px);
-            width: 260px; max-height: 70vh;
+            position: fixed;
+            width: 260px; max-height: 60vh;
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.45);
-            padding: 10px; z-index: 320;
+            padding: 10px; z-index: 620;
             flex-direction: column;
         }
         #scenario-flyout.open { display: flex; }
-        #scenario-flyout-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+        #scenario-flyout-list {
+            overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px;
+            /* [FIX] ダークモードで主張しすぎない、細く控えめなスクロールバーに */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border2) transparent;
+        }
+        #scenario-flyout-list::-webkit-scrollbar { width: 6px; }
+        #scenario-flyout-list::-webkit-scrollbar-track { background: transparent; }
+        #scenario-flyout-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
         .sf-item {
             display: block; width: 100%; text-align: left;
             background: none; border: none; border-radius: 6px;
@@ -4149,7 +4159,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.10.0</span>
+    <span class="version-badge">v3.10.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -8792,8 +8802,16 @@ function scenarioFlyoutShow(scenario, tabEl) {
     var flyout = document.getElementById('scenario-flyout');
     var search = document.getElementById('scenario-flyout-search');
     if (!flyout) return;
-    // タブの縦位置に合わせて表示する
-    flyout.style.top = tabEl.offsetTop + 'px';
+    // [FIX] position:fixed になったため、タブの実際の画面座標から配置を計算する
+    var rect = tabEl.getBoundingClientRect();
+    var flyoutWidth = 260;
+    var left = rect.right + 8;
+    if (left + flyoutWidth > window.innerWidth - 8) {
+        left = rect.left - flyoutWidth - 8; // 右にはみ出す場合はタブの左側に表示
+    }
+    flyout.style.left = Math.max(8, left) + 'px';
+    flyout.style.top  = rect.top + 'px';
+    flyout.style.maxHeight = Math.min(window.innerHeight * 0.6, window.innerHeight - rect.top - 16) + 'px';
     if (search) search.value = '';
     scenarioFlyoutRenderList('');
     flyout.classList.add('open');
