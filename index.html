@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.22 UI- Modern-Update-001                   ║
+  ║  Qcard PRO  v3.10.1    SS+meta                    ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -992,7 +992,11 @@
         body.view-mode #meta-link-add-btn,
         body.reading-mode #meta-link-add-btn,
         body.interview-mode #meta-link-add-btn,
-        body.study-mode #meta-link-add-btn { display: none; }
+        body.study-mode #meta-link-add-btn,
+        body.view-mode #mob-meta-link-add-btn,
+        body.reading-mode #mob-meta-link-add-btn,
+        body.interview-mode #mob-meta-link-add-btn,
+        body.study-mode #mob-meta-link-add-btn { display: none; }
         body.view-mode .link-row .link-remove-btn,
         body.reading-mode .link-row .link-remove-btn,
         body.interview-mode .link-row .link-remove-btn { display: none; }
@@ -1291,6 +1295,16 @@
             color: var(--text-dim);
             margin-bottom: 10px;
         }
+        /* [NEW] Card Info アコーディオン：既定では畳んでおき、入力面を広く保つ */
+        #meta-accordion-toggle { margin-bottom: 0; transition: color var(--dur) var(--ease); }
+        #meta-accordion-toggle:hover { color: var(--text-muted); }
+        #meta-accordion-caret { display: inline-block; transition: transform var(--dur) var(--ease); color: var(--text-dim); }
+        #overlay-meta.meta-open #meta-accordion-caret { transform: rotate(90deg); }
+        #meta-accordion-body {
+            display: none;
+            padding-top: 12px;
+        }
+        #overlay-meta.meta-open #meta-accordion-body { display: block; }
         /* 1行フィールド */
         .meta-row {
             display: flex;
@@ -1414,7 +1428,10 @@
         /* 閲覧・録音・朗読モードではメタゾーンを折りたたむ（タグのみ表示） */
         body.view-mode     #meta-editable-rows,
         body.reading-mode  #meta-editable-rows,
-        body.interview-mode #meta-editable-rows { display: none; }
+        body.interview-mode #meta-editable-rows,
+        body.view-mode     #mob-meta-editable-rows,
+        body.reading-mode  #mob-meta-editable-rows,
+        body.interview-mode #mob-meta-editable-rows { display: none; }
 
         /* [NEW] カードクリップボード行：閲覧・編集モードでのみ表示（コピーは閲覧でも許可、
            貼り付け系は編集モードのみJS側で有効化）。朗読/録音練習/学習モードでは非表示。 */
@@ -3569,6 +3586,121 @@ min-height: 0;
         #undo-toast                { display: none !important; }
     }
 
+    /* ─── MOBILE META SHEET：普段は取っ手のみ。タップで下からせり上がる ─── */
+    #mob-meta-handle {
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 6px 10px 8px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #mob-meta-handle-bar {
+        width: 34px; height: 3px; border-radius: 2px;
+        background: var(--border2);
+        transition: background var(--dur) var(--ease);
+        flex-shrink: 0;
+    }
+    #mob-meta-handle.open #mob-meta-handle-bar { background: var(--accent); }
+    #mob-meta-summary {
+        font-family: var(--font-mono);
+        font-size: 0.64rem;
+        color: var(--text-dim);
+        letter-spacing: 0.02em;
+    }
+    body.study-mode #mob-meta-handle,
+    body.interview-mode #mob-meta-handle { display: none !important; }
+
+    #mob-meta-backdrop {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.28);
+        z-index: 899;
+    }
+    #mob-meta-backdrop.show { display: block; }
+
+    #mob-meta-sheet {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        z-index: 900;
+        background: var(--surface);
+        border-top: 1px solid var(--border2);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: var(--shadow-lg);
+        max-height: 72vh;
+        max-height: 72dvh;
+        display: flex; flex-direction: column;
+        transform: translateY(100%);
+        transition: transform var(--dur-slow) var(--ease);
+    }
+    #mob-meta-sheet.show { transform: translateY(0); }
+
+    #mob-meta-sheet-header {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+    #mob-meta-sheet-header .meta-section-label {
+        font-family: var(--font-mono); font-size: 0.7rem;
+        color: var(--text-muted); letter-spacing: 0.08em;
+    }
+    #mob-meta-pin-wrap {
+        display: flex; align-items: center; gap: 4px;
+        font-size: 0.78rem; color: var(--text-dim);
+        cursor: pointer;
+    }
+    #mob-meta-close-btn {
+        background: none; border: none; color: var(--text-muted);
+        font-size: 0.95rem; line-height: 1; cursor: pointer; padding: 4px 6px;
+    }
+
+    #mob-meta-body {
+        overflow-y: auto;
+        padding: 12px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+        display: flex; flex-direction: column; gap: 10px;
+    }
+    #mob-meta-body .meta-row {
+        display: flex; align-items: center; gap: 8px;
+    }
+    #mob-meta-body .meta-icon { flex-shrink: 0; font-size: 0.85rem; opacity: 0.85; width: 20px; text-align: center; }
+    #mob-meta-body .meta-input {
+        flex: 1; min-width: 0;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        color: var(--text);
+        font-size: 0.82rem;
+        padding: 9px 10px;
+    }
+    #mob-meta-body .meta-input:focus { outline: none; border-color: var(--accent); }
+    #mob-meta-tags-display { display: flex; flex-wrap: wrap; gap: 5px; padding-left: 28px; }
+    #mob-meta-hidden-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-dim); cursor: pointer; }
+
+    .meta-clip-btn {
+        background: var(--surface2); border: 1px solid var(--border);
+        border-radius: var(--radius-md); color: var(--text-muted);
+        font-size: 0.72rem; padding: 7px 10px; cursor: pointer;
+        align-self: flex-start;
+    }
+    .meta-clip-btn:disabled { opacity: 0.4; cursor: default; }
+
+    #mob-meta-sys-toggle {
+        align-self: flex-start;
+        background: none; border: none; color: var(--text-dim);
+        font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.04em;
+        cursor: pointer; padding: 4px 0;
+    }
+    #mob-meta-sys-rows {
+        display: none;
+        flex-direction: column; gap: 7px;
+        padding: 8px 0 0; border-top: 1px solid var(--line);
+    }
+    #mob-meta-sys-rows.open { display: flex; }
+    .meta-sys-row { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--text-muted); }
+    .meta-sys-label { color: var(--text-dim); flex-shrink: 0; width: 36px; }
+    .meta-sys-val { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-muted); word-break: break-all; }
+    .meta-sys-val.mono { color: var(--text-dim); }
+    #mob-meta-clip-row { gap: 8px; }
+
     /* ─── READING MODE ─── */
     .mode-btn.active.reading-mode-btn { color: #8b7ff0; border-color: rgba(167,139,250,0.4); }
     body.reading-mode .grid-item { cursor: pointer; }
@@ -4670,6 +4802,82 @@ min-height: 0;
         <div class="mob-slide" id="mob-slide-cur"></div>
         <div class="mob-slide" id="mob-slide-next"></div>
     </div>
+
+    <!-- [NEW] カードメタ情報：普段は閉じておき、ワンタップで開く取っ手＋シート -->
+    <div id="mob-meta-handle" onclick="mobMetaToggle()">
+        <span id="mob-meta-handle-bar"></span>
+        <span id="mob-meta-summary"></span>
+    </div>
+    <div id="mob-meta-backdrop" onclick="mobMetaClose()"></div>
+    <div id="mob-meta-sheet">
+        <div id="mob-meta-sheet-header">
+            <span class="meta-section-label">Card Info</span>
+            <div style="flex:1"></div>
+            <label id="mob-meta-pin-wrap" title="開いたまま次のカードへ進む">
+                <input type="checkbox" id="mob-meta-pin-toggle" onchange="mobMetaPinChange(this.checked)">
+                📌
+            </label>
+            <button type="button" id="mob-meta-close-btn" onclick="mobMetaClose()">✕</button>
+        </div>
+        <div id="mob-meta-body">
+            <div id="mob-meta-editable-rows">
+                <div class="meta-row">
+                    <span class="meta-icon">🏷</span>
+                    <input class="meta-input" id="mob-meta-tags-input" placeholder="#タグを追加（Enter/カンマで確定）"
+                           autocomplete="off" spellcheck="false"
+                           onkeydown="metaTagKeydown(event,'mob-meta-tags-input')"
+                           onblur="metaTagCommitPending('mob-meta-tags-input')">
+                </div>
+                <div id="mob-meta-tags-display"></div>
+
+                <div class="meta-row-links-section" id="mob-meta-links-section">
+                    <div class="meta-section-label">🔗 Links</div>
+                    <div id="mob-meta-links-list"></div>
+                    <button type="button" id="mob-meta-link-add-btn" class="meta-clip-btn" onclick="mobCardLinkOpenPicker()">🔗 カードをリンク</button>
+                </div>
+
+                <div class="meta-row">
+                    <span class="meta-icon">📎</span>
+                    <input class="meta-input" id="mob-meta-source-input" placeholder="出典" autocomplete="off"
+                           onblur="metaSaveField('source', this.value)">
+                </div>
+                <div class="meta-row">
+                    <span class="meta-icon">🔗</span>
+                    <input class="meta-input" id="mob-meta-url-input" type="url" placeholder="URL" autocomplete="off" spellcheck="false"
+                           onblur="metaSaveField('sourceUrl', this.value)">
+                </div>
+                <div class="meta-row">
+                    <span class="meta-icon">📝</span>
+                    <input class="meta-input" id="mob-meta-note-input" placeholder="メモ" autocomplete="off"
+                           onblur="metaSaveField('note', this.value)">
+                </div>
+                <div class="meta-row">
+                    <span class="meta-icon">👁</span>
+                    <label id="mob-meta-hidden-row">
+                        <input type="checkbox" id="mob-meta-hidden-toggle" onchange="mobMetaToggleHidden(this.checked)">
+                        <span id="mob-meta-hidden-label">このカードを非表示にする</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- システム情報：普段は畳んでおく（低頻度・アーカイブ的な情報） -->
+            <button type="button" id="mob-meta-sys-toggle" onclick="mobMetaSysToggle()">▸ 詳細情報</button>
+            <div id="mob-meta-sys-rows">
+                <div class="meta-sys-row">
+                    <span class="meta-icon">🧠</span>
+                    <span id="mob-meta-study-badge" class="meta-study-badge none">○ 未学習</span>
+                </div>
+                <div class="meta-sys-row"><span class="meta-icon">📅</span><span class="meta-sys-label">作成</span><span class="meta-sys-val" id="mob-meta-created-val">—</span></div>
+                <div class="meta-sys-row"><span class="meta-icon">🔄</span><span class="meta-sys-label">更新</span><span class="meta-sys-val" id="mob-meta-updated-val">—</span></div>
+                <div class="meta-sys-row"><span class="meta-icon">🆔</span><span class="meta-sys-label">ID</span><span class="meta-sys-val mono" id="mob-meta-card-id-val">—</span></div>
+                <div class="meta-sys-row"><span class="meta-icon">🔑</span><span class="meta-sys-label">URI</span><span class="meta-sys-val mono" id="mob-meta-uri-val">—</span></div>
+                <div class="meta-sys-row" id="mob-meta-clip-row">
+                    <button type="button" class="meta-clip-btn" onclick="mobCardClipboardCopy()">📋 コピー</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 閲覧・朗読・録音共通 -->
     <div id="mob-speech-area">
         <button id="mob-speech-btn" onclick="mobSpeechToggle()" data-i18n="mob_speech_btn">▶ このカードを読む</button>
@@ -4896,7 +5104,16 @@ min-height: 0;
 
     <!-- ══ カード メタゾーン ══════════════════════════════════════════ -->
     <div id="overlay-meta">
-        <div class="meta-section-label">Card Info</div>
+        <div class="meta-section-label" id="meta-accordion-toggle" onclick="metaAccordionToggle()" style="cursor:pointer; display:flex; align-items:center; gap:8px; user-select:none;">
+            <span id="meta-accordion-caret">▸</span>
+            <span>Card Info</span>
+            <span id="meta-accordion-summary" style="font-family:'DM Mono',monospace; font-size:0.6rem; color:var(--text-dim); font-weight:400; letter-spacing:0.02em;"></span>
+            <span style="flex:1"></span>
+            <label id="meta-accordion-pin-wrap" title="常に展開しておく" onclick="event.stopPropagation();" style="display:flex; align-items:center; gap:4px; font-size:0.6rem; color:var(--text-dim); cursor:pointer; font-weight:400;">
+                <input type="checkbox" id="meta-accordion-pin-toggle" onchange="metaAccordionPinChange(this.checked)"> 📌
+            </label>
+        </div>
+        <div id="meta-accordion-body">
 
         <!-- カードクリップボード（コピー＆ペースト）v0.2
              不変条件: URIはコピーしない。URIはCardの同一性を表す。
@@ -5025,6 +5242,7 @@ min-height: 0;
                 <span class="meta-sys-val" id="meta-card-uri-val" style="font-size:0.55rem;opacity:0.5;user-select:all;" title="Permanent Card URI（クリックで全選択）"></span>
             </div>
         </div>
+        </div><!-- /#meta-accordion-body -->
     </div>
     <!-- ══ END メタゾーン ══════════════════════════════════════════════ -->
     <!-- [NEW] 右下をドラッグして幅・高さを自由に変更 -->
@@ -8314,78 +8532,82 @@ function searchCardsAcrossScenarios(query) {
     return results;
 }
 
-// [NEW] リンク一覧を描画する（overlayMetaSync から呼ばれる）
+// [NEW] リンク一覧を描画する（overlayMetaSync / mobMetaSync から呼ばれる）
+// [MOD] PC版(#meta-links-list)・モバイル版(#mob-meta-links-list)、存在する方すべてに描画する。
+//       これにより、共有のカードリンクピッカーからどちらのUIで追加しても両方に反映される。
 function renderCardLinks(cardItem) {
-    var listEl = document.getElementById('meta-links-list');
-    if (!listEl || !cardItem) return;
-    listEl.innerHTML = '';
-    // [FIX] getCurrentGridData() は入力の度に active.data を再構築するため、
-    // 参照を取得する直前に確定同期し、常に最新の配列要素を参照する
-    saveCurrentGridData();
-    var meta = getCardMeta(cardItem);
-    var links = (meta && Array.isArray(meta.links)) ? meta.links : [];
-    links.forEach(function(link) {
-        var row = document.createElement('div');
-        row.className = 'link-row';
+    ['meta-links-list', 'mob-meta-links-list'].forEach(function(listId) {
+        var listEl = document.getElementById(listId);
+        if (!listEl || !cardItem) return;
+        listEl.innerHTML = '';
+        // [FIX] getCurrentGridData() は入力の度に active.data を再構築するため、
+        // 参照を取得する直前に確定同期し、常に最新の配列要素を参照する
+        saveCurrentGridData();
+        var meta = getCardMeta(cardItem);
+        var links = (meta && Array.isArray(meta.links)) ? meta.links : [];
+        links.forEach(function(link) {
+            var row = document.createElement('div');
+            row.className = 'link-row';
 
-        var icon = document.createElement('span');
-        icon.className = 'link-icon';
-        icon.textContent = '🔗';
+            var icon = document.createElement('span');
+            icon.className = 'link-icon';
+            icon.textContent = '🔗';
 
-        var labelInput = document.createElement('input');
-        labelInput.className = 'link-label-input';
-        labelInput.value = link.label || '';
-        labelInput.placeholder = 'ラベル';
-        labelInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-        labelInput.addEventListener('blur', function() {
-            // [FIX] blur時点で改めて最新のカード参照・リンクを取得してから更新する（参照の陳腐化対策）
-            saveCurrentGridData();
-            var freshMeta = getCardMeta(cardItem);
-            var freshLink = freshMeta && Array.isArray(freshMeta.links)
-                ? freshMeta.links.find(function(l){ return l.targetUri === link.targetUri; })
-                : null;
-            if (freshLink) {
-                freshLink.label = labelInput.value;
-                saveScenarios();
-            }
-        });
-
-        var preview = document.createElement('span');
-        preview.className = 'link-target-preview';
-        var found = findCardByUri(link.targetUri);
-        if (found) {
-            preview.textContent = '→ [' + displayScenarioName(found.scenario, scenarios.indexOf(found.scenario)) + '] ' + (found.card.title || '（無題）');
-            preview.addEventListener('click', function(e) {
-                e.stopPropagation();
-                navigateToCardByUri(link.targetUri);
+            var labelInput = document.createElement('input');
+            labelInput.className = 'link-label-input';
+            labelInput.value = link.label || '';
+            labelInput.placeholder = 'ラベル';
+            labelInput.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+            labelInput.addEventListener('blur', function() {
+                // [FIX] blur時点で改めて最新のカード参照・リンクを取得してから更新する（参照の陳腐化対策）
+                saveCurrentGridData();
+                var freshMeta = getCardMeta(cardItem);
+                var freshLink = freshMeta && Array.isArray(freshMeta.links)
+                    ? freshMeta.links.find(function(l){ return l.targetUri === link.targetUri; })
+                    : null;
+                if (freshLink) {
+                    freshLink.label = labelInput.value;
+                    saveScenarios();
+                }
             });
-        } else {
-            row.classList.add('link-broken');
-            preview.textContent = '⚠ リンク先のカードが見つかりません';
-        }
 
-        var removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'link-remove-btn';
-        removeBtn.textContent = '✕';
-        removeBtn.title = 'リンクを削除';
-        removeBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-        removeBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            // [FIX] クリック時点で改めて最新のカード参照を取得してから削除する
-            saveCurrentGridData();
-            var freshMeta = getCardMeta(cardItem);
-            if (freshMeta && removeCardLink(freshMeta, link.targetUri)) {
-                saveScenarios();
-                renderCardLinks(cardItem);
+            var preview = document.createElement('span');
+            preview.className = 'link-target-preview';
+            var found = findCardByUri(link.targetUri);
+            if (found) {
+                preview.textContent = '→ [' + displayScenarioName(found.scenario, scenarios.indexOf(found.scenario)) + '] ' + (found.card.title || '（無題）');
+                preview.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    navigateToCardByUri(link.targetUri);
+                });
+            } else {
+                row.classList.add('link-broken');
+                preview.textContent = '⚠ リンク先のカードが見つかりません';
             }
-        });
 
-        row.appendChild(icon);
-        row.appendChild(labelInput);
-        row.appendChild(preview);
-        row.appendChild(removeBtn);
-        listEl.appendChild(row);
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'link-remove-btn';
+            removeBtn.textContent = '✕';
+            removeBtn.title = 'リンクを削除';
+            removeBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+            removeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                // [FIX] クリック時点で改めて最新のカード参照を取得してから削除する
+                saveCurrentGridData();
+                var freshMeta = getCardMeta(cardItem);
+                if (freshMeta && removeCardLink(freshMeta, link.targetUri)) {
+                    saveScenarios();
+                    renderCardLinks(cardItem);
+                }
+            });
+
+            row.appendChild(icon);
+            row.appendChild(labelInput);
+            row.appendChild(preview);
+            row.appendChild(removeBtn);
+            listEl.appendChild(row);
+        });
     });
 }
 
@@ -10100,6 +10322,29 @@ function fmtDate(ms) {
         + String(d.getMinutes()).padStart(2,'0');
 }
 
+// ══ Card Info アコーディオン（PC） ═══════════════════════════════
+// 既定は「畳んでおく」。ピン留めしていれば次のカードを開いても展開したままにする
+// （デスクトップは複数カードにまたがってタグ付け等を行う使い方があるため、
+//   モバイルの「カードが変わったら自動で閉じる」とは意図的に挙動を変えている）。
+var metaAccordionPinned   = localStorage.getItem('kp_pc_meta_pin') === '1';
+var metaAccordionOpenState = metaAccordionPinned;
+
+function metaAccordionApply() {
+    var wrap = document.getElementById('overlay-meta');
+    if (wrap) wrap.classList.toggle('meta-open', metaAccordionOpenState);
+}
+function metaAccordionToggle() {
+    metaAccordionOpenState = !metaAccordionOpenState;
+    metaAccordionApply();
+}
+function metaAccordionPinChange(checked) {
+    metaAccordionPinned = !!checked;
+    localStorage.setItem('kp_pc_meta_pin', metaAccordionPinned ? '1' : '0');
+}
+window.metaAccordionToggle    = metaAccordionToggle;
+window.metaAccordionPinChange = metaAccordionPinChange;
+// ══ END Card Info アコーディオン ═════════════════════════════════
+
 function overlayMetaSync(cardItem) {
     var meta = cardItem ? getCardMeta(cardItem) : null;
 
@@ -10154,6 +10399,21 @@ function overlayMetaSync(cardItem) {
 
     // ── Card Link v0.1：リンク一覧を同期 ──
     if (typeof renderCardLinks === 'function') renderCardLinks(cardItem);
+
+    // ── Card Info アコーディオン：要約表示・ピン状態・開閉状態を同期 ──
+    var pinToggle = document.getElementById('meta-accordion-pin-toggle');
+    if (pinToggle) pinToggle.checked = metaAccordionPinned;
+    var summaryEl = document.getElementById('meta-accordion-summary');
+    if (summaryEl) {
+        var tagCount  = meta && meta.tags  ? meta.tags.length  : 0;
+        var linkCount = meta && meta.links ? meta.links.length : 0;
+        var bits = [];
+        if (tagCount)  bits.push('🏷' + tagCount);
+        if (linkCount) bits.push('🔗' + linkCount);
+        if (meta && meta.hidden) bits.push('👁非表示');
+        summaryEl.textContent = bits.join('  ');
+    }
+    metaAccordionApply();
 }
 
 // ===== CARD CLIPBOARD v0.1 =====
@@ -10443,33 +10703,36 @@ function setCardMeta(cardItem, patch) {
     saveScenarios();
 }
 
-// タグチップを描画
+// タグチップを描画（PC版・モバイル版、存在する方すべてに同期する）
 function metaRenderTagChips(tags) {
-    var disp = document.getElementById('meta-tags-display');
-    if (!disp) return;
-    disp.innerHTML = '';
-    (tags || []).forEach(function(tag) {
-        var chip = document.createElement('span');
-        chip.className = 'meta-tag-chip';
-        chip.innerHTML = '#' + escapeHtml(tag)
-            + '<span class="chip-remove" data-tag="' + escapeHtml(tag) + '" onclick="metaRemoveTag(this.dataset.tag)">×</span>';
-        disp.appendChild(chip);
+    ['meta-tags-display', 'mob-meta-tags-display'].forEach(function(dispId) {
+        var disp = document.getElementById(dispId);
+        if (!disp) return;
+        disp.innerHTML = '';
+        (tags || []).forEach(function(tag) {
+            var chip = document.createElement('span');
+            chip.className = 'meta-tag-chip';
+            chip.innerHTML = '#' + escapeHtml(tag)
+                + '<span class="chip-remove" data-tag="' + escapeHtml(tag) + '" onclick="metaRemoveTag(this.dataset.tag)">×</span>';
+            disp.appendChild(chip);
+        });
     });
 }
 
 // タグ追加（Enter / カンマ / 読点で確定。IME変換中の確定キーは無視して誤登録を防ぐ）
-function metaTagKeydown(e) {
+// [MOD] inputId省略時はPC版('meta-tags-input')。モバイルシートからは 'mob-meta-tags-input' を渡す。
+function metaTagKeydown(e, inputId) {
     if (e.isComposing || e.keyCode === 229) return; // 日本語IME変換中はここで確定しない
     if (e.key !== 'Enter' && e.key !== ',' && e.key !== '、') return;
     e.preventDefault();
-    metaTagCommitPending();
+    metaTagCommitPending(inputId);
 }
 
 // [FIX] 入力欄からフォーカスが外れた時（カード切替・仮想キーボードを閉じた等）にも
 // 未確定の入力を確定保存する。他のメタ項目（出典/URL/メモ）と同じ blur 保存に揃え、
 // スマホでEnterキーが安定して発火しない場合でも入力内容が消えないようにする。
-function metaTagCommitPending() {
-    var input = document.getElementById('meta-tags-input');
+function metaTagCommitPending(inputId) {
+    var input = document.getElementById(inputId || 'meta-tags-input');
     if (!input || !editCardItem) return;
     var raw = input.value;
     if (!raw || !raw.trim()) { input.value = ''; return; }
@@ -10505,15 +10768,173 @@ function metaSaveField(field, value) {
 }
 
 // メタゾーンの非表示トグル → card.hidden を保存 + DOM に反映
+// [MOD] PC版・モバイル版どちらのトグル/ラベルが存在しても両方同期する
 function metaToggleHidden(checked) {
     if (!editCardItem) return;
     setCardMeta(editCardItem, { hidden: checked });
     applyHiddenClass(editCardItem, checked);
-    var hiddenLabel = document.getElementById('meta-hidden-label');
-    if (hiddenLabel) hiddenLabel.textContent = checked ? '非表示中' : 'このカードを非表示にする';
+    ['meta-hidden-toggle', 'mob-meta-hidden-toggle'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.checked = checked;
+    });
+    ['meta-hidden-label', 'mob-meta-hidden-label'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = checked ? '非表示中' : 'このカードを非表示にする';
+    });
 }
 
 // ══ END メタゾーン ══════════════════════════════════════════
+
+// ══ モバイル・スワイプ用 カードメタ情報シート ═══════════════════
+// 方針：常時表示は最小限（取っ手のみ）。タップで開き、編集系(Tier1)を先に見せ、
+// 「詳細情報」の中に低頻度のシステム情報(Tier2)をさらに畳む。
+// データの読み書きはPC版と全く同じ getCardMeta/setCardMeta 等を共有し、
+// 表示先のDOM要素だけをモバイル用IDに向ける。
+
+var mobMetaOpenState   = false;
+var mobMetaSysOpenState = false;
+var mobMetaPinned      = localStorage.getItem('kp_mob_meta_pin') === '1';
+
+// 現在のカードの内容をモバイルシートへ反映する（カード切替のたびに呼ばれる）
+function mobMetaSync(cardItem) {
+    editCardItem = cardItem || null; // [FIX] シートの入力はこのカードに対して保存する
+
+    var pinToggle = document.getElementById('mob-meta-pin-toggle');
+    if (pinToggle) pinToggle.checked = mobMetaPinned;
+
+    var handle = document.getElementById('mob-meta-handle');
+    if (!cardItem) { if (handle) handle.style.display = 'none'; return; }
+    if (handle) handle.style.display = '';
+
+    var meta = getCardMeta(cardItem);
+
+    var tagsInput = document.getElementById('mob-meta-tags-input');
+    if (tagsInput) tagsInput.value = '';
+    metaRenderTagChips(meta ? (meta.tags || []) : []);
+
+    var srcInput  = document.getElementById('mob-meta-source-input');
+    var urlInput  = document.getElementById('mob-meta-url-input');
+    var noteInput = document.getElementById('mob-meta-note-input');
+    if (srcInput)  srcInput.value  = meta ? (meta.source    || '') : '';
+    if (urlInput)  urlInput.value  = meta ? (meta.sourceUrl || '') : '';
+    if (noteInput) noteInput.value = meta ? (meta.note      || '') : '';
+
+    var badge  = document.getElementById('mob-meta-study-badge');
+    var status = meta ? (meta.studyStatus || '') : '';
+    var statusMap = { again:'もう一度', hint:'うろ覚え', done:'覚えた' };
+    var emojiMap  = { again:'❌', hint:'💡', done:'✅' };
+    if (badge) {
+        badge.className = 'meta-study-badge ' + (status || 'none');
+        badge.textContent = (emojiMap[status] || '○') + ' ' + (statusMap[status] || '未学習');
+    }
+
+    var hiddenToggle = document.getElementById('mob-meta-hidden-toggle');
+    var hiddenLabel  = document.getElementById('mob-meta-hidden-label');
+    var isHidden     = meta ? !!meta.hidden : false;
+    if (hiddenToggle) hiddenToggle.checked = isHidden;
+    if (hiddenLabel)  hiddenLabel.textContent = isHidden ? '非表示中' : 'このカードを非表示にする';
+
+    var createdEl = document.getElementById('mob-meta-created-val');
+    var updatedEl = document.getElementById('mob-meta-updated-val');
+    var idEl      = document.getElementById('mob-meta-card-id-val');
+    var uriEl     = document.getElementById('mob-meta-uri-val');
+    if (createdEl) createdEl.textContent = fmtDate(meta && meta.createdAt);
+    if (updatedEl) updatedEl.textContent = fmtDate(meta && meta.updatedAt);
+    if (idEl)      idEl.textContent      = (meta && meta.id)  ? meta.id.replace('card_','') : '—';
+    if (uriEl)     uriEl.textContent     = (meta && meta.uri) ? meta.uri : '—';
+
+    if (typeof renderCardLinks === 'function') renderCardLinks(cardItem);
+
+    // 取っ手の要約（タグ数・リンク数だけを静かに表示。何も無ければ何も出さない）
+    var tagCount  = meta && meta.tags  ? meta.tags.length  : 0;
+    var linkCount = meta && meta.links ? meta.links.length : 0;
+    var bits = [];
+    if (tagCount)  bits.push('🏷' + tagCount);
+    if (linkCount) bits.push('🔗' + linkCount);
+    if (isHidden)  bits.push('👁非表示');
+    var summaryEl = document.getElementById('mob-meta-summary');
+    if (summaryEl) summaryEl.textContent = bits.join('  ');
+}
+window.mobMetaSync = mobMetaSync;
+
+function mobMetaApplyOpenState() {
+    var handle   = document.getElementById('mob-meta-handle');
+    var sheet    = document.getElementById('mob-meta-sheet');
+    var backdrop = document.getElementById('mob-meta-backdrop');
+    if (handle)   handle.classList.toggle('open', mobMetaOpenState);
+    if (sheet)    sheet.classList.toggle('show', mobMetaOpenState);
+    if (backdrop) backdrop.classList.toggle('show', mobMetaOpenState);
+}
+function mobMetaOpen() {
+    editCardItem = window._mobCurrentEl;
+    if (!editCardItem) { showToast(t('toast_no_card')); return; }
+    mobMetaOpenState = true;
+    mobMetaApplyOpenState();
+}
+function mobMetaClose() {
+    // 未確定のタグ入力があれば閉じる前に確定保存する
+    if (typeof metaTagCommitPending === 'function') metaTagCommitPending('mob-meta-tags-input');
+    mobMetaOpenState = false;
+    mobMetaApplyOpenState();
+}
+function mobMetaToggle() {
+    if (mobMetaOpenState) mobMetaClose(); else mobMetaOpen();
+}
+window.mobMetaOpen   = mobMetaOpen;
+window.mobMetaClose  = mobMetaClose;
+window.mobMetaToggle = mobMetaToggle;
+
+// カード送り時の既定挙動：ピン留めしていなければ自動で閉じる（毎回まっさらな入力面に戻す）
+function mobMetaOnCardChanged() {
+    mobMetaSysOpenState = false;
+    var sysRows = document.getElementById('mob-meta-sys-rows');
+    var sysBtn  = document.getElementById('mob-meta-sys-toggle');
+    if (sysRows) sysRows.classList.remove('open');
+    if (sysBtn)  sysBtn.textContent = '▸ 詳細情報';
+    if (!mobMetaPinned) {
+        mobMetaOpenState = false;
+        mobMetaApplyOpenState();
+    }
+}
+window.mobMetaOnCardChanged = mobMetaOnCardChanged;
+
+function mobMetaPinChange(checked) {
+    mobMetaPinned = !!checked;
+    localStorage.setItem('kp_mob_meta_pin', mobMetaPinned ? '1' : '0');
+}
+window.mobMetaPinChange = mobMetaPinChange;
+
+// システム情報（Tier2）の折りたたみ
+function mobMetaSysToggle() {
+    mobMetaSysOpenState = !mobMetaSysOpenState;
+    var sysRows = document.getElementById('mob-meta-sys-rows');
+    var sysBtn  = document.getElementById('mob-meta-sys-toggle');
+    if (sysRows) sysRows.classList.toggle('open', mobMetaSysOpenState);
+    if (sysBtn)  sysBtn.textContent = (mobMetaSysOpenState ? '▾' : '▸') + ' 詳細情報';
+}
+window.mobMetaSysToggle = mobMetaSysToggle;
+
+// 非表示トグル・カードリンクピッカーは、対象カードを明示してから共有ロジックを呼ぶだけ
+function mobMetaToggleHidden(checked) {
+    editCardItem = window._mobCurrentEl;
+    metaToggleHidden(checked);
+}
+window.mobMetaToggleHidden = mobMetaToggleHidden;
+
+function mobCardLinkOpenPicker() {
+    editCardItem = window._mobCurrentEl;
+    if (typeof cardLinkOpenPicker === 'function') cardLinkOpenPicker();
+}
+window.mobCardLinkOpenPicker = mobCardLinkOpenPicker;
+
+// [NOTE] 「複製して追加」「このカードに貼り付け」はPC版オーバーレイを開く副作用があるため、
+// 今回はモバイルシートへ含めない（コピーのみ提供）。将来対応する場合は専用実装が必要。
+function mobCardClipboardCopy() {
+    editCardItem = window._mobCurrentEl;
+    if (typeof cardClipboardCopy === 'function') cardClipboardCopy();
+}
+window.mobCardClipboardCopy = mobCardClipboardCopy;
+// ══ END モバイル・スワイプ用 カードメタ情報シート ═══════════════
 
 // [NEW] カードの音声ソース設定（speech/recorded/uploaded）をラジオボタンに反映
 function overlaySyncAudioSourceUI(cardItem) {
@@ -14797,7 +15218,15 @@ function rdSaveRate(v) {
         if (nextBtnEl) nextBtnEl.classList.toggle('disabled', !len || mIdx >= len - 1);
 
         // 現在表示中のgrid-item記憶
+        var _prevMobCurrentEl = window._mobCurrentEl;
         window._mobCurrentEl = getGridItem(data, mIdx);
+
+        // [NEW] カードメタ情報シート：内容を同期し、カードが実際に変わった時だけ
+        //       （ピン留めしていない限り）自動的に閉じて、まっさらな入力面に戻す
+        if (window._mobCurrentEl !== _prevMobCurrentEl && typeof window.mobMetaOnCardChanged === 'function') {
+            window.mobMetaOnCardChanged();
+        }
+        if (typeof window.mobMetaSync === 'function') window.mobMetaSync(window._mobCurrentEl);
 
         // モード別UI更新
         updateModeUI();
@@ -17502,9 +17931,32 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (captureMode === 'full' && wrapper) wrapper.scrollTop = 0;
 
         // ── クローン作成 ──────────────────────────────────────────
+        // [FIX] カード比率が「fit（画面にフィット）」の場合、カードの高さは
+        // .grid-wrapper(flex) → .grid-container(flex:1) → .grid-item(height:auto)
+        // という親からの引き伸ばしだけで決まっており、カード単体は自分の高さを持たない。
+        // このあとcloneを.grid-wrapperから切り離して<body>直下へ置くと、その引き伸ばし
+        // 文脈が失われてカード高さが変わってしまい、object-fit:cover再現用に計算した
+        // 画像が「別の縦横比の箱」に収まって歪んで見える。
+        // → cloneする前に「今実際に見えている高さ」を実測し、clone側の各カードへ
+        //   !important 付きインラインで焼き付けて、親の伸縮に依存しない状態にする。
+        var liveGridItems  = target.querySelectorAll('.grid-item');
+        var liveItemHeights = Array.prototype.map.call(liveGridItems, function(el) {
+            return el.getBoundingClientRect().height;
+        });
+
         // html2canvas は input/textarea の .value を読まないため、
         // クローン内で div に置き換えてから撮影する
         var clone = target.cloneNode(true);
+
+        // [FIX] 実測した高さをクローン側のカードへ固定（fitモードの引き伸ばしを凍結）
+        var cloneGridItemsForHeight = clone.querySelectorAll('.grid-item');
+        cloneGridItemsForHeight.forEach(function(el, i) {
+            var h = liveItemHeights[i];
+            if (h) {
+                el.style.setProperty('height', h + 'px', 'important');
+                el.style.setProperty('aspect-ratio', 'auto', 'important');
+            }
+        });
 
         // タイトル（input）→ div に置換
         var origInputs    = target.querySelectorAll('.title-input');
