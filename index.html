@@ -515,8 +515,11 @@
         }
         #scenario-flyout.open { display: flex; }
         #scenario-flyout-list {
-            overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px;
-            /* [FIX] ダークモードで主張しすぎない、細く控えめなスクロールバーに */
+            overflow-y: auto; flex: 1 1 auto; min-height: 0;
+            display: flex; flex-direction: column; gap: 2px;
+            /* [FIX v3.10.3c] カード数が多いときも、各タイトル行を縮ませず
+               リスト自身をスクロールさせる。flex子の既定の shrink により
+               .sf-item が数pxまで圧縮され、文字の上側だけ見える症状を防止。 */
             scrollbar-width: thin;
             scrollbar-color: var(--border2) transparent;
         }
@@ -524,9 +527,10 @@
         #scenario-flyout-list::-webkit-scrollbar-track { background: transparent; }
         #scenario-flyout-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
         .sf-item {
-            display: block; width: 100%; text-align: left;
+            display: block; width: 100%; flex: 0 0 auto; min-height: 30px;
+            box-sizing: border-box; text-align: left;
             background: none; border: none; border-radius: 3px;
-            color: var(--text); font-size: 0.76rem;
+            color: var(--text); font-size: 0.76rem; line-height: 1.4;
             padding: 6px 8px; cursor: pointer;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             font-family: 'Noto Sans JP', sans-serif;
