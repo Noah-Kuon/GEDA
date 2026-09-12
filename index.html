@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1    SS+meta                    ║
+  ║  Qcard PRO  v3.10.1   カードの両面捲り対応                                                ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -874,6 +874,40 @@
         body.view-mode .card-media-remove,
         body.reading-mode .card-media-remove,
         body.interview-mode .card-media-remove { display: none !important; }
+
+        /* [NEW] 表裏カード：裏面未登録時の点線ヒント／表裏スワップボタン
+           既存の✕ボタン（右上）と衝突しないよう左上に配置。編集モードのみ表示。 */
+        .card-media-back-hint,
+        .card-media-swap-btn {
+            position: absolute;
+            top: 6px; left: 6px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            display: none;
+            align-items: center; justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            font-size: 0.62rem;
+            transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+        }
+        .card-media-back-hint {
+            border: 1.5px dashed rgba(255,255,255,0.35);
+            opacity: 0.5;
+        }
+        .card-media-back-hint:hover { opacity: 0.9; transform: scale(1.08); }
+        .card-media-swap-btn {
+            background: rgba(8,12,20,0.75);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: #fff;
+            opacity: 0.55;
+        }
+        .card-media-swap-btn:hover { opacity: 1; transform: scale(1.08); }
+        body.edit-mode-active .grid-item.has-media:not(.has-media-back) .card-media-back-hint { display: flex; }
+        body.edit-mode-active .grid-item.has-media-back .card-media-swap-btn { display: flex; }
+        body.view-mode .card-media-back-hint, body.view-mode .card-media-swap-btn,
+        body.reading-mode .card-media-back-hint, body.reading-mode .card-media-swap-btn,
+        body.interview-mode .card-media-back-hint, body.interview-mode .card-media-swap-btn,
+        body.study-mode .card-media-back-hint, body.study-mode .card-media-swap-btn { display: none !important; }
         /* 画像追加ボタン（編集モードのみ・画像未登録時にホバーで表示）
            [FIX] 空カード（未入力）とテキスト入力済みカードで見せ方を分ける。
            空カード: 全面オーバーレイで「＋ カードを編集」を主役にし、画像追加は副次的な選択肢にする。
@@ -3179,6 +3213,22 @@ min-height: 0;
             /* 💡 追加：中身の要素を横いっぱいに強制引き伸ばし */
             align-items: stretch !important; 
         }
+        /* [NEW] 表裏カード：学習モードのみで使う画像スロット（通常閲覧では常に非表示） */
+        .mob-card-img {
+            display: none;
+            max-width: 100%;
+            max-height: 34vh;
+            max-height: 34dvh;
+            object-fit: contain;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            align-self: center;
+            margin: 4px 0;
+        }
+        /* [NEW] 表裏カード：学習モードでは、フリップするまで裏面画像を必ず隠す。
+           studyLoadImageInto()の非同期読込によるdisplay書き換えより、常にこちらを優先させる。 */
+        .mob-card-inner:not(.flipped) .mob-card-img-back { display: none !important; }
         .mob-card-title {
             font-size: 1.1rem;
             font-weight: 700;
@@ -4100,6 +4150,16 @@ min-height: 0;
         align-self: flex-start;
         letter-spacing: 0.04em;
     }
+    /* [NEW] 表裏カード：学習フラッシュカードの画像スロット（九九カードの答え画像など） */
+    .study-card-img {
+        max-width: 100%;
+        max-height: 42vh;
+        max-height: 42dvh;
+        object-fit: contain;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        background: var(--surface2);
+    }
     #study-card-title-disp {
         font-family: var(--font-record);
         font-size: 1.4rem;
@@ -4634,6 +4694,12 @@ min-height: 0;
                 </button>
             </div>
             <div class="ds-divider"></div>
+            <div class="ds-row" id="deckBackImageGroup">
+                <label title="トランプのように、裏面画像を登録していない全カードの裏面として使われます">🃏 共通裏面</label>
+                <button type="button" class="top-btn" id="deckBackImageBtn" onclick="deckBackImageOpenPicker()" style="flex:1;text-align:center;padding:4px 8px;">画像を選択</button>
+                <button type="button" class="top-btn" id="deckBackImageRemoveBtn" onclick="deckBackImageRemove()" style="display:none;padding:4px 8px;" title="共通裏面を解除">✕</button>
+            </div>
+            <div class="ds-divider"></div>
             <div class="ds-row">
                 <div class="top-btn" id="hide-toggle-btn" onclick="toggleCardHide()" style="width:100%;text-align:center;" title="非表示カードのON/OFF（H）"></div>
             </div>
@@ -4765,10 +4831,12 @@ min-height: 0;
     <div id="study-card-inner">
         <div id="study-card-face" class="study-face front">
             <div id="study-card-num"></div>
+            <img id="study-card-img-front" class="study-card-img" style="display:none;" alt="">
             <div id="study-card-title-disp"></div>
             <div id="study-card-tap-hint" data-i18n="tap_hint">タップして答えを確認</div>
         </div>
         <div id="study-card-face-back" class="study-face back" style="display:none">
+            <img id="study-card-img-back" class="study-card-img" style="display:none;" alt="">
             <div id="study-card-title-back"></div>
             <div id="study-card-content-disp"></div>
             <div id="study-card-eval-btns">
@@ -5045,6 +5113,8 @@ min-height: 0;
         <img id="overlay-media-bg" src="" alt="" aria-hidden="true">
         <img id="overlay-media-img" src="" alt="">
         <div id="overlay-media-controls">
+            <button id="overlay-media-peek-btn" onclick="overlayMediaTogglePeek()" style="display:none;" title="表裏を切り替えて見る">🔄 裏を見る</button>
+            <button id="overlay-media-swap-btn" onclick="mediaSwapFrontBack(editCardItem)" style="display:none;" title="表と裏を入れ替える">⇄ 入替</button>
             <button id="overlay-media-replace-btn" onclick="overlayMediaReplace()" data-i18n="btn_media_replace" data-i18n-title="btn_media_replace" title="画像を差し替え">🔄 差し替え</button>
             <button id="overlay-media-remove-btn"  onclick="overlayMediaRemove()"  data-i18n="btn_media_remove"  data-i18n-title="btn_media_remove"  title="画像を削除">🗑 削除</button>
         </div>
@@ -6223,16 +6293,28 @@ async function optimizeImageToWebP(file) {
     });
 }
 
-function mediaSaveImageFile(cardId, item, file) {
+// [MOD] slot: 'front'（既定・従来通り） or 'back'（新規：表裏カード機能）。
+// 裏面はグリッド上には表示しない（表画像のみ表示）ため、imgは front の時だけ解決する。
+// トークンも front/back で別フィールドに分け、片方の保存中にもう片方を保存しても
+// 互いの完了判定を壊さないようにしている。
+function mediaSaveImageFile(cardId, item, file, slot) {
+    slot = (slot === 'back') ? 'back' : 'front';
     if (!file || !item) return;
 
-    var img = item.querySelector('.card-media-layer img');
+    var img = (slot === 'front') ? item.querySelector('.card-media-layer img') : null;
+    var tokenField = (slot === 'back') ? 'mediaSaveTokenBack' : 'mediaSaveToken';
     var saveToken = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-    item.dataset.mediaSaveToken = saveToken;
+    item.dataset[tokenField] = saveToken;
 
     // 原寸Fileをimgへセットしない。最適化完了までは処理中表示のみ。
-    item.classList.add('has-media', 'media-processing');
-    showToast(t('toast_img_added'));
+    if (slot === 'front') {
+        item.classList.add('has-media', 'media-processing');
+        showToast(t('toast_img_added'));
+    } else {
+        // 裏面はグリッドの見た目を変えないため media-processing は付与しない
+        item.classList.add('has-media');
+        showToast('🔄 裏面の画像を追加しました');
+    }
     if (typeof editCardItem !== 'undefined' && editCardItem === item) {
         overlayShowMediaForCard(item);
     }
@@ -6247,8 +6329,8 @@ function mediaSaveImageFile(cardId, item, file) {
     }
 
     optimizeImageToWebP(file).then(function(result) {
-        // 同じカードで後から始まった差し替えがあれば、この処理結果は捨てる。
-        if (item.dataset.mediaSaveToken !== saveToken) return;
+        // 同じ面で後から始まった差し替えがあれば、この処理結果は捨てる。
+        if (item.dataset[tokenField] !== saveToken) return;
 
         var record = {
             cardId:           cardId,
@@ -6273,7 +6355,7 @@ function mediaSaveImageFile(cardId, item, file) {
         return mediaDB.save(record).then(function() {
             console.log('[Media] STEP 6 DB Save', result.width + 'x' + result.height + ' ' + result.optimizedSize + ' bytes');
             mediaDebugV11Log('STEP 6', result.width + 'x' + result.height + ' ' + mediaDebugV11FormatBytes(result.optimizedSize));
-            if (item.dataset.mediaSaveToken !== saveToken) return;
+            if (item.dataset[tokenField] !== saveToken) return;
 
             // 登録完了後に初めて最適化済みBlobのObjectURLを生成する。
             if (img) {
@@ -6287,10 +6369,19 @@ function mediaSaveImageFile(cardId, item, file) {
             mediaDebugV11Log('STEP 7', 'display');
             mediaDebugV11Finish();
 
+            // [NEW] 裏面保存完了時：現在裏面プレビュー中のオーバーレイ／学習モードがあれば更新
+            if (slot === 'back') {
+                if (typeof editCardItem !== 'undefined' && editCardItem === item && typeof overlayShowMediaForCard === 'function') {
+                    overlayShowMediaForCard(item);
+                }
+                if (typeof window.studyRefreshMediaForCurrentCard === 'function') window.studyRefreshMediaForCurrentCard();
+            }
+            if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(item);
+
             // SHA-256は登録完了後の非クリティカル処理。
             if (typeof crypto === 'undefined' || !crypto.subtle) return;
             setTimeout(function() {
-                if (item.dataset.mediaSaveToken !== saveToken) return;
+                if (item.dataset[tokenField] !== saveToken) return;
                 result.blob.arrayBuffer().then(function(buf) {
                     return crypto.subtle.digest('SHA-256', buf);
                 }).then(function(hashBuf) {
@@ -6304,19 +6395,44 @@ function mediaSaveImageFile(cardId, item, file) {
             }, 0);
         });
     }).catch(function(err) {
-        if (item.dataset.mediaSaveToken !== saveToken) return;
+        if (item.dataset[tokenField] !== saveToken) return;
         console.error('[Media] image save failed:', err);
         mediaDebugV11Log('ERROR', err && err.message ? err.message : String(err));
         mediaDebugV11Finish();
-        item.classList.remove('has-media', 'media-processing');
-        if (img) {
-            revokeImgObjectUrl(img);
-            img.removeAttribute('src');
+        if (slot === 'front') {
+            item.classList.remove('has-media', 'media-processing');
+            if (img) {
+                revokeImgObjectUrl(img);
+                img.removeAttribute('src');
+            }
         }
         if (typeof showToast === 'function') {
             showToast('⚠️ 画像を保存できませんでした。画像サイズを小さくして再度お試しください。');
         }
     });
+}
+
+// [NEW] ドロップ／貼り付け／カメラ撮影された画像を、表→裏の順で自動的に
+// 空いている面へ登録する。既存の「カード全体が入力領域」という操作感は変えず、
+// 「同じ動作をもう一度」で裏面が埋まっていくようにするための振り分け役。
+function mediaHandleIncomingFile(cardId, item, file) {
+    var d = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+    if (!item.dataset.mediaId || !item.classList.contains('has-media')) {
+        // 表がまだ無い（＝これが最初の1枚）→ 従来通り表として保存
+        mediaSaveImageFile(cardId, item, file, 'front');
+        return;
+    }
+    if (!item.dataset.mediaIdBack || !item.classList.contains('has-media-back')) {
+        // 表はあるが裏が無い（未登録、または削除済み）→ 2枚目は裏として保存
+        var backId = item.dataset.mediaIdBack || ('media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9));
+        if (d) d.mediaIdBack = backId;
+        item.dataset.mediaIdBack = backId;
+        if (typeof saveCurrentGridDataWithIndicator === 'function') saveCurrentGridDataWithIndicator();
+        mediaSaveImageFile(backId, item, file, 'back');
+        return;
+    }
+    // 表裏どちらも登録済み → グリッド上で見えている「表」を差し替える
+    mediaSaveImageFile(cardId, item, file, 'front');
 }
 
 // ── 画像入力ソース選択 ────────────────────────────────────────
@@ -6607,7 +6723,11 @@ async function qcardCameraV16Capture() {
         qcardCameraV16SetDebugPanelHidden(false);
         var modal=document.getElementById('qcard-camera-modal');
         if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}
-        mediaSaveImageFile(target.cardId,target.item,file);
+        if (target.slot === 'front' || target.slot === 'back') {
+            mediaSaveImageFile(target.cardId, target.item, file, target.slot);
+        } else {
+            mediaHandleIncomingFile(target.cardId, target.item, file);
+        }
     } catch(err) {
         qcardCameraV16Diag('ERROR: 撮影失敗 / ' + (err.message||err));
         if(typeof showToast==='function') showToast('⚠️ 撮影画像を作成できませんでした');
@@ -6674,7 +6794,11 @@ function mediaOpenNativePicker(useCamera) {
             mediaPickerDebugV12Event('FILE RECEIVED',
                 (file.name || '(unnamed)') + ' ' + mediaDebugV11FormatBytes(file.size) + ' ' + (file.type || '(no type)'));
             mediaPickerDebugV12Event('MEDIA SAVE START', 'Qcard mediaSaveImageFile()');
-            mediaSaveImageFile(target.cardId, target.item, file);
+            if (target.slot === 'front' || target.slot === 'back') {
+                mediaSaveImageFile(target.cardId, target.item, file, target.slot);
+            } else {
+                mediaHandleIncomingFile(target.cardId, target.item, file);
+            }
             cleanup('change handled');
         } else {
             settled = true;
@@ -6730,8 +6854,92 @@ function mediaOpenNativePicker(useCamera) {
     }, 60000);
 }
 
-function mediaOpenFilePicker(cardId, item) {
-    mediaPickerTarget = { cardId: cardId, item: item };
+// [NEW] デッキ共通の裏面画像（トランプ・トレカ方式）
+// カード個別の裏面（mediaIdBack）が無いカードだけ、この画像がフォールバックとして使われる。
+// シナリオ単位（scenario.deckBackMediaId）で保持し、カードの保存ロジックとは独立させている。
+function deckBackImageOpenPicker() {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', function() {
+        var file = input.files && input.files[0];
+        if (input.parentNode) input.parentNode.removeChild(input);
+        if (file) deckBackImageSaveFile(file);
+    });
+    input.click();
+}
+function deckBackImageSaveFile(file) {
+    var active = getActive();
+    if (!active || !file) return;
+    var mediaId = active.deckBackMediaId || ('deckback_' + active.id);
+    optimizeImageToWebP(file).then(function(result) {
+        var record = {
+            cardId: mediaId, type: 'image', blob: result.blob,
+            mimeType: result.mimeType, optimizedMimeType: result.optimizedMimeType || result.mimeType,
+            size: result.optimizedSize, originalFilename: file.name || '', originalMimeType: file.type || '',
+            originalWidth: result.originalWidth || 0, originalHeight: result.originalHeight || 0,
+            originalSize: result.originalSize, optimizedWidth: result.width, optimizedHeight: result.height,
+            optimizedSize: result.optimizedSize, savedAt: new Date().toISOString(), hash: null, mediaUrl: null
+        };
+        return mediaDB.save(record).then(function() {
+            active.deckBackMediaId = mediaId;
+            if (typeof saveScenarios === 'function') saveScenarios();
+            showToast('🃏 共通裏面を登録しました');
+            deckBackImageSyncUI();
+            deckBackImageNotifyRefresh();
+        });
+    }).catch(function(err) {
+        console.error('[DeckBack] save failed:', err);
+        showToast('⚠️ 共通裏面を保存できませんでした');
+    });
+}
+function deckBackImageRemove() {
+    var active = getActive();
+    if (!active || !(active.deckBackMediaId || active.deckBackMediaUrl)) return;
+    if (!confirm('共通裏面を解除しますか？（個別に裏面を登録済みのカードには影響しません）')) return;
+    var doRemove = function() {
+        active.deckBackMediaId = undefined;
+        active.deckBackMediaUrl = undefined;
+        if (typeof saveScenarios === 'function') saveScenarios();
+        showToast('共通裏面を解除しました');
+        deckBackImageSyncUI();
+        deckBackImageNotifyRefresh();
+    };
+    if (active.deckBackMediaId) mediaDB.remove(active.deckBackMediaId).then(doRemove).catch(doRemove);
+    else doRemove();
+}
+function deckBackImageSyncUI() {
+    var active = getActive();
+    var btn = document.getElementById('deckBackImageBtn');
+    var removeBtn = document.getElementById('deckBackImageRemoveBtn');
+    var has = !!(active && (active.deckBackMediaId || active.deckBackMediaUrl));
+    if (btn) btn.textContent = has ? '✓ 登録済み（変更）' : '画像を選択';
+    if (removeBtn) removeBtn.style.display = has ? '' : 'none';
+}
+function deckBackImageNotifyRefresh() {
+    if (typeof window.mobStudyRefreshMedia === 'function') window.mobStudyRefreshMedia();
+    if (typeof editCardItem !== 'undefined' && editCardItem && typeof overlayShowMediaForCard === 'function') overlayShowMediaForCard(editCardItem);
+    if (typeof window.studyRefreshMediaForCurrentCard === 'function') window.studyRefreshMediaForCurrentCard();
+}
+window.deckBackImageOpenPicker = deckBackImageOpenPicker;
+window.deckBackImageRemove     = deckBackImageRemove;
+window.deckBackImageSyncUI     = deckBackImageSyncUI;
+
+// [NEW] card.mediaIdBack/mediaUrlBack が無い場合に、デッキ共通裏面へフォールバックする
+function resolveEffectiveBack(mediaIdBack, mediaUrlBack) {
+    if (mediaIdBack || mediaUrlBack) return { id: mediaIdBack, url: mediaUrlBack, isDeckFallback: false };
+    var active = getActive();
+    if (active && (active.deckBackMediaId || active.deckBackMediaUrl)) {
+        return { id: active.deckBackMediaId, url: active.deckBackMediaUrl, isDeckFallback: true };
+    }
+    return { id: null, url: null, isDeckFallback: false };
+}
+window.resolveEffectiveBack = resolveEffectiveBack;
+
+function mediaOpenFilePicker(cardId, item, slot) {
+    mediaPickerTarget = { cardId: cardId, item: item, slot: slot || null };
     if (mediaIsMobileDevice()) {
         var sheet = mediaEnsureSourceSheet();
         sheet.classList.add('open');
@@ -6790,38 +6998,91 @@ function mediaLoadForCard(cardId, item, imgEl) {
     });
 }
 
+// [NEW] 表と裏を入れ替える。実体（Blob/URL）は一切動かさず、
+// 「どちらを表と呼ぶか」という参照ラベルをその場でスワップするだけなので瞬時に完了する。
+function mediaSwapFrontBack(item) {
+    if (!item || !item.classList.contains('has-media-back')) return;
+    var d = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+
+    var frontId = item.dataset.mediaId, frontUrl = item.dataset.mediaUrl || '';
+    var backId  = item.dataset.mediaIdBack, backUrl = item.dataset.mediaUrlBack || '';
+
+    item.dataset.mediaId = backId || '';
+    item.dataset.mediaUrl = backUrl;
+    item.dataset.mediaIdBack = frontId || '';
+    item.dataset.mediaUrlBack = frontUrl;
+
+    if (d) {
+        d.mediaId = item.dataset.mediaId;
+        d.mediaUrl = item.dataset.mediaUrl || undefined;
+        d.mediaIdBack = item.dataset.mediaIdBack;
+        d.mediaUrlBack = item.dataset.mediaUrlBack || undefined;
+        if (typeof saveCurrentGridDataWithIndicator === 'function') saveCurrentGridDataWithIndicator();
+    }
+
+    // グリッドの表画像表示を、入れ替え後の新しい表（＝元の裏）で再読込
+    var img = item.querySelector('.card-media-layer img');
+    if (img) mediaLoadForCard(item.dataset.mediaId, item, img);
+
+    if (typeof editCardItem !== 'undefined' && editCardItem === item && typeof overlayShowMediaForCard === 'function') {
+        overlayShowMediaForCard(item);
+    }
+    if (typeof window.studyRefreshMediaForCurrentCard === 'function') window.studyRefreshMediaForCurrentCard();
+    if (typeof showToast === 'function') showToast('⇄ 表と裏を入れ替えました');
+}
+window.mediaSwapFrontBack = mediaSwapFrontBack;
+
+// [NEW] has-media / has-media-back クラスを、現在のdatasetの状態に合わせて再同期する
+function updateItemMediaBadges(item) {
+    if (!item) return;
+    item.classList.toggle('has-media-back', !!(item.dataset.mediaIdBack || item.dataset.mediaUrlBack));
+}
+window.updateItemMediaBadges = updateItemMediaBadges;
+
 // 画像を削除
-function mediaRemoveCard(cardId, item) {
+// [MOD] slot: 'front'（既定）または 'back'。back削除はグリッドの表画像に触れない。
+// [NOTE] 元の挙動を踏襲し、mediaId自体（スロットの参照キー）は消さない。
+//        再度その面に画像を登録した際に同じキーを再利用できるようにするため。
+function mediaRemoveCard(cardId, item, slot) {
+    slot = (slot === 'back') ? 'back' : 'front';
     mediaDB.remove(cardId).then(function() {
-        item.classList.remove('has-media');
-        var img = item.querySelector('.card-media-layer img');
-        if (img) {
-            if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
-            img.src = '';
+        if (slot === 'front') {
+            item.classList.remove('has-media');
+            var img = item.querySelector('.card-media-layer img');
+            if (img) {
+                if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
+                img.src = '';
+            }
+        } else {
+            item.classList.remove('has-media-back');
         }
         showToast(t('toast_img_removed'));
         // [NEW] このカードがオーバーレイで表示中なら、オーバーレイ側の画像も即時非表示
         if (typeof editCardItem !== 'undefined' && editCardItem === item) {
             overlayShowMediaForCard(item);
         }
+        if (typeof window.studyRefreshMediaForCurrentCard === 'function') window.studyRefreshMediaForCurrentCard();
     });
 }
 
 // [NEW] オーバーレイ内：画像を差し替え（ファイル選択ダイアログを開く）
 function overlayMediaReplace() {
     if (!editCardItem) return;
-    var cardId = editCardItem.dataset.mediaId;
+    var slot = overlayMediaShowingBack ? 'back' : 'front';
+    var cardId = overlayMediaShowingBack ? editCardItem.dataset.mediaIdBack : editCardItem.dataset.mediaId;
     if (!cardId) return; // 通常はここに来る前にhas-mediaのはずだが念のため
-    mediaOpenFilePicker(cardId, editCardItem);
+    mediaOpenFilePicker(cardId, editCardItem, slot);
 }
 
-// [NEW] オーバーレイ内：画像を削除
+// [NEW] オーバーレイ内：画像を削除（今見えている面＝表 or 裏 を削除）
 function overlayMediaRemove() {
     if (!editCardItem) return;
-    var cardId = editCardItem.dataset.mediaId;
+    var slot = overlayMediaShowingBack ? 'back' : 'front';
+    var cardId = overlayMediaShowingBack ? editCardItem.dataset.mediaIdBack : editCardItem.dataset.mediaId;
     if (!cardId) return;
     if (!confirm(t('confirm_img_remove'))) return;
-    mediaRemoveCard(cardId, editCardItem);
+    if (slot === 'back') overlayMediaShowingBack = false; // 裏を消したら表示は表へ戻す
+    mediaRemoveCard(cardId, editCardItem, slot);
 }
 
 // [NEW] グリッド画像表示トグル
@@ -7525,6 +7786,7 @@ async function shareCard(card, cardItem) {
     // 毎回リセット（再アップロードして新しい署名付きURLを発行）
     card.mediaUrl = null;
     card.audioUrl = null;
+    card.mediaUrlBack = null;
 
     // Phase B: 画像アップロード → 署名付きURL発行
     var mediaUrl = null;
@@ -7543,6 +7805,21 @@ async function shareCard(card, cardItem) {
                     : mediaPath; // フォールバック: 公開URL
                 card.mediaUrl = mediaUrl;
                 showToast('✅ 画像アップロード完了');
+            }
+        }
+        // [NEW] 表裏カード：裏面画像も同じタイミングでアップロードする
+        // （書き出し先(QCF)は mediaUrlBack を経由してのみ画像を運べるため）
+        var cidBack = cardItem.dataset.mediaIdBack || null;
+        if (cidBack) {
+            var ulidBack = ulid + '_back'; // 表と同じULID配下だと上書きし合うため専用サフィックスにする
+            var mediaPathBack = await uploadMediaToStorage(cidBack, ulidBack);
+            if (mediaPathBack) {
+                var signedMediaBack = await sb.storage
+                    .from('qcard-media')
+                    .createSignedUrl(ulidBack + getMediaExt(cidBack), SHARE_TTL_SEC);
+                card.mediaUrlBack = (signedMediaBack.data && signedMediaBack.data.signedUrl)
+                    ? signedMediaBack.data.signedUrl
+                    : mediaPathBack;
             }
         }
     }
@@ -9390,6 +9667,7 @@ function toggleDisplaySettings(e) {
     var btn = document.getElementById('display-settings-btn');
     var isOpen = pop.classList.toggle('open');
     if (btn) btn.classList.toggle('active', isOpen);
+    if (isOpen && typeof deckBackImageSyncUI === 'function') deckBackImageSyncUI();
 }
 document.addEventListener('click', function(e) {
     var wrap = document.getElementById('display-settings-wrap');
@@ -9931,9 +10209,14 @@ function createItem(index, d) {
     if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
     if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
 
+    // [NEW] 裏面画像（表裏カード機能）：既に登録済みならdatasetへ復元
+    if (d.mediaIdBack)  item.dataset.mediaIdBack  = d.mediaIdBack;
+    if (d.mediaUrlBack) item.dataset.mediaUrlBack = d.mediaUrlBack;
+
     // mediaId が存在する = 画像登録済みカード → 非同期読み込み完了を待たずに先付けで has-media を付与
     // (mediaLoadForCard の完了前にクリックしても正しくオーバーレイが開くようにする)
     if (d.mediaId || d.mediaUrl) item.classList.add('has-media');
+    if (d.mediaIdBack || d.mediaUrlBack) item.classList.add('has-media-back');
 
     // [NEW] 画像表示レイヤー
     var mediaLayer = document.createElement('div');
@@ -9952,6 +10235,30 @@ function createItem(index, d) {
         mediaRemoveCard(cardId, item);
     });
     mediaLayer.appendChild(mediaRemoveBtn);
+
+    // [NEW] 表裏カード：裏面が未登録の間は「もう1枚置けます」の点線ヒント、
+    //       表裏どちらも揃ったら「⇄」で登録順の入れ替え（データの参照を差し替えるだけ・瞬時）
+    var mediaBackHint = document.createElement('div');
+    mediaBackHint.className = 'card-media-back-hint';
+    mediaBackHint.title = 'もう1枚ドロップすると裏面として登録できます';
+    mediaBackHint.textContent = '2';
+    mediaBackHint.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    mediaBackHint.addEventListener('click', function(e) {
+        e.stopPropagation();
+        mediaOpenFilePicker(cardId, item);
+    });
+    mediaLayer.appendChild(mediaBackHint);
+
+    var mediaSwapBtn = document.createElement('div');
+    mediaSwapBtn.className = 'card-media-swap-btn';
+    mediaSwapBtn.title = '表と裏を入れ替える';
+    mediaSwapBtn.textContent = '⇄';
+    mediaSwapBtn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+    mediaSwapBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        mediaSwapFrontBack(item);
+    });
+    mediaLayer.appendChild(mediaSwapBtn);
 
     // [NEW] 画像追加ボタン（画像未登録時にホバー表示）
     // [FIX] 空カードでは「＋ カードを編集」を主役にし、画像追加は副次的な選択肢にする
@@ -10009,7 +10316,7 @@ function createItem(index, d) {
             item.classList.remove('media-drag-over');
             var file = e.dataTransfer.files[0];
             if (file.type.indexOf('image/') === 0) {
-                mediaSaveImageFile(cardId, item, file);
+                mediaHandleIncomingFile(cardId, item, file);
             }
         }
     });
@@ -10021,7 +10328,7 @@ function createItem(index, d) {
         for (var i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image/') === 0) {
                 var file = items[i].getAsFile();
-                mediaSaveImageFile(cardId, item, file);
+                mediaHandleIncomingFile(cardId, item, file);
                 e.preventDefault();
                 break;
             }
@@ -10232,6 +10539,7 @@ function showOverlay(title, text, cardItem) {
     exitEditMode();
     overlay.classList.remove('overlay-collapsed'); // [NEW] カードを開き直すたびに折りたたみ状態はリセットする
     if (cardItem !== undefined) editCardItem = cardItem;
+    overlayMediaShowingBack = false; // [NEW] カードを開くたびに必ず表から見せる
     overlayTitle.innerText = title;
     overlayTitle.style.display = title.trim() ? 'block' : 'none';
     // [MOD] 朗読モード中は文節クリックで「そこから朗読開始」できるHTMLを生成
@@ -10979,21 +11287,82 @@ function overlayHandleAudioUpload(e) {
 // 手前に「全体が見える(contain)」画像、背後に同じ画像を「ぼかして拡大(cover)」した
 // 背景を敷くことで、画像を欠けさせずに枠を綺麗に埋める（Spotify/Apple Music等でも
 // 使われている一般的な手法）。
+// [NEW] オーバーレイ内で今どちらの面を見ているか（データは変更しない、表示だけの一時状態）
+// 新しいカードを開いた時は showOverlay 側でfalseにリセットする。
+var overlayMediaShowingBack = false;
+function overlayMediaTogglePeek() {
+    if (!editCardItem) return;
+    overlayMediaShowingBack = !overlayMediaShowingBack;
+    overlayShowMediaForCard(editCardItem);
+}
+window.overlayMediaTogglePeek = overlayMediaTogglePeek;
+
+// [NEW] 表裏カード：学習フラッシュカードの画像スロットへ読み込む汎用ヘルパー
+// （オーバーレイ・グリッドと同じ「IndexedDB優先→mediaUrlフォールバック」のパターンを踏襲）
+function studyLoadImageInto(imgEl, mediaId, mediaUrl) {
+    if (!imgEl) return;
+    if (imgEl.dataset.mediaObjectUrl) {
+        try { URL.revokeObjectURL(imgEl.dataset.mediaObjectUrl); } catch (_) {}
+        delete imgEl.dataset.mediaObjectUrl;
+    }
+    if (!mediaId && !mediaUrl) {
+        imgEl.style.display = 'none';
+        imgEl.removeAttribute('src');
+        return;
+    }
+    if (!mediaId) {
+        imgEl.src = mediaUrl;
+        imgEl.style.display = '';
+        return;
+    }
+    mediaDB.get(mediaId).then(function(record) {
+        if (record && record.blob) {
+            var url = URL.createObjectURL(record.blob);
+            imgEl.src = url;
+            imgEl.dataset.mediaObjectUrl = url;
+            imgEl.style.display = '';
+        } else if (mediaUrl) {
+            imgEl.src = mediaUrl;
+            imgEl.style.display = '';
+        } else {
+            imgEl.style.display = 'none';
+            imgEl.removeAttribute('src');
+        }
+    }).catch(function() {
+        if (mediaUrl) { imgEl.src = mediaUrl; imgEl.style.display = ''; }
+        else { imgEl.style.display = 'none'; imgEl.removeAttribute('src'); }
+    });
+}
+
 function overlayShowMediaForCard(cardItem) {
-    var layer = document.getElementById('overlay-media-layer');
-    var img   = document.getElementById('overlay-media-img');
-    var bgImg = document.getElementById('overlay-media-bg');
+    var layer   = document.getElementById('overlay-media-layer');
+    var img     = document.getElementById('overlay-media-img');
+    var bgImg   = document.getElementById('overlay-media-bg');
+    var peekBtn = document.getElementById('overlay-media-peek-btn');
+    var swapBtn = document.getElementById('overlay-media-swap-btn');
     if (!layer || !img) return;
     function setSrc(url) {
         img.src = url;
         if (bgImg) bgImg.src = url;
     }
-    var mediaId = cardItem ? cardItem.dataset.mediaId : null;
+
+    var effBack = resolveEffectiveBack(cardItem && cardItem.dataset.mediaIdBack, cardItem && cardItem.dataset.mediaUrlBack);
+    var hasBack = !!(effBack.id || effBack.url);
+    if (!hasBack) overlayMediaShowingBack = false; // 裏が無いのに裏表示状態が残らないようにする
+    if (peekBtn) {
+        peekBtn.style.display = hasBack ? '' : 'none';
+        peekBtn.textContent = overlayMediaShowingBack ? '🔄 表を見る' : (effBack.isDeckFallback ? '🃏 共通裏面を見る' : '🔄 裏を見る');
+    }
+    if (swapBtn) swapBtn.style.display = (hasBack && !effBack.isDeckFallback) ? '' : 'none'; // デッキ共通裏面は入替対象外
+
+    var showBack  = hasBack && overlayMediaShowingBack;
+    var mediaId   = cardItem ? (showBack ? effBack.id  : cardItem.dataset.mediaId)  : null;
+    var mediaUrl  = cardItem ? (showBack ? effBack.url : cardItem.dataset.mediaUrl) : null;
+
     if (!mediaId) {
         // mediaIdなしでも mediaUrl（受信シナリオ）があれば表示
-        var remoteUrl = cardItem ? cardItem.dataset.mediaUrl : null;
-        if (remoteUrl) { setSrc(remoteUrl); layer.classList.add('show'); }
-        else           { layer.classList.remove('show'); setSrc(''); }
+        if (mediaUrl) { setSrc(mediaUrl); layer.classList.add('show'); }
+        else          { layer.classList.remove('show'); setSrc(''); }
         return;
     }
     mediaDB.get(mediaId).then(function(record) {
@@ -11004,9 +11373,9 @@ function overlayShowMediaForCard(cardItem) {
             setSrc(overlayUrl);
             img.dataset.mediaObjectUrl = overlayUrl;
             layer.classList.add('show');
-        } else if (cardItem && cardItem.dataset.mediaUrl) {
+        } else if (mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
-            setSrc(cardItem.dataset.mediaUrl);
+            setSrc(mediaUrl);
             layer.classList.add('show');
         } else {
             layer.classList.remove('show');
@@ -11945,7 +12314,8 @@ async function buildQCF(s) {
             studyStatus:  card.studyStatus  || '',
             studyCount:   card.studyCount   || 0,
             // サーバー共有フィールド（値がある場合のみ有効、nullはImport時に無視）
-            mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL
+            mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL（表）
+            mediaUrlBack: card.mediaUrlBack || null,  // 画像CDN URL（裏・表裏カード機能）
             audioUrl:     card.audioUrl     || null   // 音声CDN URL（録音・アップロード共通）
         };
     });
@@ -11969,6 +12339,7 @@ async function buildQCF(s) {
         rows:          s.rows          || 4,
         cardCount:     cards.length,
         cards:         cards,
+        deckBackMediaUrl: s.deckBackMediaUrl || null, // [NEW] デッキ共通裏面（トランプ方式）のCDN URL
         share: s.share || { enabled: false, expiresAt: null, downloadLimit: 0 }
     };
 }
@@ -12742,7 +13113,8 @@ function qcfToScenario(qcf) {
             studyStatus:  card.studyStatus  || '',
             studyCount:   card.studyCount   || 0,
             // サーバー共有フィールドの復元（URLがあれば使用、なければnull）
-            mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL
+            mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL（表）
+            mediaUrlBack: card.mediaUrlBack || null,  // 画像CDN URL（裏・表裏カード機能）
             audioUrl:     card.audioUrl     || null   // 音声CDN URL
         };
     });
@@ -12766,6 +13138,7 @@ function qcfToScenario(qcf) {
         signature:     qcf.signature    || null,
         license:       qcf.license      || 'private',
         tags:          qcf.tags         || [],
+        deckBackMediaUrl: qcf.deckBackMediaUrl || null, // [NEW] デッキ共通裏面（トランプ方式）のCDN URL
         share:         qcf.share        || { enabled: false, expiresAt: null, downloadLimit: 0 }
     };
 }
@@ -14706,6 +15079,15 @@ function rdSaveRate(v) {
         var t = document.createElement('div');
         t.className = 'mob-card-title';
         t.dataset.field = 'title';
+        // [NEW] 表裏カード：学習モードでのみ使う画像スロット（通常閲覧では非表示）
+        var imgFront = document.createElement('img');
+        imgFront.className = 'mob-card-img mob-card-img-front';
+        imgFront.style.display = 'none';
+        imgFront.alt = '';
+        var imgBack = document.createElement('img');
+        imgBack.className = 'mob-card-img mob-card-img-back';
+        imgBack.style.display = 'none';
+        imgBack.alt = '';
         var c = document.createElement('div');
         c.className = 'mob-card-content';
         c.dataset.field = 'content';
@@ -14853,7 +15235,9 @@ function rdSaveRate(v) {
         linkBar.appendChild(linkList);
 
         inner.appendChild(hb);
+        inner.appendChild(imgFront);
         inner.appendChild(t);
+        inner.appendChild(imgBack);
         inner.appendChild(c);
         inner.appendChild(s);
         inner.appendChild(clipBar);
@@ -15098,12 +15482,30 @@ function rdSaveRate(v) {
 
         // 学習モード：中央スライド（表示中）のみ表面（タイトルのみ）で初期化
         var isCurrent = (slide === slides[1]);
+        var imgFrontEl = inner.querySelector('.mob-card-img-front');
+        var imgBackEl  = inner.querySelector('.mob-card-img-back');
         if (isStudy) {
             // [FIX] 既にタップして裏返し済み（studyFlipped）の場合は表示状態を維持する。
             // 以前は renderSlide が呼ばれるたびに無条件で contentEl を隠していたため、
             // 何らかの再描画（他モード切替の巻き戻り等）で答えと評価ボタンが消えることがあった。
             var keepFlipped = isCurrent && (typeof studyFlipped !== 'undefined') && studyFlipped;
             if (contentEl) contentEl.style.display = keepFlipped ? '' : 'none';
+
+            // [NEW] 表裏カード：学習モードでのみ画像を表示する（反転モードなら表裏の画像も入れ替える）
+            // [FIX] studyLoadImageInto は非同期（IndexedDB読込後）にdisplayを更新するため、
+            //       「フリップするまで裏画像を隠す」制御はCSSクラス側で行い、非同期処理の
+            //       display書き換えと競合しないようにする。
+            inner.classList.toggle('flipped', !!keepFlipped);
+            if (d && typeof studyLoadImageInto === 'function') {
+                var effBack = (typeof resolveEffectiveBack === 'function') ? resolveEffectiveBack(d.mediaIdBack, d.mediaUrlBack) : {id:null,url:null};
+                var imgFrontId  = isLearningReversed ? effBack.id  : d.mediaId;
+                var imgFrontUrl = isLearningReversed ? effBack.url : d.mediaUrl;
+                var imgBackId   = isLearningReversed ? d.mediaId   : effBack.id;
+                var imgBackUrl  = isLearningReversed ? d.mediaUrl  : effBack.url;
+                studyLoadImageInto(imgFrontEl, imgFrontId, imgFrontUrl);
+                studyLoadImageInto(imgBackEl,  imgBackId,  imgBackUrl);
+            }
+
             // タップヒントを付与（中央スライドのみ、かつ未フリップ時のみ）
             var hint = inner.querySelector('.study-tap-hint');
             if (!hint) {
@@ -15122,6 +15524,9 @@ function rdSaveRate(v) {
             if (contentEl) contentEl.style.display = '';
             var oldHint = inner.querySelector('.study-tap-hint');
             if (oldHint) oldHint.style.display = 'none';
+            // [NEW] 学習モード以外では表裏カードの画像スロットは常に隠す
+            if (imgFrontEl) imgFrontEl.style.display = 'none';
+            if (imgBackEl)  imgBackEl.style.display  = 'none';
         }
 
         // 朗読モード：文節分割
@@ -15249,6 +15654,11 @@ function rdSaveRate(v) {
     }
     window.mRenderAll = mRenderAll;
     window.mobGetCurSlide = function() { return slides[1]; };
+    // [NEW] 表裏カード：画像の追加・削除・入替時、今スワイプ表示中のカードだけを軽量に更新する
+    window.mobStudyRefreshMedia = function() {
+        if (appMode !== 'study') return;
+        renderSlide(slides[1], getData(), mIdx);
+    };
 
     // 後方互換: window.mSync → mRenderAll
     window.mSync = function() {
@@ -17204,6 +17614,18 @@ window.addEventListener('load', function() {
                 document.getElementById('study-card-title-back').textContent  = d.title   || '';
                 document.getElementById('study-card-content-disp').textContent = d.content || '';
             }
+
+            // [NEW] 表裏カードの画像。反転モードではテキストと同様に表裏の画像も入れ替える。
+            // 個別の裏面が無ければ、デッキ共通の裏面へフォールバックする。
+            var effBack = (typeof resolveEffectiveBack === 'function') ? resolveEffectiveBack(d.mediaIdBack, d.mediaUrlBack) : {id:null,url:null};
+            var imgFrontId  = isLearningReversed ? effBack.id  : d.mediaId;
+            var imgFrontUrl = isLearningReversed ? effBack.url : d.mediaUrl;
+            var imgBackId   = isLearningReversed ? d.mediaId   : effBack.id;
+            var imgBackUrl  = isLearningReversed ? d.mediaUrl  : effBack.url;
+            if (typeof studyLoadImageInto === 'function') {
+                studyLoadImageInto(document.getElementById('study-card-img-front'), imgFrontId, imgFrontUrl);
+                studyLoadImageInto(document.getElementById('study-card-img-back'),  imgBackId,  imgBackUrl);
+            }
             
             front.style.display = 'flex';
             back.style.display  = 'none';
@@ -17244,6 +17666,7 @@ window.addEventListener('load', function() {
         if (curSlide) {
             var curInner  = curSlide.querySelector('.mob-card-inner');
             if (curInner) {
+                curInner.classList.add('flipped'); // [NEW] 表裏カード：裏面画像もここで解禁する
                 var contentEl = curInner.querySelector('.mob-card-content');
                 if (contentEl) contentEl.style.display = '';
                 var hint = curInner.querySelector('.study-tap-hint');
@@ -17264,6 +17687,23 @@ window.addEventListener('load', function() {
 
         // 音声再生
         if (studyAudio) studyPlayAudio(d);
+    };
+
+    // [NEW] 画像の追加・削除・入替が、今まさに学習モードで開いているカードに対して
+    // 行われた場合に、カードをめくり直さなくても画像表示を最新化する。
+    window.studyRefreshMediaForCurrentCard = function() {
+        var d = studyCards && studyCards[studyIdx];
+        if (!d) return;
+        var effBack = (typeof resolveEffectiveBack === 'function') ? resolveEffectiveBack(d.mediaIdBack, d.mediaUrlBack) : {id:null,url:null};
+        var imgFrontId  = isLearningReversed ? effBack.id  : d.mediaId;
+        var imgFrontUrl = isLearningReversed ? effBack.url : d.mediaUrl;
+        var imgBackId   = isLearningReversed ? d.mediaId   : effBack.id;
+        var imgBackUrl  = isLearningReversed ? d.mediaUrl  : effBack.url;
+        if (typeof studyLoadImageInto === 'function') {
+            studyLoadImageInto(document.getElementById('study-card-img-front'), imgFrontId, imgFrontUrl);
+            studyLoadImageInto(document.getElementById('study-card-img-back'),  imgBackId,  imgBackUrl);
+        }
+        if (typeof window.mobStudyRefreshMedia === 'function') window.mobStudyRefreshMedia();
     };
 
     // --- 裏面表示（フリップ）---
