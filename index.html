@@ -9418,13 +9418,28 @@ function scenarioFlyoutShow(scenario, tabEl) {
     // [FIX] position:fixed になったため、タブの実際の画面座標から配置を計算する
     var rect = tabEl.getBoundingClientRect();
     var flyoutWidth = 260;
-    var left = rect.right + 8;
-    if (left + flyoutWidth > window.innerWidth - 8) {
-        left = rect.left - flyoutWidth - 8; // 右にはみ出す場合はタブの左側に表示
+    var edge = 12;
+    var gap = 8;
+    var left = rect.right + gap;
+    if (left + flyoutWidth > window.innerWidth - edge) {
+        left = rect.left - flyoutWidth - gap; // 右にはみ出す場合はタブの左側に表示
     }
-    flyout.style.left = Math.max(8, left) + 'px';
-    flyout.style.top  = rect.top + 'px';
-    flyout.style.maxHeight = Math.min(window.innerHeight * 0.6, window.innerHeight - rect.top - 16) + 'px';
+    flyout.style.left = Math.max(edge, Math.min(left, window.innerWidth - flyoutWidth - edge)) + 'px';
+
+    // [FIX v3.10.3] タブが画面下部にある場合、従来は
+    //   maxHeight = innerHeight - rect.top - 16
+    // が数pxまで縮み、カードタイトルの「上端だけ」が見える状態になっていた。
+    // 上下の空きスペースを比較し、十分な高さが取れる方向へフライアウトを配置する。
+    var desiredHeight = Math.min(window.innerHeight * 0.60, 520);
+    var availableBelow = Math.max(0, window.innerHeight - rect.top - edge);
+    var availableAbove = Math.max(0, rect.bottom - edge);
+    var placeAbove = availableBelow < Math.min(260, desiredHeight) && availableAbove > availableBelow;
+    var available = placeAbove ? availableAbove : availableBelow;
+    var height = Math.max(120, Math.min(desiredHeight, available));
+    var top = placeAbove ? (rect.bottom - height) : rect.top;
+    top = Math.max(edge, Math.min(top, window.innerHeight - height - edge));
+    flyout.style.top = top + 'px';
+    flyout.style.maxHeight = height + 'px';
     if (search) search.value = '';
     scenarioFlyoutRenderList('');
     flyout.classList.add('open');
