@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                                   ║
+  ║  Qcard PRO  v3.11.0                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -2288,6 +2288,34 @@
         #qcard-camera-switch { flex:0 0 auto; width:88px; }
         #qcard-camera-close { flex:0 0 auto; width:70px; }
         #qcard-camera-canvas { display:none; }
+
+        /* [NEW] QR共有・QR読み取りモーダル */
+        #qr-share-modal, #qr-scan-modal {
+            display:none; position:fixed; inset:0; z-index:1200;
+            background:rgba(0,0,0,0.85); align-items:center; justify-content:center;
+        }
+        #qr-share-modal.open, #qr-scan-modal.open { display:flex; }
+        .qr-modal-panel {
+            width:min(92vw,340px); background:var(--surface);
+            border:1px solid var(--border2); border-radius:16px; overflow:hidden;
+            box-shadow:0 24px 80px rgba(0,0,0,.6);
+        }
+        .qr-modal-head {
+            padding:10px 14px; display:flex; align-items:center; justify-content:space-between;
+            border-bottom:1px solid var(--border); font-weight:700; font-size:.82rem;
+        }
+        .qr-modal-head button {
+            background:none; border:none; color:var(--text-dim); font-size:1.1rem; cursor:pointer; line-height:1;
+        }
+        .qr-modal-body { padding:20px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+        #qr-share-canvas { background:#fff; border-radius:8px; padding:10px; }
+        .qr-share-link {
+            font-family:'DM Mono', monospace; font-size:.68rem; color:var(--text-dim);
+            word-break:break-all; text-align:center;
+        }
+        .qr-modal-hint { font-size:.7rem; color:var(--text-dim); text-align:center; padding:0 14px 14px; }
+        #qr-scan-video-wrap { background:#000; position:relative; width:100%; aspect-ratio:1/1; }
+        #qr-scan-video { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
         /* ===== PIP CAPTURE WINDOW ===== */
 #pip-capture {
   position: fixed;
@@ -4179,7 +4207,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">Qcard PRO</div>
-    <span class="version-badge">v3.10.1</span>
+    <span class="version-badge">v3.11.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -5107,15 +5135,25 @@ min-height: 0;
                 <span class="dm-icon">🔗</span>
                 <div><div class="dm-label">シナリオを共有</div><div class="dm-desc">全カード・画像・音声を含む共有URLを発行（24時間有効）</div></div>
             </button>
+            <button class="dm-action" onclick="shareCurrentScenarioAsQR()">
+                <span class="dm-icon">▦</span>
+                <div><div class="dm-label">QRコードで共有</div><div class="dm-desc">共有URLをQRコードとして表示します</div></div>
+            </button>
             <hr class="dm-divider">
             <div class="dm-section-label">シナリオを受け取る</div>
             <input class="dm-url-input" id="dm-share-url-input"
                    placeholder="fig://01K… または https://qcard.app/share/…"
                    autocomplete="off" spellcheck="false">
-            <button class="dm-action" onclick="dmImportScenarioFromUrl()">
-                <span class="dm-icon">📥</span>
-                <div><div class="dm-label">シナリオを受け取る</div><div class="dm-desc">共有されたシナリオを新しいシナリオとして追加します</div></div>
-            </button>
+            <div class="dm-action-row">
+                <button class="dm-action" onclick="dmImportScenarioFromUrl()">
+                    <span class="dm-icon">📥</span>
+                    <div><div class="dm-label">受け取る</div><div class="dm-desc">URLを入力して受信</div></div>
+                </button>
+                <button class="dm-action" onclick="qrScanOpen()">
+                    <span class="dm-icon">📷</span>
+                    <div><div class="dm-label">QRを読み取る</div><div class="dm-desc">カメラでスキャン</div></div>
+                </button>
+            </div>
             <p class="dm-note">共有URLは発行から24時間有効です。期限内に受け取ってください。</p>
         </div>
 
@@ -5245,6 +5283,36 @@ min-height: 0;
     </div>
 </div>
 <!-- Qcard Camera v18: direct getUserMedia -->
+<!-- [NEW] QRコードで共有 -->
+<div id="qr-share-modal">
+  <div class="qr-modal-panel">
+    <div class="qr-modal-head">
+      <span>▦ QRコードで共有</span>
+      <button type="button" onclick="closeShareQRModal()">×</button>
+    </div>
+    <div class="qr-modal-body">
+      <canvas id="qr-share-canvas"></canvas>
+      <div id="qr-share-link" class="qr-share-link"></div>
+      <div class="qr-modal-hint">相手のスマホの標準カメラで読み取ってください</div>
+    </div>
+  </div>
+</div>
+
+<!-- [NEW] QRコードを読み取ってシナリオを受け取る -->
+<div id="qr-scan-modal">
+  <div class="qr-modal-panel">
+    <div class="qr-modal-head">
+      <span>📷 QRコードを読み取り</span>
+      <button type="button" onclick="qrScanClose()">×</button>
+    </div>
+    <div id="qr-scan-video-wrap">
+      <video id="qr-scan-video" autoplay playsinline muted></video>
+    </div>
+    <canvas id="qr-scan-canvas" style="display:none;"></canvas>
+    <div id="qr-scan-status" class="qr-modal-hint">カメラを起動しています…</div>
+  </div>
+</div>
+
 <div id="qcard-camera-modal" aria-hidden="true">
   <div class="qcard-camera-panel">
     <div class="qcard-camera-head">
@@ -12631,6 +12699,117 @@ function ankiLoadLibs() {
             ankiLoadScript('https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js')
     ]);
     return _ankiLibsPromise;
+}
+
+// ===== QRコードでの共有・受け取り（Phase 1） =====
+// 共有そのものは既存の shareCurrentScenario() の仕組み（Supabase経由のURL発行）をそのまま使い、
+// QRはその「短いURLをやり取りする入口」を1つ追加するだけ、という位置づけにしている。
+// URLをそのままQR化するので、Qcardを介さない一般的なカメラアプリでも読み取れる。
+var _qrLibPromise = null;
+function qrLoadLib() {
+    if (_qrLibPromise) return _qrLibPromise;
+    _qrLibPromise = Promise.all([
+        (typeof QRCode !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'),
+        (typeof jsQR !== 'undefined') ? Promise.resolve() :
+            ankiLoadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js')
+    ]);
+    return _qrLibPromise;
+}
+
+// ── 表示（共有）側 ──
+function showShareQRModal(url) {
+    qrLoadLib().then(function() {
+        var modal  = document.getElementById('qr-share-modal');
+        var canvas = document.getElementById('qr-share-canvas');
+        var linkEl = document.getElementById('qr-share-link');
+        if (!modal || !canvas) return;
+        if (linkEl) linkEl.textContent = url;
+        QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, function(err) {
+            if (err) console.error('[QR share]', err);
+        });
+        modal.classList.add('open');
+    }).catch(function(err) {
+        console.error('[QR share] load failed', err);
+        showToast('QRコードの表示に失敗しました');
+    });
+}
+function closeShareQRModal() {
+    var modal = document.getElementById('qr-share-modal');
+    if (modal) modal.classList.remove('open');
+}
+// 「シナリオを共有」を実行した上でQR表示まで行う
+async function shareCurrentScenarioAsQR() {
+    var result = await window.shareCurrentScenario();
+    if (result && result.friendlyUrl) showShareQRModal(result.friendlyUrl);
+}
+
+// ── 読み取り（受け取り）側 ──
+var _qrScanStream = null;
+var _qrScanRAF = null;
+function qrScanOpen() {
+    qrLoadLib().then(function() {
+        var modal  = document.getElementById('qr-scan-modal');
+        var video  = document.getElementById('qr-scan-video');
+        var status = document.getElementById('qr-scan-status');
+        if (!modal || !video) return;
+        modal.classList.add('open');
+        if (status) status.textContent = 'カメラを起動しています…';
+        return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function(stream) {
+                _qrScanStream = stream;
+                video.srcObject = stream;
+                return video.play();
+            }).then(function() {
+                if (status) status.textContent = 'QRコードにカメラを向けてください';
+                qrScanTick();
+            });
+    }).catch(function(err) {
+        console.error('[QR scan]', err);
+        showToast('カメラを起動できませんでした（権限をご確認ください）');
+        qrScanClose();
+    });
+}
+function qrScanTick() {
+    var modal = document.getElementById('qr-scan-modal');
+    if (!modal || !modal.classList.contains('open')) return; // 閉じられていたら停止
+    var video  = document.getElementById('qr-scan-video');
+    var canvas = document.getElementById('qr-scan-canvas');
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        _qrScanRAF = requestAnimationFrame(qrScanTick);
+        return;
+    }
+    var ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var imageData;
+    try { imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); } catch (err) {}
+    var code = imageData ? jsQR(imageData.data, imageData.width, imageData.height) : null;
+    if (code && code.data) { qrScanHandleResult(code.data); return; }
+    _qrScanRAF = requestAnimationFrame(qrScanTick);
+}
+function qrScanHandleResult(text) {
+    qrScanClose();
+    var input = document.getElementById('dm-share-url-input');
+    if (input) {
+        input.value = text;
+        if (typeof window.dmImportScenarioFromUrl === 'function') window.dmImportScenarioFromUrl();
+    } else {
+        showToast('QRコードを読み取りました');
+    }
+}
+function qrScanClose() {
+    if (_qrScanRAF) cancelAnimationFrame(_qrScanRAF);
+    _qrScanRAF = null;
+    var video = document.getElementById('qr-scan-video');
+    if (video) video.srcObject = null;
+    if (_qrScanStream) {
+        _qrScanStream.getTracks().forEach(function(t) { t.stop(); });
+        _qrScanStream = null;
+    }
+    var modal = document.getElementById('qr-scan-modal');
+    if (modal) modal.classList.remove('open');
 }
 
 function ankiGuessMime(filename) {
