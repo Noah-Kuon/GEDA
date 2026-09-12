@@ -9411,7 +9411,14 @@ var _sfHideTimer = null;
 
 function scenarioFlyoutShow(scenario, tabEl) {
     clearTimeout(_sfHideTimer);
-    _sfScenario = scenario;
+    // [FIX v3.10.3b] ホバー時点の scenarios 配列から最新のシナリオ実体を取り直す。
+    // 画面再描画やAnkiインポート後のDOM→data同期で、古いscenarioオブジェクトを
+    // フライアウトが握ったままにならないようにする。
+    var liveScenario = null;
+    if (scenario && scenario.id && Array.isArray(scenarios)) {
+        liveScenario = scenarios.find(function(s) { return s && s.id === scenario.id; }) || null;
+    }
+    _sfScenario = liveScenario || scenario;
     var flyout = document.getElementById('scenario-flyout');
     var search = document.getElementById('scenario-flyout-search');
     if (!flyout) return;
@@ -9464,8 +9471,31 @@ function scenarioFlyoutRenderList(query) {
     if (!listEl || !_sfScenario) return;
     listEl.innerHTML = '';
     var q = normalizeSearchText(query || '');
-    var cards = (_sfScenario.data || []).filter(function(c) {
-        return (c.title || '').trim() || (c.content || '').trim();
+
+    // [FIX v3.10.3b] アクティブシナリオでは、カード一覧に表示されている
+    // 「現在のtitle-input.value」を優先してタイトルを取得する。
+    // Ankiインポートカードでは、active.data とDOMのタイトル同期タイミングがずれると、
+    // グリッド上では正しいタイトルなのに、シナリオホバーの一覧だけ古い値を表示する
+    // ことがあるため。URIで対応付けるのでカード順にも依存しない。
+    var cards = (_sfScenario.data || []).map(function(c) { return c; });
+    if (_sfScenario.id === activeScenarioId && typeof grid !== 'undefined' && grid) {
+        var liveByUri = {};
+        grid.querySelectorAll('.grid-item').forEach(function(item) {
+            var uri = item.dataset.uri || '';
+            var ti = item.querySelector('.title-input');
+            if (uri && ti) liveByUri[uri] = ti.value;
+        });
+        cards = cards.map(function(c) {
+            if (!c) return c;
+            if (c.uri && Object.prototype.hasOwnProperty.call(liveByUri, c.uri)) {
+                return Object.assign({}, c, { title: liveByUri[c.uri] });
+            }
+            return c;
+        });
+    }
+
+    cards = cards.filter(function(c) {
+        return c && ((c.title || '').trim() || (c.content || '').trim());
     });
     var shown = cards.filter(function(c) {
         if (!q) return true;
