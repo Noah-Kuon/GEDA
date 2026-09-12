@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1   カードの両面捲り対応                                                ║
+  ║  Qcard PRO  v3.10.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8350,6 +8350,13 @@ function setAppMode(mode) {
         }
     }
 
+    // [FIX v3.10.3] 学習モードへ入る直前に編集画面のDOMを確定保存。
+    // 特に表裏画像のdataset参照をstudy開始前にactive.dataへ反映する。
+    if (resolvedMode === 'study' && appMode === 'edit' &&
+        typeof saveCurrentGridData === 'function') {
+        saveCurrentGridData();
+    }
+
     appMode = resolvedMode;
     localStorage.setItem('kp_mode', resolvedMode);
 
@@ -9614,6 +9621,9 @@ function getCurrentGridData() {
         };
         // ── メディア・音声・学習ステータス（既存フィールド維持） ──
         if (item.dataset.mediaId)     entry.mediaId     = item.dataset.mediaId;
+        // [FIX v3.10.3] 表裏画像の永続化：DOM→データ同期時に裏面参照を失わない。
+        if (item.dataset.mediaIdBack)  entry.mediaIdBack  = item.dataset.mediaIdBack;
+        if (item.dataset.mediaUrlBack) entry.mediaUrlBack = item.dataset.mediaUrlBack;
         if (item.dataset.itvId)       entry.itvId       = item.dataset.itvId;
         if (item.dataset.audioSource) entry.audioSource = item.dataset.audioSource;
         if (prev && prev.studyStatus)  entry.studyStatus  = prev.studyStatus;
@@ -9629,6 +9639,8 @@ function getCurrentGridData() {
         entry.hidden    = item.classList.contains('is-hidden') ? true : false;
         // [NEW] Card Link v0.1：既存のlinksを維持（このタイミングでは編集しない）
         entry.links     = (prev && Array.isArray(prev.links)) ? prev.links : [];
+        // [FIX v3.10.3] シナリオ共通裏面はカードではなくscenario側で保持する。
+        // ここではカード同期処理が誤って scenario データを再構築する際にも触れない。
         result.push(entry);
     });
     return result;
@@ -9974,7 +9986,12 @@ function updateGrid() {
 function renderGrid(data, total) {
     // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
     // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
-    if (_mediaLazyObserver) _mediaLazyObserver.disconnect();
+    if (_mediaLazyObserver) {
+        _mediaLazyObserver.disconnect();
+        // [FIX v3.10.3] disconnect()したObserverを再利用しない。
+        // grid再描画後は必ず新しいObserverを生成して、画像の遅延読込を復活させる。
+        _mediaLazyObserver = null;
+    }
     grid.innerHTML = '';
     var cols = getActiveCols();
     var rows = getActiveRows();
@@ -10200,11 +10217,11 @@ function createItem(index, d) {
     // [NEW] カード一意ID（画像保存のキーに使う）
     // 録音機能のitvGetCardId（要素のdataset、再描画で消える）とは異なり、
     // 画像はカードデータ自体（d.mediaId）に永続保存し、シナリオ切替やリロード後も消えないようにする
-    if (!d.mediaId) {
-        d.mediaId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-    }
-    var cardId = d.mediaId;
-    item.dataset.mediaId = cardId;
+    // [FIX v3.10.3] 画像未登録カードにダミーmediaIdをactive.dataへ書き込まない。
+    // 旧実装は再描画のたびにmediaIdを生成してしまい、空カードまで「画像カード」と判定され、
+    // 画像削除・lazy-load・表裏判定の状態を不安定にしていた。
+    var cardId = d.mediaId || ('media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9));
+    if (d.mediaId) item.dataset.mediaId = d.mediaId;
     // 受信シナリオの場合: Supabase URLをdatasetに保存（IndexedDBにない場合のフォールバック用）
     if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
     if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
