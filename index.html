@@ -999,6 +999,17 @@
             display: flex; flex-direction: column; gap: 6px;
         }
         #meta-links-list { display: flex; flex-direction: column; gap: 4px; }
+        .backlinks-section { border-top:1px solid var(--border); padding-top:6px; }
+        .backlinks-toggle { display:inline-flex; align-items:center; gap:6px; background:transparent; border:none; padding:3px 0; color:var(--text-dim); font-size:.7rem; cursor:pointer; }
+        .backlinks-toggle:hover { color:var(--accent); }
+        .backlinks-toggle .backlinks-caret { width:10px; font-size:.62rem; }
+        .backlinks-list { display:none; flex-direction:column; gap:4px; margin-top:5px; }
+        .backlinks-list.open { display:flex; }
+        .backlink-row { display:flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:5px 8px; cursor:pointer; min-width:0; }
+        .backlink-row:hover { border-color:var(--accent); }
+        .backlink-icon { flex-shrink:0; font-size:.78rem; }
+        .backlink-name { flex:1; min-width:0; font-size:.72rem; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .backlink-scenario { flex-shrink:0; max-width:105px; font-size:.62rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .link-row {
             display: flex; align-items: center; gap: 6px;
             background: var(--surface2); border: 1px solid var(--border);
@@ -2427,6 +2438,87 @@
         #qcard-camera-switch { flex:0 0 auto; width:88px; }
         #qcard-camera-close { flex:0 0 auto; width:70px; }
         #qcard-camera-canvas { display:none; }
+
+        /* ===== QR SHARE / SCAN v1 ===== */
+        #qcard-qr-modal {
+            display:none; position:fixed; inset:0; z-index:1300;
+            background:rgba(0,0,0,0.72); backdrop-filter:blur(4px);
+            align-items:center; justify-content:center;
+        }
+        #qcard-qr-modal.open { display:flex; }
+        .qcard-qr-panel {
+            width:min(92vw,420px); max-height:92dvh; overflow:auto;
+            background:var(--surface); color:var(--text);
+            border:1px solid var(--border2); border-radius:6px;
+            box-shadow:0 24px 80px rgba(0,0,0,0.45);
+        }
+        .qcard-qr-head {
+            display:flex; align-items:center; gap:10px;
+            padding:13px 15px; border-bottom:1px solid var(--border);
+        }
+        .qcard-qr-title { flex:1; font-size:.82rem; font-weight:700; }
+        .qcard-qr-close {
+            border:1px solid var(--border); background:var(--surface2);
+            color:var(--text-dim); border-radius:3px; width:32px; height:32px;
+            cursor:pointer; font-size:1rem;
+        }
+        .qcard-qr-body { padding:18px; }
+        #qcard-qr-code {
+            width:260px; height:260px; margin:4px auto 14px;
+            display:flex; align-items:center; justify-content:center;
+            background:#fff; padding:10px; box-sizing:border-box; border-radius:4px;
+        }
+        #qcard-qr-code img, #qcard-qr-code canvas {
+            display:block; width:100% !important; height:100% !important;
+            image-rendering:auto;
+        }
+        .qcard-qr-url {
+            font-family:'DM Mono',monospace; font-size:.62rem; line-height:1.5;
+            color:var(--text-dim); background:var(--surface2);
+            border:1px solid var(--border); border-radius:3px;
+            padding:8px 10px; word-break:break-all; user-select:text;
+        }
+        .qcard-qr-note {
+            margin-top:10px; font-size:.66rem; color:var(--text-muted); line-height:1.55;
+            text-align:center;
+        }
+        #qcard-qr-scan-modal {
+            display:none; position:fixed; inset:0; z-index:1300;
+            background:rgba(0,0,0,0.92); align-items:center; justify-content:center;
+        }
+        #qcard-qr-scan-modal.open { display:flex; }
+        .qcard-qr-scan-panel {
+            width:min(96vw,620px); max-height:96dvh; overflow:hidden;
+            background:var(--surface); border:1px solid var(--border2); border-radius:5px;
+            box-shadow:0 24px 80px rgba(0,0,0,0.5); display:flex; flex-direction:column;
+        }
+        .qcard-qr-scan-head {
+            display:flex; align-items:center; gap:10px; padding:10px 14px;
+            border-bottom:1px solid var(--border);
+        }
+        .qcard-qr-scan-title { flex:1; font-size:.82rem; font-weight:700; }
+        #qcard-qr-scan-status { font-size:.66rem; color:var(--text-dim); }
+        #qcard-qr-scan-video-wrap {
+            background:#000; position:relative; width:100%; aspect-ratio:4/3;
+            max-height:72dvh; overflow:hidden;
+        }
+        #qcard-qr-scan-video {
+            width:100%; height:100%; object-fit:cover; display:block; background:#000;
+        }
+        #qcard-qr-scan-guide {
+            position:absolute; left:50%; top:50%; width:min(58vw,280px); height:min(58vw,280px);
+            transform:translate(-50%,-50%); border:2px solid rgba(255,255,255,.9);
+            border-radius:8px; box-shadow:0 0 0 9999px rgba(0,0,0,.18); pointer-events:none;
+        }
+        #qcard-qr-scan-canvas { display:none; }
+        .qcard-qr-scan-controls {
+            display:flex; gap:8px; padding:12px; border-top:1px solid var(--border);
+        }
+        .qcard-qr-scan-controls button {
+            flex:1; min-height:44px; border:1px solid var(--border); border-radius:3px;
+            background:var(--surface2); color:var(--text); font:inherit; cursor:pointer;
+        }
+        #qcard-qr-scan-close { flex:0 0 90px; }
         /* ===== PIP CAPTURE WINDOW ===== */
 #pip-capture {
   position: fixed;
@@ -4462,7 +4554,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">QCARD <span style="color:var(--text-dim);font-weight:400;">/ Q-ARCHIVE</span></div>
-    <span class="version-badge">v3.10.1</span>
+    <span class="version-badge">v3.12.0</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -4906,6 +4998,10 @@ min-height: 0;
                     <div class="meta-section-label">🔗 Links</div>
                     <div id="mob-meta-links-list"></div>
                     <button type="button" id="mob-meta-link-add-btn" class="meta-clip-btn" onclick="mobCardLinkOpenPicker()">🔗 カードをリンク</button>
+                    <div class="backlinks-section" id="mob-backlinks-section">
+                        <button type="button" class="backlinks-toggle" id="mob-backlinks-toggle" onclick="toggleBacklinks('mob')"><span class="backlinks-caret">▸</span><span>↩ 被リンク</span><span class="backlinks-count"></span></button>
+                        <div class="backlinks-list" id="mob-backlinks-list"></div>
+                    </div>
                 </div>
 
                 <div class="meta-row">
@@ -5224,6 +5320,10 @@ min-height: 0;
             <button type="button" class="meta-clip-btn" id="meta-link-add-btn" onclick="cardLinkOpenPicker()">
                 🔗 カードをリンク
             </button>
+            <div class="backlinks-section" id="backlinks-section">
+                <button type="button" class="backlinks-toggle" id="backlinks-toggle" onclick="toggleBacklinks('pc')"><span class="backlinks-caret">▸</span><span>↩ 被リンク</span><span class="backlinks-count"></span></button>
+                <div class="backlinks-list" id="backlinks-list"></div>
+            </div>
         </div>
 
         <!-- ▼ 編集可能フィールド -->
@@ -5482,19 +5582,31 @@ min-height: 0;
         <!-- ── 共有 ── -->
         <div id="dm-share" class="dm-panel">
             <div class="dm-section-label">このシナリオを共有</div>
-            <button class="dm-action" onclick="shareCurrentScenario(); closeDataModal();">
-                <span class="dm-icon">🔗</span>
-                <div><div class="dm-label">シナリオを共有</div><div class="dm-desc">全カード・画像・音声を含む共有URLを発行（24時間有効）</div></div>
-            </button>
+            <div class="dm-action-row">
+                <button class="dm-action" onclick="shareCurrentScenario(); closeDataModal();">
+                    <span class="dm-icon">🔗</span>
+                    <div><div class="dm-label">シナリオを共有</div><div class="dm-desc">共有URLを発行してコピー</div></div>
+                </button>
+                <button class="dm-action" onclick="shareCurrentScenarioAsQR()">
+                    <span class="dm-icon">▦</span>
+                    <div><div class="dm-label">QRコードで共有</div><div class="dm-desc">共有URLをQRコードで表示</div></div>
+                </button>
+            </div>
             <hr class="dm-divider">
             <div class="dm-section-label">シナリオを受け取る</div>
             <input class="dm-url-input" id="dm-share-url-input"
-                   placeholder="fig://01K… または https://qcard.app/share/…"
+                   placeholder="https://qcard.app/share/…"
                    autocomplete="off" spellcheck="false">
-            <button class="dm-action" onclick="dmImportScenarioFromUrl()">
-                <span class="dm-icon">📥</span>
-                <div><div class="dm-label">シナリオを受け取る</div><div class="dm-desc">共有されたシナリオを新しいシナリオとして追加します</div></div>
-            </button>
+            <div class="dm-action-row">
+                <button class="dm-action" onclick="dmImportScenarioFromUrl()">
+                    <span class="dm-icon">📥</span>
+                    <div><div class="dm-label">URLから受け取る</div><div class="dm-desc">共有URLを入力してシナリオを追加</div></div>
+                </button>
+                <button class="dm-action" onclick="openQRScanner()">
+                    <span class="dm-icon">▦</span>
+                    <div><div class="dm-label">QRを読み取る</div><div class="dm-desc">カメラで共有QRを読み取る</div></div>
+                </button>
+            </div>
             <p class="dm-note">共有URLは発行から24時間有効です。期限内に受け取ってください。</p>
         </div>
 
@@ -5638,6 +5750,39 @@ min-height: 0;
       <button type="button" id="qcard-camera-close">閉じる</button>
       <button type="button" id="qcard-camera-switch">↔ 切替</button>
       <button type="button" id="qcard-camera-shoot">● 撮影</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR SHARE MODAL -->
+<div id="qcard-qr-modal" aria-hidden="true">
+  <div class="qcard-qr-panel" role="dialog" aria-modal="true" aria-label="QRコードで共有">
+    <div class="qcard-qr-head">
+      <div class="qcard-qr-title">▦ QRコードで共有</div>
+      <button type="button" class="qcard-qr-close" onclick="closeQRShare()" aria-label="閉じる">×</button>
+    </div>
+    <div class="qcard-qr-body">
+      <div id="qcard-qr-code" aria-label="共有URLのQRコード"></div>
+      <div id="qcard-qr-url" class="qcard-qr-url"></div>
+      <div class="qcard-qr-note">スマートフォンの標準カメラで読み取れます。<br>共有URLは発行から24時間有効です。</div>
+    </div>
+  </div>
+</div>
+
+<!-- QR SCAN MODAL -->
+<div id="qcard-qr-scan-modal" aria-hidden="true">
+  <div class="qcard-qr-scan-panel" role="dialog" aria-modal="true" aria-label="QRコードを読み取る">
+    <div class="qcard-qr-scan-head">
+      <div class="qcard-qr-scan-title">▦ QRコードを読み取る</div>
+      <div id="qcard-qr-scan-status">カメラを準備しています…</div>
+    </div>
+    <div id="qcard-qr-scan-video-wrap">
+      <video id="qcard-qr-scan-video" autoplay playsinline muted></video>
+      <div id="qcard-qr-scan-guide"></div>
+    </div>
+    <canvas id="qcard-qr-scan-canvas"></canvas>
+    <div class="qcard-qr-scan-controls">
+      <button type="button" id="qcard-qr-scan-close" onclick="closeQRScanner()">閉じる</button>
     </div>
   </div>
 </div>
@@ -8820,6 +8965,48 @@ function searchCardsAcrossScenarios(query) {
     return results;
 }
 
+// ══ Card Link v0.2：被リンク ══
+function getBacklinksForCard(targetUri) {
+    if (!targetUri) return [];
+    var results=[];
+    scenarios.forEach(function(sc,si){
+        (sc.data||[]).forEach(function(card,ci){
+            if (!card || card.uri===targetUri) return;
+            var links=Array.isArray(card.links)?card.links:[];
+            if (links.some(function(l){return l && l.targetUri===targetUri;})) results.push({scenario:sc,scenarioIndex:si,card:card,cardIndex:ci});
+        });
+    });
+    return results;
+}
+function toggleBacklinks(mode) {
+    var list=document.getElementById(mode==='mob'?'mob-backlinks-list':'backlinks-list');
+    var btn=document.getElementById(mode==='mob'?'mob-backlinks-toggle':'backlinks-toggle');
+    if(!list||!btn)return; var open=list.classList.toggle('open');
+    var c=btn.querySelector('.backlinks-caret'); if(c)c.textContent=open?'▾':'▸';
+}
+window.toggleBacklinks=toggleBacklinks;
+function renderBacklinks(cardItem) {
+    var meta=cardItem?getCardMeta(cardItem):null;
+    var uri=meta&&meta.uri?meta.uri:(cardItem&&cardItem.dataset?cardItem.dataset.uri:'');
+    var incoming=getBacklinksForCard(uri);
+    [['backlinks-list','backlinks-toggle'],['mob-backlinks-list','mob-backlinks-toggle']].forEach(function(pair){
+        var list=document.getElementById(pair[0]),btn=document.getElementById(pair[1]); if(!list||!btn)return;
+        var wasOpen=list.classList.contains('open'); list.innerHTML='';
+        var count=btn.querySelector('.backlinks-count'); if(count)count.textContent=incoming.length?' '+incoming.length+'件':'';
+        btn.disabled=!incoming.length; btn.style.opacity=incoming.length?'':'0.55';
+        if(!incoming.length){list.classList.remove('open');var c0=btn.querySelector('.backlinks-caret');if(c0)c0.textContent='▸';return;}
+        incoming.forEach(function(item){
+            var row=document.createElement('div');row.className='backlink-row';row.title='このカードを参照しているカードを開く';
+            var icon=document.createElement('span');icon.className='backlink-icon';icon.textContent='↩';
+            var name=document.createElement('span');name.className='backlink-name';name.textContent=item.card.title||'（無題）';
+            var sc=document.createElement('span');sc.className='backlink-scenario';sc.textContent=displayScenarioName(item.scenario,item.scenarioIndex);
+            row.appendChild(icon);row.appendChild(name);row.appendChild(sc);
+            row.addEventListener('click',function(e){e.stopPropagation();navigateToCardByUri(item.card.uri);});list.appendChild(row);
+        });
+        if(wasOpen)list.classList.add('open');var c=btn.querySelector('.backlinks-caret');if(c)c.textContent=wasOpen?'▾':'▸';
+    });
+}
+
 // [NEW] リンク一覧を描画する（overlayMetaSync / mobMetaSync から呼ばれる）
 // [MOD] PC版(#meta-links-list)・モバイル版(#mob-meta-links-list)、存在する方すべてに描画する。
 //       これにより、共有のカードリンクピッカーからどちらのUIで追加しても両方に反映される。
@@ -8897,6 +9084,7 @@ function renderCardLinks(cardItem) {
             listEl.appendChild(row);
         });
     });
+    renderBacklinks(cardItem);
 }
 
 // [NEW] カード選択ポップオーバー（リンク追加用）
@@ -10781,9 +10969,11 @@ function overlayMetaSync(cardItem) {
     if (summaryEl) {
         var tagCount  = meta && meta.tags  ? meta.tags.length  : 0;
         var linkCount = meta && meta.links ? meta.links.length : 0;
+        var backlinkCount = meta && meta.uri ? getBacklinksForCard(meta.uri).length : 0;
         var bits = [];
         if (tagCount)  bits.push('🏷' + tagCount);
         if (linkCount) bits.push('🔗' + linkCount);
+        if (backlinkCount) bits.push('↩' + backlinkCount);
         if (meta && meta.hidden) bits.push('👁非表示');
         summaryEl.textContent = bits.join('  ');
     }
@@ -18640,6 +18830,233 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
     };
 })();
 
+
+// ===== Qcard QR SHARE / SCAN v1 =====
+(function(){
+    'use strict';
+
+    var QR_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    var JSQR_CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+    var qrcodePromise = null;
+    var jsqrPromise = null;
+    var qrScanStream = null;
+    var qrScanTimer = null;
+    var qrScanBusy = false;
+    var qrScanFacing = 'environment';
+
+    function loadScriptOnce(src, globalName) {
+        if (window[globalName]) return Promise.resolve(window[globalName]);
+        return new Promise(function(resolve, reject){
+            var existing = document.querySelector('script[data-qcard-qr-src="' + src + '"]');
+            if (existing) {
+                var wait = setInterval(function(){
+                    if (window[globalName]) { clearInterval(wait); resolve(window[globalName]); }
+                }, 50);
+                setTimeout(function(){ clearInterval(wait); reject(new Error('ライブラリの読み込みがタイムアウトしました')); }, 15000);
+                return;
+            }
+            var script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.dataset.qcardQrSrc = src;
+            script.onload = function(){
+                if (window[globalName]) resolve(window[globalName]);
+                else reject(new Error(globalName + ' が読み込まれていません'));
+            };
+            script.onerror = function(){ reject(new Error('QRライブラリを読み込めませんでした')); };
+            document.head.appendChild(script);
+        });
+    }
+
+    function loadQRCode(){
+        if (!qrcodePromise) qrcodePromise = loadScriptOnce(QR_CDN, 'QRCode');
+        return qrcodePromise;
+    }
+    function loadJsQR(){
+        if (!jsqrPromise) jsqrPromise = loadScriptOnce(JSQR_CDN, 'jsQR');
+        return jsqrPromise;
+    }
+
+    window.shareCurrentScenarioAsQR = async function(){
+        // データ管理モーダルを先に閉じ、共有処理中に二重モーダルにならないようにする
+        closeDataModal();
+        try {
+            showToast('QR共有用URLを準備中...');
+            var result = await window.shareCurrentScenario();
+            if (!result || !result.friendlyUrl) return;
+            await loadQRCode();
+            var box = document.getElementById('qcard-qr-code');
+            var urlEl = document.getElementById('qcard-qr-url');
+            var modal = document.getElementById('qcard-qr-modal');
+            if (!box || !modal) return;
+            box.innerHTML = '';
+            new window.QRCode(box, {
+                text: result.friendlyUrl,
+                width: 240,
+                height: 240,
+                colorDark: '#111111',
+                colorLight: '#ffffff',
+                correctLevel: window.QRCode.CorrectLevel.M
+            });
+            if (urlEl) urlEl.textContent = result.friendlyUrl;
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden','false');
+        } catch(e) {
+            console.error('[Qcard QR Share]', e);
+            showToast('QRコードの生成に失敗しました: ' + (e.message || e));
+        }
+    };
+
+    window.closeQRShare = function(){
+        var modal = document.getElementById('qcard-qr-modal');
+        if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+    };
+
+    function isShareUrl(text){
+        return /^https:\/\/qcard\.app\/share\/[A-Za-z0-9_-]+(?:[?#].*)?$/.test(String(text || '').trim());
+    }
+
+    async function startQRScanner(){
+        var video = document.getElementById('qcard-qr-scan-video');
+        var status = document.getElementById('qcard-qr-scan-status');
+        if (!video) return;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            if (status) status.textContent = 'このブラウザではカメラを使用できません';
+            showToast('カメラを利用できません。HTTPS接続とカメラ権限を確認してください');
+            return;
+        }
+        try {
+            if (qrScanStream) stopQRScanner();
+            if (status) status.textContent = 'カメラを起動中…';
+            qrScanBusy = false;
+            qrScanFacing = 'environment';
+            qrScanStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: qrScanFacing }, width:{ideal:1280}, height:{ideal:720} },
+                audio: false
+            });
+            video.srcObject = qrScanStream;
+            await video.play();
+            if (status) status.textContent = 'QRコードを枠内に合わせてください';
+            scheduleQRScan();
+        } catch(e) {
+            console.error('[Qcard QR Scan] camera', e);
+            if (status) status.textContent = 'カメラを起動できませんでした';
+            showToast('QR読み取り用カメラを起動できませんでした。カメラ権限を確認してください');
+        }
+    }
+
+    function stopQRScanner(){
+        if (qrScanTimer) { clearTimeout(qrScanTimer); qrScanTimer = null; }
+        qrScanBusy = false;
+        if (qrScanStream) {
+            qrScanStream.getTracks().forEach(function(t){ try{t.stop();}catch(_){} });
+            qrScanStream = null;
+        }
+        var video = document.getElementById('qcard-qr-scan-video');
+        if (video) { try{video.pause();}catch(_){} video.srcObject = null; }
+    }
+
+    function scheduleQRScan(){
+        if (!qrScanStream) return;
+        if (qrScanTimer) clearTimeout(qrScanTimer);
+        qrScanTimer = setTimeout(scanQRFrame, 120);
+    }
+
+    async function scanQRFrame(){
+        if (!qrScanStream || qrScanBusy) return;
+        var video = document.getElementById('qcard-qr-scan-video');
+        var canvas = document.getElementById('qcard-qr-scan-canvas');
+        var status = document.getElementById('qcard-qr-scan-status');
+        if (!video || !canvas || video.readyState < 2) { scheduleQRScan(); return; }
+
+        // まずブラウザ標準 BarcodeDetector を利用。対応していない環境では jsQR にフォールバック。
+        try {
+            if ('BarcodeDetector' in window) {
+                if (!scanQRFrame.detector) {
+                    try { scanQRFrame.detector = new window.BarcodeDetector({formats:['qr_code']}); }
+                    catch(_) { scanQRFrame.detector = null; }
+                }
+                if (scanQRFrame.detector) {
+                    var detected = await scanQRFrame.detector.detect(video);
+                    if (detected && detected.length) {
+                        for (var di=0; di<detected.length; di++) {
+                            var raw = detected[di].rawValue || '';
+                            if (isShareUrl(raw)) { handleQRResult(raw); return; }
+                        }
+                    }
+                    scheduleQRScan();
+                    return;
+                }
+            }
+        } catch(e) {
+            console.warn('[Qcard QR Scan] BarcodeDetector fallback:', e);
+        }
+
+        try {
+            await loadJsQR();
+            var w = video.videoWidth || 640;
+            var h = video.videoHeight || 480;
+            // 横幅640px程度に縮小してCPU負荷を抑える
+            var targetW = Math.min(w, 640);
+            var targetH = Math.round(h * targetW / w);
+            canvas.width = targetW; canvas.height = targetH;
+            var ctx = canvas.getContext('2d', {willReadFrequently:true});
+            ctx.drawImage(video, 0, 0, targetW, targetH);
+            var image = ctx.getImageData(0,0,targetW,targetH);
+            var code = window.jsQR(image.data, image.width, image.height, { inversionAttempts:'attemptBoth' });
+            if (code && code.data) {
+                if (isShareUrl(code.data)) { handleQRResult(code.data); return; }
+                if (status) status.textContent = 'Qcardの共有URLではありません';
+            }
+        } catch(e) {
+            console.warn('[Qcard QR Scan] jsQR:', e);
+            if (status) status.textContent = 'QR読み取りライブラリを準備中…';
+        }
+        scheduleQRScan();
+    }
+
+    async function handleQRResult(raw){
+        if (qrScanBusy) return;
+        qrScanBusy = true;
+        var input = document.getElementById('dm-share-url-input');
+        if (input) input.value = raw;
+        var status = document.getElementById('qcard-qr-scan-status');
+        if (status) status.textContent = 'QRを認識しました。受信しています…';
+        stopQRScanner();
+        var modal = document.getElementById('qcard-qr-scan-modal');
+        if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+        // 既存のURL受信処理をそのまま利用（データ経路を一本化）
+        await window.dmImportScenarioFromUrl();
+    }
+
+    window.openQRScanner = function(){
+        closeDataModal();
+        var modal = document.getElementById('qcard-qr-scan-modal');
+        if (!modal) return;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden','false');
+        startQRScanner();
+    };
+
+    window.closeQRScanner = function(){
+        stopQRScanner();
+        var modal = document.getElementById('qcard-qr-scan-modal');
+        if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+    };
+
+    document.addEventListener('keydown', function(e){
+        if (e.key !== 'Escape') return;
+        var share = document.getElementById('qcard-qr-modal');
+        var scan = document.getElementById('qcard-qr-scan-modal');
+        if (scan && scan.classList.contains('open')) { closeQRScanner(); e.stopPropagation(); return; }
+        if (share && share.classList.contains('open')) { closeQRShare(); e.stopPropagation(); }
+    });
+
+    document.addEventListener('click', function(e){
+        var share = document.getElementById('qcard-qr-modal');
+        if (share && share.classList.contains('open') && e.target === share) closeQRShare();
+    });
+})();
 
 // ===== G.E.D.A. FOOTER =====
 (function() {
