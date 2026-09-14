@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1     要音声共有確認                        ║
+  ║  Qcard PRO v3.13.3 — 音声共有・両ソース対応版            ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4560,7 +4560,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">QCARD <span style="color:var(--text-dim);font-weight:400;">/ Q-ARCHIVE</span></div>
-    <span class="version-badge">v3.14.0</span>
+    <span class="version-badge">v3.13.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -5241,7 +5241,6 @@ min-height: 0;
         <label class="as-radio"><input type="radio" name="audioSource" value="recorded" onchange="overlaySetAudioSource('recorded')"> <span data-i18n="audio_recorded">🎤 録音</span></label>
         <label class="as-radio"><input type="radio" name="audioSource" value="uploaded" onchange="overlaySetAudioSource('uploaded')"> <span data-i18n="audio_uploaded">📁 アップロード</span></label>
         <button id="audio-upload-btn" onclick="overlayUploadAudio()" data-i18n="btn_audio_upload" title="音声ファイルをアップロード">📁 音声を選択</button>
-        <button id="audio-delete-btn" onclick="qcardDeleteCurrentAudio()" title="現在のカードの音声を削除">🗑 音声を削除</button>
         <input type="file" id="overlay-audio-upload-input" accept="audio/*" style="display:none" onchange="overlayHandleAudioUpload(event)">
     </div>
     <div id="speech-bar">
@@ -5256,10 +5255,6 @@ min-height: 0;
             <option value="1.0" selected>1.0x</option>
             <option value="1.2">1.2x</option>
             <option value="1.5">1.5x</option>
-            <option value="1.8">1.8x</option>
-            <option value="2.0">2.0x</option>
-            <option value="2.5">2.5x</option>
-            <option value="3.0">3.0x</option>
             <option value="1.7">1.7x</option>
             <option value="2.0">2.0x</option>
             <option value="2.5">2.5x</option>
@@ -7992,28 +7987,54 @@ async function shareCard(card, cardItem) {
         }
     }
 
-    // Phase C: 音声アップロード → 署名付きURL発行
+    // Phase C: 音声アップロード → 録音・アップロードを両方共有
     var audioUrl = null;
+    var audioUrls = { recorded: null, uploaded: null };
+    var audioSource = 'speech';
     if (cardItem) {
         var cid2 = typeof itvGetCardId === 'function' ? itvGetCardId(cardItem) : null;
         var src  = cardItem.dataset.audioSource || 'speech';
-        var hasAudio = (src === 'uploaded' || src === 'recorded')
-                    || (cardItem.dataset.itvId && cardItem.dataset.itvId !== '');
-        if (cid2 && hasAudio) {
+        if (cid2) {
             showToast('音声をアップロード中...');
-            var audioPath = await uploadAudioToStorage(cid2, ulid);
-            if (audioPath) {
-                // 音声の拡張子を判定
-                var audioExt = (src === 'uploaded') ? await getUploadExt(cid2) : '_rec.webm';
-                var signedAudio = await sb.storage
-                    .from('qcard-audio')
-                    .createSignedUrl(ulid + audioExt, SHARE_TTL_SEC);
-                audioUrl = (signedAudio.data && signedAudio.data.signedUrl)
-                    ? signedAudio.data.signedUrl
-                    : audioPath; // フォールバック: 公開URL
-                card.audioUrl = audioUrl;
-                showToast('✅ 音声アップロード完了');
-            }
+            try {
+                if (typeof uploadDB !== 'undefined') {
+                    var upRec2 = await uploadDB.get(cid2);
+                    if (upRec2 && upRec2.blob) {
+                        var upExt2 = await getUploadExt(cid2);
+                        var upPath2 = ulid + '_upload' + upExt2;
+                        var upRes2 = await sb.storage.from('qcard-audio').upload(upPath2, upRec2.blob, {
+                            contentType: upRec2.mimeType || 'audio/mpeg', upsert: true
+                        });
+                        if (!upRes2.error) {
+                            var upSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(upPath2, SHARE_TTL_SEC);
+                            audioUrls.uploaded = (upSigned2.data && upSigned2.data.signedUrl) ? upSigned2.data.signedUrl : null;
+                        }
+                    }
+                }
+                if (typeof itvDB !== 'undefined') {
+                    var recs2 = await itvDB.getByCardId(cid2);
+                    if (recs2 && recs2.length) {
+                        var rec2 = recs2.slice().sort(function(a,b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); })[0];
+                        var recPath2 = ulid + '_rec.webm';
+                        var recRes2 = await sb.storage.from('qcard-audio').upload(recPath2, rec2.blob, {
+                            contentType: rec2.mimeType || 'audio/webm', upsert: true
+                        });
+                        if (!recRes2.error) {
+                            var recSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(recPath2, SHARE_TTL_SEC);
+                            audioUrls.recorded = (recSigned2.data && recSigned2.data.signedUrl) ? recSigned2.data.signedUrl : null;
+                        }
+                    }
+                }
+                if (audioUrls.recorded || audioUrls.uploaded) {
+                    audioSource = (src === 'recorded' && audioUrls.recorded) || (src === 'uploaded' && audioUrls.uploaded)
+                        ? src : (audioUrls.recorded ? 'recorded' : 'uploaded');
+                    audioUrl = audioUrls[audioSource] || null;
+                    card.audioSource = audioSource;
+                    card.audioUrls = audioUrls;
+                    card.audioUrl = audioUrl;
+                    showToast('✅ 音声アップロード完了');
+                }
+            } catch(e) { console.warn('音声共有エラー:', e); }
         }
     }
 
@@ -8037,7 +8058,9 @@ async function shareCard(card, cardItem) {
             createdAt:   card.createdAt   || null,
             updatedAt:   card.updatedAt   || null,
             mediaUrl:    mediaUrl,
-            audioUrl:    audioUrl
+            audioUrl:    audioUrl,
+            audioSource: audioSource,
+            audioUrls:   audioUrls
         },
         media_url:   mediaUrl,
         audio_url:   audioUrl,
@@ -8176,6 +8199,30 @@ window.shareCurrentScenario = async function() {
 
     showToast('シナリオを共有中...');
 
+    // ── デッキ共通裏面画像をアップロード（シナリオで1枚だけ共有） ──
+    // deckBackMediaId はローカルIndexedDBの内部IDなので、共有先へはSigned URLだけを渡す。
+    // 個別カードの裏面とは別パスにして、カード画像と衝突しないようにする。
+    var deckBackMediaId = shareData.deckBackMediaId || null;
+    if (deckBackMediaId) {
+        try {
+            var deckBackRecord = await mediaDB.get(deckBackMediaId);
+            if (deckBackRecord && deckBackRecord.blob) {
+                var deckBackExt = await getMediaExt(deckBackMediaId);
+                var deckBackPath = shareUlid + '_deckback' + deckBackExt;
+                var deckBackRes = await sb.storage.from('qcard-media').upload(deckBackPath, deckBackRecord.blob, {
+                    contentType: deckBackRecord.mimeType || 'image/jpeg',
+                    upsert: true
+                });
+                if (!deckBackRes.error) {
+                    var deckBackSigned = await sb.storage.from('qcard-media').createSignedUrl(deckBackPath, SHARE_TTL_SEC);
+                    shareData.deckBackMediaUrl = (deckBackSigned.data && deckBackSigned.data.signedUrl)
+                        ? deckBackSigned.data.signedUrl : null;
+                    if (shareData.deckBackMediaUrl) mediaCount++;
+                }
+            }
+        } catch(e) { console.warn('[Scenario Share] deck back media upload error', e); }
+    }
+
     // 各カードのメディアをアップロード
     for (var i = 0; i < cards.length; i++) {
         var card = cards[i];
@@ -8207,43 +8254,87 @@ window.shareCurrentScenario = async function() {
             } catch(e) { console.warn('[Scenario Share] media upload error card', i, e); }
         }
 
-        // ── 音声アップロード ──
-        // itvId・audioSource も card から直接参照
-        var itvId    = card.itvId    || null;
-        var audioSrc = card.audioSource || 'speech';
-
-        if (itvId && (audioSrc === 'recorded' || audioSrc === 'uploaded')) {
+        // ── 裏面画像アップロード ──
+        // 表面とは別パス（_back）を使用し、受信側では card.mediaUrlBack として復元する。
+        var mediaIdBack = card.mediaIdBack || null;
+        if (mediaIdBack) {
             try {
-                // アップロード音声を優先
-                var upRec = await uploadDB.get(itvId);
-                if (upRec && upRec.blob) {
-                    var aExt  = await getUploadExt(itvId);
-                    var aPath = cardUlid + aExt;
-                    var aRes  = await sb.storage.from('qcard-audio').upload(aPath, upRec.blob, {
-                        contentType: upRec.mimeType || 'audio/mpeg',
+                var mediaRecordBack = await mediaDB.get(mediaIdBack);
+                if (mediaRecordBack && mediaRecordBack.blob) {
+                    var mExtBack  = await getMediaExt(mediaIdBack);
+                    var mPathBack = cardUlid + '_back' + mExtBack;
+                    var mResBack  = await sb.storage.from('qcard-media').upload(mPathBack, mediaRecordBack.blob, {
+                        contentType: mediaRecordBack.mimeType || 'image/jpeg',
                         upsert: true
                     });
-                    if (!aRes.error) {
-                        var aSigned = await sb.storage.from('qcard-audio').createSignedUrl(aPath, SHARE_TTL_SEC);
-                        card.audioUrl = (aSigned.data && aSigned.data.signedUrl) ? aSigned.data.signedUrl : null;
-                        if (card.audioUrl) audioCount++;
+                    if (!mResBack.error) {
+                        var mSignedBack = await sb.storage.from('qcard-media').createSignedUrl(mPathBack, SHARE_TTL_SEC);
+                        card.mediaUrlBack = (mSignedBack.data && mSignedBack.data.signedUrl) ? mSignedBack.data.signedUrl : null;
+                        if (card.mediaUrlBack) mediaCount++;
                     }
-                } else {
-                    // 録音音声
+                }
+            } catch(e) { console.warn('[Scenario Share] back media upload error card', i, e); }
+        }
+
+        // ── 音声アップロード ──
+        // 録音・アップロードが共存する場合は「両方」を共有し、
+        // audioSource で送信元が現在選択していた音声をそのまま受信側へ渡す。
+        // 旧 audioUrl も後方互換のため残す（選択中ソースのURLを入れる）。
+        var itvId    = card.itvId    || null;
+        var audioSrc = card.audioSource || 'speech';
+        var audioUrls = { recorded: null, uploaded: null };
+
+        if (itvId) {
+            try {
+                // ① アップロード音声：存在すれば必ず共有
+                if (typeof uploadDB !== 'undefined') {
+                    var upRec = await uploadDB.get(itvId);
+                    if (upRec && upRec.blob) {
+                        var aExt  = await getUploadExt(itvId);
+                        var aPath = cardUlid + '_upload' + aExt;
+                        var aRes  = await sb.storage.from('qcard-audio').upload(aPath, upRec.blob, {
+                            contentType: upRec.mimeType || 'audio/mpeg',
+                            upsert: true
+                        });
+                        if (!aRes.error) {
+                            var aSigned = await sb.storage.from('qcard-audio').createSignedUrl(aPath, SHARE_TTL_SEC);
+                            audioUrls.uploaded = (aSigned.data && aSigned.data.signedUrl) ? aSigned.data.signedUrl : null;
+                        }
+                    }
+                }
+
+                // ② 録音音声：存在すれば必ず共有
+                if (typeof itvDB !== 'undefined') {
                     var recs = await itvDB.getByCardId(itvId);
                     if (recs && recs.length > 0) {
-                        var rec   = recs[recs.length - 1];
+                        var rec = recs.slice().sort(function(a,b) {
+                            return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+                        })[0];
                         var rPath = cardUlid + '_rec.webm';
                         var rRes  = await sb.storage.from('qcard-audio').upload(rPath, rec.blob, {
-                            contentType: 'audio/webm',
+                            contentType: rec.mimeType || 'audio/webm',
                             upsert: true
                         });
                         if (!rRes.error) {
                             var rSigned = await sb.storage.from('qcard-audio').createSignedUrl(rPath, SHARE_TTL_SEC);
-                            card.audioUrl = (rSigned.data && rSigned.data.signedUrl) ? rSigned.data.signedUrl : null;
-                            if (card.audioUrl) audioCount++;
+                            audioUrls.recorded = (rSigned.data && rSigned.data.signedUrl) ? rSigned.data.signedUrl : null;
                         }
                     }
+                }
+
+                var audioAvailable = !!(audioUrls.recorded || audioUrls.uploaded);
+                if (audioAvailable) {
+                    card.audioUrls = audioUrls;
+                    card.audioSource = (audioSrc === 'recorded' && audioUrls.recorded) ||
+                                       (audioSrc === 'uploaded' && audioUrls.uploaded)
+                                       ? audioSrc
+                                       : (audioUrls.recorded ? 'recorded' : 'uploaded');
+                    card.audioUrl = audioUrls[card.audioSource] || null;
+                    audioCount++;
+                } else {
+                    card.audioUrls = { recorded: null, uploaded: null };
+                    card.audioUrl = null;
+                    card.audioSource = 'speech';
                 }
             } catch(e) { console.warn('[Scenario Share] audio upload error card', i, e); }
         }
@@ -9882,6 +9973,7 @@ function getCurrentGridData() {
         if (item.dataset.mediaUrlBack) entry.mediaUrlBack = item.dataset.mediaUrlBack;
         if (item.dataset.itvId)       entry.itvId       = item.dataset.itvId;
         if (item.dataset.audioSource) entry.audioSource = item.dataset.audioSource;
+        if (item.dataset.audioUrls) { try { entry.audioUrls = JSON.parse(item.dataset.audioUrls); } catch(e) {} }
         if (prev && prev.studyStatus)  entry.studyStatus  = prev.studyStatus;
         if (prev && prev.studyCount)   entry.studyCount   = prev.studyCount;
         // サーバーアップロード後のCDN URLを保持（現時点はnull、将来のShare機能で使用）
@@ -10481,6 +10573,7 @@ function createItem(index, d) {
     // 受信シナリオの場合: Supabase URLをdatasetに保存（IndexedDBにない場合のフォールバック用）
     if (d.mediaUrl) item.dataset.mediaUrl = d.mediaUrl;
     if (d.audioUrl) item.dataset.audioUrl = d.audioUrl;
+    if (d.audioUrls) { try { item.dataset.audioUrls = JSON.stringify(d.audioUrls); } catch(e) {} }
 
     // [NEW] 裏面画像（表裏カード機能）：既に登録済みならdatasetへ復元
     if (d.mediaIdBack)  item.dataset.mediaIdBack  = d.mediaIdBack;
@@ -11526,8 +11619,6 @@ function overlaySyncAudioSourceUI(cardItem) {
     var src = cardItem ? (cardItem.dataset.audioSource || 'speech') : 'speech';
     var radios = row.querySelectorAll('input[name="audioSource"]');
     radios.forEach(function(r) { r.checked = (r.value === src); });
-    var del = document.getElementById('audio-delete-btn');
-    if (del) del.style.display = (src === 'recorded' || src === 'uploaded') ? '' : 'none';
 }
 
 // [NEW] 音声ソース設定を変更してカードデータに保存
@@ -14996,7 +15087,6 @@ function speechPlay() {
         if (src === 'uploaded') { overlayPlayUploadedAudio(); return; }
     }
     if (!('speechSynthesis' in window)) { alert(t('alert_no_speech')); return; }
-    qcardStopAudio(true);
     if (speechState === 'paused') { window.speechSynthesis.resume(); speechState = 'playing'; speechUpdateUI(); return; }
     clearSpeechHighlight();
     var title = document.getElementById('overlay-title').innerText;
@@ -15017,104 +15107,44 @@ function speechPlay() {
     }
 }
 
-// [v3.14] Qcard共通音声プレイヤー
-var qcardActiveAudio = null;
-var qcardActiveAudioUrl = null;
-
-function qcardGetRate() {
-    var el=document.getElementById('speech-rate');
-    var n=el ? parseFloat(el.value) : 1.0;
-    if (!isFinite(n)) n=1.0;
-    return Math.max(0.6,Math.min(3.0,n));
-}
-function qcardSetAudioButtons(playing) {
-    var p=document.getElementById('speech-play-btn'), pa=document.getElementById('speech-pause-btn'), st=document.getElementById('speech-stop-btn');
-    if (p) p.disabled=!!playing;
-    if (pa) pa.disabled=!playing;
-    if (st) st.disabled=!qcardActiveAudio || !qcardActiveAudio.src;
-}
-function qcardStopAudio(reset) {
-    if (!qcardActiveAudio) return;
-    try { qcardActiveAudio.pause(); if (reset !== false) qcardActiveAudio.currentTime=0; } catch(e) {}
-    qcardSetAudioButtons(false);
-}
-function qcardPlayUrl(url) {
-    if (!url) return;
-    if (!qcardActiveAudio) {
-        qcardActiveAudio=new Audio();
-        qcardActiveAudio.preload='auto';
-        qcardActiveAudio.onended=function(){ qcardSetAudioButtons(false); };
-        qcardActiveAudio.onerror=function(){ qcardSetAudioButtons(false); };
-    }
-    try {
-        qcardActiveAudio.pause();
-        qcardActiveAudio.currentTime=0;
-        if (qcardActiveAudioUrl && qcardActiveAudioUrl !== url) {
-            // object URLは生成元がここで管理していない場合もあるため revoke はしない
-        }
-        qcardActiveAudio.src=url;
-        qcardActiveAudioUrl=url;
-        qcardActiveAudio.playbackRate=qcardGetRate();
-        var p=qcardActiveAudio.play();
-        if (p && p.catch) p.catch(function(e){ console.warn('[QcardAudio] play failed:',e); qcardSetAudioButtons(false); });
-        qcardSetAudioButtons(true);
-    } catch(e) { console.warn('[QcardAudio] play error:',e); qcardSetAudioButtons(false); }
-}
-
-// [NEW] 録音した音声の中で現在使用する1件を再生
+// [NEW] 録音した音声の中で最新のものを再生（音声ソース＝録音 の場合）
 function overlayPlayRecordedAudio() {
     if (!editCardItem) return;
-    var cardId=itvGetCardId(editCardItem);
-    itvDB.getByCardId(cardId).then(function(records){
-        if (records && records.length>0) {
-            var latest=records.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); })[0];
-            var url=URL.createObjectURL(latest.blob);
-            qcardPlayUrl(url);
-            if (qcardActiveAudio) qcardActiveAudio.onended=function(){ try{URL.revokeObjectURL(url);}catch(e){} qcardSetAudioButtons(false); };
-        } else if (editCardItem.dataset.audioUrl) qcardPlayUrl(editCardItem.dataset.audioUrl);
-        else showToast(t('toast_no_rec_audio'));
-    });
+    var cardId = itvGetCardId(editCardItem);
+    itvDB.getByCardId(cardId).then(function(records) {
+        if (records && records.length > 0) {
+            var latest = records.slice().sort(function(a,b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); })[0];
+            var url = URL.createObjectURL(latest.blob);
+            var audio = new Audio(url);
+            audio.play().catch(function(e){ console.warn('録音再生失敗:',e); });
+            audio.onended = function() { URL.revokeObjectURL(url); };
+        } else {
+            var urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null;
+            var url = urls && urls.recorded ? urls.recorded : null;
+            if (!url && editCardItem.dataset.audioSource === 'recorded') url = editCardItem.dataset.audioUrl || null;
+            if (url) { var audio = new Audio(url); audio.play().catch(function(e){ console.warn('共有録音再生失敗:',e); }); }
+            else showToast(t('toast_no_rec_audio'));
+        }
+    }).catch(function(){ showToast(t('toast_no_rec_audio')); });
 }
 
-// [NEW] アップロード音声を再生
 function overlayPlayUploadedAudio() {
     if (!editCardItem) return;
-    var cardId=itvGetCardId(editCardItem);
-    uploadDB.get(cardId).then(function(record){
+    var cardId = itvGetCardId(editCardItem);
+    uploadDB.get(cardId).then(function(record) {
         if (record && record.blob) {
-            var url=URL.createObjectURL(record.blob);
-            qcardPlayUrl(url);
-            if (qcardActiveAudio) qcardActiveAudio.onended=function(){ try{URL.revokeObjectURL(url);}catch(e){} qcardSetAudioButtons(false); };
-        } else if (editCardItem.dataset.audioUrl) qcardPlayUrl(editCardItem.dataset.audioUrl);
-        else showToast(t('toast_no_upl_audio'));
-    });
-}
-
-// 現在カードの音声をローカルから削除。共有元・Supabase上の共有データは削除しない。
-async function qcardDeleteCurrentAudio() {
-    if (!editCardItem) return;
-    var source=editCardItem.dataset.audioSource || 'speech';
-    if (source === 'speech') { showToast('現在このカードに保存音声はありません'); return; }
-    var cardId=itvGetCardId(editCardItem);
-    try {
-        qcardStopAudio(true);
-        if (source === 'uploaded') {
-            await uploadDB.remove(cardId);
-        } else if (source === 'recorded') {
-            var records=await itvDB.getByCardId(cardId);
-            if (records && records.length) {
-                var rec=records.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); })[0];
-                if (rec && rec.id != null && typeof itvDB.remove === 'function') await itvDB.remove(rec.id);
-            }
+            var url = URL.createObjectURL(record.blob);
+            var audio = new Audio(url);
+            audio.play().catch(function(e){ console.warn('アップロード音声再生失敗:',e); });
+            audio.onended = function() { URL.revokeObjectURL(url); };
+        } else {
+            var urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null;
+            var url = urls && urls.uploaded ? urls.uploaded : null;
+            if (!url && editCardItem.dataset.audioSource === 'uploaded') url = editCardItem.dataset.audioUrl || null;
+            if (url) { var audio = new Audio(url); audio.play().catch(function(e){ console.warn('共有アップロード音声再生失敗:',e); }); }
+            else showToast(t('toast_no_upl_audio'));
         }
-        editCardItem.dataset.audioSource='speech';
-        editCardItem.dataset.audioUrl='';
-        overlaySyncAudioSourceUI(editCardItem);
-        saveCurrentGridDataWithIndicator();
-        itvMarkRecordedCards();
-        qcardSetAudioButtons(false);
-        showToast('音声を削除しました');
-    } catch(e) { console.warn('[QcardAudio] delete failed:',e); showToast('音声の削除に失敗しました'); }
+    }).catch(function(){ showToast(t('toast_no_upl_audio')); });
 }
 
 // 文をクリック → その文から朗読開始（クリックロックON時は無効）
@@ -15137,13 +15167,11 @@ function clearSpeechHighlight() {
 }
 
 function speechPause() {
-    if (qcardActiveAudio && !qcardActiveAudio.paused) { qcardActiveAudio.pause(); qcardSetAudioButtons(false); return; }
     if (!window.speechSynthesis) return;
     if (speechState === 'playing') { window.speechSynthesis.pause(); speechState = 'paused'; speechUpdateUI(); }
 }
 
 function speechStop() {
-    if (qcardActiveAudio && qcardActiveAudio.src) { qcardStopAudio(true); return; }
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel(); speechState = 'stopped'; speechUpdateUI();
     clearSpeechHighlight();
@@ -15152,10 +15180,7 @@ function speechStop() {
 function speechUpdateRate() {
     var rateSelect = document.getElementById('speech-rate');
     speechRate = parseFloat(rateSelect.value);
-    if (!isFinite(speechRate)) speechRate=1.0;
-    speechRate=Math.max(0.6,Math.min(3.0,speechRate));
     if (speechUtterance) speechUtterance.rate = speechRate;
-    if (qcardActiveAudio) { try { qcardActiveAudio.playbackRate=speechRate; } catch(e) {} }
 }
 
 function speechReset() {
