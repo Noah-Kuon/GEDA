@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                                   ║
+  ║  Qcard PRO  v3.10.1    QR-被リンク-カード表記             　　　║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -831,17 +831,23 @@
             font-size: 0.85em;
             color: var(--text-muted);
         }
-        .grid-item.has-media .title-input,
-        .grid-item.has-media .content-textarea,
-        .grid-item.has-media .field-clear-btn {
+        /* [FIX v3.12.1] 「画像が登録済み」と「画像が実際に表示可能」を分離。
+           Ankiの大量画像インポートでは mediaId/has-media が先に設定され、
+           IndexedDBからBlobを遅延取得するまで一時的に画像が描画されない。
+           以前は has-media だけでタイトル・本文まで隠していたため、
+           その待ち時間にカード全体が空白に見えることがあった。
+           has-media = 画像データの存在、media-ready = 画像表示準備完了、とする。 */
+        .grid-item.has-media.media-ready .title-input,
+        .grid-item.has-media.media-ready .content-textarea,
+        .grid-item.has-media.media-ready .field-clear-btn {
             display: none !important;
         }
         /* [MOD] item-meta（番号表示）は画像カードでも消さない。中の要素だけ個別制御する */
-        .grid-item.has-media .item-meta {
+        .grid-item.has-media.media-ready .item-meta {
             position: absolute; top: 4px; left: 4px; z-index: 6;
             margin: 0; background: transparent;
         }
-        .grid-item.has-media .item-meta .shortcut-badge { display: none; } /* 画像上ではショートカット表示は省略 */
+        .grid-item.has-media.media-ready .item-meta .shortcut-badge { display: none; } /* 画像上ではショートカット表示は省略 */
         .card-media-layer {
             display: none;
             position: absolute;
@@ -851,7 +857,7 @@
             overflow: hidden;
             background: var(--surface2);
         }
-        .grid-item.has-media .card-media-layer { display: block; }
+        .grid-item.has-media.media-ready .card-media-layer { display: block; }
         .card-media-layer img {
             width: 100%; height: 100%;
             object-fit: cover;
@@ -4554,7 +4560,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">QCARD <span style="color:var(--text-dim);font-weight:400;">/ Q-ARCHIVE</span></div>
-    <span class="version-badge">v3.12.0</span>
+    <span class="version-badge">v3.13.1</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -6512,6 +6518,10 @@ function mediaSaveImageFile(cardId, item, file, slot) {
                 var optimizedUrl = URL.createObjectURL(result.blob);
                 img.src = optimizedUrl;
                 img.dataset.mediaObjectUrl = optimizedUrl;
+                // [FIX] mediaLoadForCard()と同じく、実際に画像が表示可能になった時点で
+                // media-ready を付与する。ここが漏れると、手動でドラッグ＆ドロップ／
+                // 貼り付け／カメラ撮影で追加した画像が永久にグリッドへ反映されなくなる。
+                item.classList.add('media-ready');
             }
             item.classList.remove('media-processing');
             console.log('[Media] STEP 7 Display');
@@ -6549,7 +6559,7 @@ function mediaSaveImageFile(cardId, item, file, slot) {
         mediaDebugV11Log('ERROR', err && err.message ? err.message : String(err));
         mediaDebugV11Finish();
         if (slot === 'front') {
-            item.classList.remove('has-media', 'media-processing');
+            item.classList.remove('has-media', 'media-ready', 'media-processing');
             if (img) {
                 revokeImgObjectUrl(img);
                 img.removeAttribute('src');
@@ -7118,6 +7128,7 @@ window.mobOpenMediaSourcePicker = mobOpenMediaSourcePicker;
 
 // カードの既存画像を読み込んで表示
 function mediaLoadForCard(cardId, item, imgEl) {
+    if (!item || !imgEl) return;
     mediaDB.get(cardId).then(function(record) {
         if (record && record.blob) {
             // ローカルIndexedDBに画像あり → 通常パス
@@ -7127,22 +7138,25 @@ function mediaLoadForCard(cardId, item, imgEl) {
             var url = URL.createObjectURL(record.blob);
             imgEl.src = url;
             imgEl.dataset.mediaObjectUrl = url;
-            item.classList.add('has-media');
+            // [FIX v3.12.1] Blob取得完了までは「画像表示可能」とみなさない。
+            // has-media は画像登録済みというデータ状態として維持し、
+            // media-ready が付いた時だけ画像表示用CSSを有効にする。
+            item.classList.add('has-media', 'media-ready');
         } else if (item.dataset.mediaUrl) {
             // IndexedDBになし → 受信シナリオのSupabase URLにフォールバック
             imgEl.src = item.dataset.mediaUrl;
-            item.classList.add('has-media');
+            item.classList.add('has-media', 'media-ready');
         } else {
-            // 画像が実際には存在しない → 先付けした has-media を除去
-            item.classList.remove('has-media');
+            // 画像が実際には存在しない → 先付けした状態を除去
+            item.classList.remove('has-media', 'media-ready');
         }
     }).catch(function() {
         // IndexedDB取得失敗時もフォールバック
         if (item.dataset.mediaUrl) {
             imgEl.src = item.dataset.mediaUrl;
-            item.classList.add('has-media');
+            item.classList.add('has-media', 'media-ready');
         } else {
-            item.classList.remove('has-media');
+            item.classList.remove('has-media', 'media-ready');
         }
     });
 }
@@ -7196,7 +7210,7 @@ function mediaRemoveCard(cardId, item, slot) {
     slot = (slot === 'back') ? 'back' : 'front';
     mediaDB.remove(cardId).then(function() {
         if (slot === 'front') {
-            item.classList.remove('has-media');
+            item.classList.remove('has-media', 'media-ready');
             var img = item.querySelector('.card-media-layer img');
             if (img) {
                 if (img.dataset.mediaObjectUrl) { try { URL.revokeObjectURL(img.dataset.mediaObjectUrl); } catch (_) {} delete img.dataset.mediaObjectUrl; }
@@ -12549,6 +12563,137 @@ async function qcfHash(cards) {
     } catch(e) { return null; }
 }
 
+// ── QCF v2: 単一Blobのハッシュ計算 ──
+async function hashBlob(blob) {
+    try {
+        var buf = await blob.arrayBuffer();
+        var digest = await crypto.subtle.digest('SHA-256', buf);
+        return 'sha256:' + Array.from(new Uint8Array(digest)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    } catch (e) { return null; }
+}
+
+// ── QCF v2: シナリオ → scenario.json＋ZIP同梱ファイル一覧 を生成 ──
+// 返り値: { json: {...}, files: [{ path, blob }] }
+// 方針（v3.12.0基準で確定した仕様）:
+//   ・IndexedDBの内部ID（mediaId/mediaIdBack/itvId/deckBackMediaId）はそのまま持ち出さず、
+//     パッケージ内の使い捨てID（m_001, a_001...）に変換する。
+//   ・音声は「現在使用する1件」のみを保存し、録音履歴（qcard_interviewの複数レコード）は保存しない。
+//   ・mediaUrl/mediaUrlBack/audioUrl（Supabase等の一時URL）はQCF本体には含めない。
+//   ・動画は現時点で対象外。
+async function buildQCFv2(s) {
+    var files = [];
+    var mediaManifest = [];
+    var imgSeq = 0, audSeq = 0;
+
+    // 画像1件をmediaDBから取得し、パッケージへ追加。失敗時はnullを返し、そのカードは画像なし扱いにする。
+    async function packageImage(mediaId, forcedName) {
+        if (!mediaId) return null;
+        try {
+            var record = await mediaDB.get(mediaId);
+            if (!record || !record.blob) return null;
+            var mimeType = record.optimizedMimeType || record.mimeType || 'image/webp';
+            var ext = (mimeType.split('/')[1] || 'webp').replace('jpeg', 'jpg');
+            var pkgId = forcedName || ('m_' + String(++imgSeq).padStart(3, '0'));
+            var path = 'media/images/' + pkgId + '.' + ext;
+            var hash = await hashBlob(record.blob);
+            files.push({ path: path, blob: record.blob });
+            mediaManifest.push({ id: pkgId, type: 'image', mimeType: mimeType, size: record.blob.size, hash: hash });
+            return pkgId;
+        } catch (e) { console.warn('[QCFv2] image package failed:', mediaId, e); return null; }
+    }
+
+    // 音声1件（現在使用する1件のみ）をパッケージへ追加
+    async function packageAudio(cardItemLike) {
+        var source = cardItemLike.audioSource || 'speech';
+        if (source === 'speech') return { source: 'speech', media: null };
+        var itvId = cardItemLike.itvId || null;
+        if (!itvId) return { source: source, media: null };
+        try {
+            var record = null;
+            if (source === 'uploaded') {
+                record = await uploadDB.get(itvId);
+            } else if (source === 'recorded') {
+                var recs = await itvDB.getByCardId(itvId);
+                // [仕様] 履歴は保存しない。「現在使用する1件」＝最新の1件のみを対象にする。
+                record = (recs && recs.length) ? recs[recs.length - 1] : null;
+            }
+            if (!record || !record.blob) return { source: source, media: null };
+            var mimeType = record.mimeType || 'audio/webm';
+            var ext = (mimeType.split('/')[1] || 'webm').replace('mpeg', 'mp3');
+            var pkgId = 'a_' + String(++audSeq).padStart(3, '0');
+            var path = 'media/audio/' + pkgId + '.' + ext;
+            var hash = await hashBlob(record.blob);
+            files.push({ path: path, blob: record.blob });
+            mediaManifest.push({ id: pkgId, type: 'audio', mimeType: mimeType, size: record.blob.size, hash: hash });
+            return { source: source, media: pkgId };
+        } catch (e) { console.warn('[QCFv2] audio package failed:', itvId, e); return { source: source, media: null }; }
+    }
+
+    // デッキ共通裏面（存在する場合のみ、先に1件だけ処理）
+    var deckBackPkgId = s.deckBackMediaId ? await packageImage(s.deckBackMediaId, 'm_deck_back') : null;
+
+    var cards = [];
+    for (var i = 0; i < (s.data || []).length; i++) {
+        var card = s.data[i];
+        var frontPkgId = await packageImage(card.mediaId);
+        var backPkgId  = await packageImage(card.mediaIdBack);
+        var audioInfo  = await packageAudio(card);
+
+        cards.push({
+            id:           card.id           || cardUid(),
+            uri:          card.uri          || cardUri(),
+            title:        card.title        || '',
+            content:      card.content      || '',
+            createdAt:    card.createdAt    || nowMs(),
+            updatedAt:    card.updatedAt    || nowMs(),
+            createdBy:    card.createdBy    || '',
+            updatedBy:    card.updatedBy    || '',
+            originCardId: card.originCardId || '',
+            tags:         card.tags         || [],
+            source:       card.source       || '',
+            sourceUrl:    card.sourceUrl    || '',
+            note:         card.note         || '',
+            hidden:       !!card.hidden,
+            studyStatus:  card.studyStatus  || '',
+            studyCount:   card.studyCount   || 0,
+            links:        Array.isArray(card.links) ? card.links : [],
+            media: { front: frontPkgId || null, back: backPkgId || null },
+            audio: audioInfo
+        });
+    }
+
+    var hash = await qcfHash(cards);
+    // メディアの完全性も反映した最終ハッシュ（cardsハッシュ＋各メディアハッシュを連結して再計算）
+    var combinedHashInput = hash + '|' + mediaManifest.map(function(m){ return m.hash || ''; }).join('|');
+    var finalHashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(combinedHashInput));
+    var finalHash = 'sha256:' + Array.from(new Uint8Array(finalHashBuf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+
+    var json = {
+        qcfVersion:    '2.0',
+        schemaVersion: '2.0',
+        qcfId:         s.qcfId         || qcfUid(),
+        title:         s.title         || s.name || '',
+        description:   s.description   || '',
+        createdAt:     s.createdAt     || nowMs(),
+        updatedAt:     s.updatedAt     || nowMs(),
+        authorName:    s.authorName    || '',
+        authorId:      s.authorId      || '',
+        originId:      s.originId      || '',
+        license:       s.license       || 'private',
+        tags:          s.tags          || [],
+        cols:          s.cols          || 4,
+        rows:          s.rows          || 4,
+        cardCount:     cards.length,
+        deckMedia:     { back: deckBackPkgId || null },
+        cards:         cards,
+        media:         mediaManifest,
+        hash:          finalHash,
+        signature:     null,
+        share:         s.share || { enabled: false, expiresAt: null, downloadLimit: 0 }
+    };
+    return { json: json, files: files };
+}
+
 // シナリオ → QCF v1.0オブジェクト生成
 async function buildQCF(s) {
     var cards = (s.data || []).map(function(card) {
@@ -12569,6 +12714,9 @@ async function buildQCF(s) {
             note:         card.note         || '',
             studyStatus:  card.studyStatus  || '',
             studyCount:   card.studyCount   || 0,
+            // [FIX] 書き出し漏れの修正：Card Linkと非表示フラグ（v2設計時に判明）
+            links:        Array.isArray(card.links) ? card.links : [],
+            hidden:       !!card.hidden,
             // サーバー共有フィールド（値がある場合のみ有効、nullはImport時に無視）
             mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL（表）
             mediaUrlBack: card.mediaUrlBack || null,  // 画像CDN URL（裏・表裏カード機能）
@@ -12601,32 +12749,78 @@ async function buildQCF(s) {
 }
 
 // QCF（単体シナリオ）エクスポート
+// ── QCF v2 / Anki共有: JSZipだけを読み込む軽量ローダー ──
+// （ankiLoadLibs()はsql.jsも同時に読むため、QCF v2の書き出し/読み込みだけの用途には重すぎる）
+var _qcfZipLibPromise = null;
+function qcfLoadZipLib() {
+    if (_qcfZipLibPromise) return _qcfZipLibPromise;
+    _qcfZipLibPromise = (typeof JSZip !== 'undefined') ? Promise.resolve() :
+        ankiLoadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+    return _qcfZipLibPromise;
+}
+
+// [MOD] v2化：常にZIPコンテナ(scenario.json + media/)として書き出す。
+// v1（JSON直書き）は今後の新規エクスポートでは使用しない（読み込みは引き続きサポート）。
 async function exportActiveJSON() {
     var a = getActive(); if (!a) return;
     saveCurrentGridData();
     var active = getActive();
-    var qcf  = await buildQCF(active);
-    var blob = new Blob([JSON.stringify(qcf, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, activeFilename('qcf'));
-    showToast(t('toast_qcf_export')); closeDataModal();
+    showToast('📦 書き出し準備中...');
+    try {
+        await qcfLoadZipLib();
+        var built = await buildQCFv2(active);
+        var zip = new JSZip();
+        zip.file('scenario.json', JSON.stringify(built.json, null, 2));
+        built.files.forEach(function(f) { zip.file(f.path, f.blob); });
+        var blob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, activeFilename('qcf'));
+        showToast(t('toast_qcf_export'));
+    } catch (e) {
+        console.error('[QCFv2] export failed:', e);
+        showToast('⚠️ 書き出しに失敗しました');
+    }
+    closeDataModal();
 }
 
-// QCP（複数シナリオパッケージ）エクスポート
+// [MOD] v2化：QCPもZIPコンテナにする。各シナリオはQCF v2 ZIPをそのままバイナリで内包する
+// （JSONでbase64化するとファイルサイズが膨らむため、ZIP内ZIPとしてそのまま格納する）。
 async function exportJSON() {
     saveCurrentGridData();
-    var items = await Promise.all(scenarios.map(function(s){ return buildQCF(s); }));
-    var pkg = {
-        packageVersion: '1.0',
-        packageId:      qcpUid(),
-        title:          'Qcard エクスポート',
-        createdAt:      nowMs(),
-        exportedAt:     nowMs(),
-        itemCount:      items.length,
-        items:          items
-    };
-    var blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, 'qcard_' + today() + '.qcp');
-    showToast(t('toast_qcp_export')); closeDataModal();
+    showToast('📦 書き出し準備中...');
+    try {
+        await qcfLoadZipLib();
+        var outerZip = new JSZip();
+        var scenariosFolder = outerZip.folder('scenarios');
+        var manifestItems = [];
+        for (var i = 0; i < scenarios.length; i++) {
+            var s = scenarios[i];
+            var built = await buildQCFv2(s);
+            var innerZip = new JSZip();
+            innerZip.file('scenario.json', JSON.stringify(built.json, null, 2));
+            built.files.forEach(function(f) { innerZip.file(f.path, f.blob); });
+            var innerBlob = await innerZip.generateAsync({ type: 'blob' });
+            var fname = 'scenario_' + String(i + 1).padStart(3, '0') + '.qcf';
+            scenariosFolder.file(fname, innerBlob);
+            manifestItems.push({ file: 'scenarios/' + fname, qcfId: built.json.qcfId, title: built.json.title });
+        }
+        var manifest = {
+            packageVersion: '2.0',
+            packageId:      qcpUid(),
+            title:          'Qcard エクスポート',
+            createdAt:      nowMs(),
+            exportedAt:     nowMs(),
+            itemCount:      manifestItems.length,
+            items:          manifestItems
+        };
+        outerZip.file('manifest.json', JSON.stringify(manifest, null, 2));
+        var blob = await outerZip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, 'qcard_' + today() + '.qcp');
+        showToast(t('toast_qcp_export'));
+    } catch (e) {
+        console.error('[QCPv2] export failed:', e);
+        showToast('⚠️ 書き出しに失敗しました');
+    }
+    closeDataModal();
 }
 
 // CSV公開仕様 8列: scenario, uri, title, content, tags, source, url, note
@@ -13347,6 +13541,134 @@ async function qcfToScenarioAsync(qcf) {
     return s;
 }
 
+// ── QCF v2: ZIPパッケージ → 内部シナリオ形式へ復元 ──
+// v1のqcfToScenario()と違い非同期。ZIP内のメディア実体をローカルIndexedDBへ書き戻し、
+// パッケージ内ID（m_001, a_001...）を新しいローカルIDへ変換してから紐付ける。
+// [方針] scenario.json自体が壊れていれば失敗させる。個々のメディア1件の展開・検証失敗は
+//        警告に留め、そのカードだけ画像／音声なしとして扱いインポート全体は続行する
+//        （既存のAnkiインポートと同じ「部分失敗を許容する」方針に合わせる）。
+async function qcfV2ToScenario(json, zip) {
+    var now = nowMs();
+
+    function extFromMime(mimeType, fallback) {
+        var ext = ((mimeType || '').split('/')[1] || fallback || 'bin');
+        return ext.replace('jpeg', 'jpg').replace('mpeg', 'mp3');
+    }
+    function findManifestEntry(pkgId) {
+        return (json.media || []).find(function(m) { return m.id === pkgId; }) || null;
+    }
+    async function restoreImage(pkgId) {
+        if (!pkgId) return null;
+        var manifestEntry = findManifestEntry(pkgId);
+        if (!manifestEntry) return null;
+        try {
+            var ext = extFromMime(manifestEntry.mimeType, 'webp');
+            var zipEntry = zip.file('media/images/' + pkgId + '.' + ext);
+            if (!zipEntry) return null;
+            var blob = await zipEntry.async('blob');
+            if (manifestEntry.hash) {
+                var actualHash = await hashBlob(blob);
+                if (actualHash !== manifestEntry.hash) {
+                    console.warn('[QCFv2 import] hash mismatch for', pkgId, '- continuing anyway');
+                }
+            }
+            var newId = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+            await mediaDB.save({
+                cardId: newId, type: 'image', blob: blob,
+                mimeType: manifestEntry.mimeType, optimizedMimeType: manifestEntry.mimeType,
+                size: manifestEntry.size || blob.size, savedAt: new Date().toISOString(), hash: null, mediaUrl: null
+            });
+            return newId;
+        } catch (e) { console.warn('[QCFv2 import] image restore failed:', pkgId, e); return null; }
+    }
+    async function restoreAudio(audioInfo) {
+        var result = { audioSource: (audioInfo && audioInfo.source) || 'speech', itvId: null };
+        if (!audioInfo || audioInfo.source === 'speech' || !audioInfo.media) return result;
+        var manifestEntry = findManifestEntry(audioInfo.media);
+        if (!manifestEntry) return result;
+        try {
+            var ext = extFromMime(manifestEntry.mimeType, 'webm');
+            var zipEntry = zip.file('media/audio/' + audioInfo.media + '.' + ext);
+            if (!zipEntry) return result;
+            var blob = await zipEntry.async('blob');
+            var newId = 'itv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+            if (audioInfo.source === 'uploaded') {
+                await uploadDB.save({
+                    cardId: newId, blob: blob, mimeType: manifestEntry.mimeType,
+                    fileName: newId + '.' + ext, savedAt: new Date().toISOString(),
+                    size: manifestEntry.size || blob.size, hash: null, audioUrl: null
+                });
+            } else if (audioInfo.source === 'recorded') {
+                await itvDB.save({
+                    id: newId, cardId: newId, blob: blob, mimeType: manifestEntry.mimeType,
+                    savedAt: new Date().toISOString(), size: manifestEntry.size || blob.size
+                });
+            }
+            result.itvId = newId;
+            return result;
+        } catch (e) { console.warn('[QCFv2 import] audio restore failed:', audioInfo.media, e); return result; }
+    }
+
+    // デッキ共通裏面（1件だけ）
+    var deckBackNewId = (json.deckMedia && json.deckMedia.back) ? await restoreImage(json.deckMedia.back) : null;
+
+    var cards = [];
+    for (var i = 0; i < (json.cards || []).length; i++) {
+        var card = json.cards[i];
+        var frontId = card.media ? await restoreImage(card.media.front) : null;
+        var backId  = card.media ? await restoreImage(card.media.back)  : null;
+        var audio   = await restoreAudio(card.audio);
+
+        cards.push({
+            id:           card.id           || cardUid(),
+            uri:          card.uri          || cardUri(),
+            title:        card.title        || '',
+            content:      card.content      || '',
+            createdAt:    card.createdAt    || now,
+            updatedAt:    card.updatedAt    || now,
+            createdBy:    card.createdBy    || '',
+            updatedBy:    card.updatedBy    || '',
+            originCardId: card.originCardId || '',
+            tags:         card.tags         || [],
+            source:       card.source       || '',
+            sourceUrl:    card.sourceUrl    || '',
+            note:         card.note         || '',
+            hidden:       !!card.hidden,
+            studyStatus:  card.studyStatus  || '',
+            studyCount:   card.studyCount   || 0,
+            links:        Array.isArray(card.links) ? card.links : [],
+            mediaId:      frontId || undefined,
+            mediaIdBack:  backId  || undefined,
+            audioSource:  audio.audioSource,
+            itvId:        audio.itvId || undefined
+        });
+    }
+
+    return {
+        id:            scnUid(),
+        name:          json.title || 'インポート',
+        cols:          json.cols          || 4,
+        rows:          json.rows          || 4,
+        data:          cards,
+        createdAt:     json.createdAt     || now,
+        updatedAt:     json.updatedAt     || now,
+        qcfVersion:    json.qcfVersion    || '2.0',
+        schemaVersion: json.schemaVersion || '2.0',
+        qcfId:         json.qcfId        || qcfUid(),
+        title:         json.title        || '',
+        description:   json.description  || '',
+        authorName:    json.authorName   || '',
+        authorId:      json.authorId     || '',
+        originId:      json.originId     || '',
+        hash:          json.hash         || null,
+        signature:     json.signature    || null,
+        license:       json.license      || 'private',
+        tags:          json.tags         || [],
+        deckBackMediaId: deckBackNewId || undefined,
+        share:         json.share        || { enabled: false, expiresAt: null, downloadLimit: 0 }
+    };
+}
+
 // QCF単体オブジェクト → 内部シナリオ形式へ変換
 function qcfToScenario(qcf) {
     var now = nowMs();
@@ -13368,6 +13690,9 @@ function qcfToScenario(qcf) {
             note:         card.note         || '',
             studyStatus:  card.studyStatus  || '',
             studyCount:   card.studyCount   || 0,
+            // [FIX] 書き出し漏れの修正：Card Linkと非表示フラグ（v2設計時に判明）
+            links:        Array.isArray(card.links) ? card.links : [],
+            hidden:       !!card.hidden,
             // サーバー共有フィールドの復元（URLがあれば使用、なければnull）
             mediaUrl:     card.mediaUrl     || null,  // 画像CDN URL（表）
             mediaUrlBack: card.mediaUrlBack || null,  // 画像CDN URL（裏・表裏カード機能）
@@ -13459,12 +13784,81 @@ function normalizeImportedScenarios(parsed) {
     return null;
 }
 
+// [MOD] Stage 1（ファイル形式の判別）：まずバイナリとして読み、ZIP署名(PK)の有無で
+// QCF v2（ZIP）か、それ以外（v1 JSON／QCP v1／旧JSON）かを振り分ける。
+// 拡張子(.qcf/.qcp)では判別しない — 中身のバイト列で判断する。
 function importJSON(e) {
     var file = e.target.files[0]; if (!file) return;
-    readFile(file, async function(text) {
+    var reader = new FileReader();
+    reader.onload = async function(ev) {
         try {
-            var parsed = JSON.parse(text);
-            var normalized = normalizeImportedScenarios(parsed);
+            var buf  = ev.target.result;
+            var head = new Uint8Array(buf.slice(0, 2));
+            var isZip = (head[0] === 0x50 && head[1] === 0x4B); // "PK" = ZIP署名
+            if (isZip) {
+                await importQCFv2FromArrayBuffer(file, buf);
+            } else {
+                var text = new TextDecoder('utf-8').decode(buf);
+                await importJSONFromText(file, text);
+            }
+        } catch (err) {
+            console.error('[Import] failed:', err);
+            showToast('読み込み失敗：' + err.message);
+        }
+        e.target.value = '';
+    };
+    reader.onerror = function() { showToast('読み込み失敗：ファイルを読めませんでした'); e.target.value = ''; };
+    reader.readAsArrayBuffer(file);
+}
+
+// [NEW] QCF v2 / QCP v2（ZIP）の読み込み。
+// 単一シナリオ(scenario.json直下)と、複数シナリオ(manifest.json + scenarios/*.qcf)の
+// どちらもここで扱う。既存のプレビューモーダルは（JSON専用に作られているため）再利用せず、
+// 確認ダイアログのみのシンプルなフローにしている。
+async function importQCFv2FromArrayBuffer(file, buf) {
+    await qcfLoadZipLib();
+    var zip = await JSZip.loadAsync(buf);
+    var list = [];
+
+    if (zip.file('manifest.json')) {
+        // QCP v2：複数シナリオ（各シナリオはネストしたQCF v2 ZIP）
+        var manifest = JSON.parse(await zip.file('manifest.json').async('string'));
+        for (var i = 0; i < (manifest.items || []).length; i++) {
+            var itemPath = manifest.items[i].file;
+            var innerEntry = zip.file(itemPath);
+            if (!innerEntry) continue;
+            var innerBuf = await innerEntry.async('arraybuffer');
+            var innerZip = await JSZip.loadAsync(innerBuf);
+            var innerJson = JSON.parse(await innerZip.file('scenario.json').async('string'));
+            list.push(await qcfV2ToScenario(innerJson, innerZip));
+        }
+    } else if (zip.file('scenario.json')) {
+        // QCF v2：単一シナリオ
+        var json = JSON.parse(await zip.file('scenario.json').async('string'));
+        list.push(await qcfV2ToScenario(json, zip));
+    } else {
+        showToast('⚠️ QCFとして認識できないファイルです');
+        return;
+    }
+    if (!list.length) { showToast(t('toast_unsupported')); return; }
+
+    var typeLabel = list.length > 1 ? 'QCP v2' : 'QCF v2';
+    if (!confirm(typeLabel + '「' + (list[0].title || list[0].name) + (list.length > 1 ? '」他 ' + (list.length - 1) + '件' : '」') + ' を新規シナリオとして追加しますか？')) {
+        return;
+    }
+    list.forEach(function(s) {
+        var ex = scenarios.find(function(x){ return x.qcfId && x.qcfId === s.qcfId; });
+        if (ex) { s.qcfId = qcfUid(); s.id = scnUid(); s.name = (s.title || s.name) + ' (インポート)'; }
+        scenarios.push(s);
+    });
+    afterImport(list[0].id, list);
+    showToast('✅ ' + typeLabel + 'を読み込みました');
+}
+
+async function importJSONFromText(file, text) {
+    try {
+        var parsed = JSON.parse(text);
+        var normalized = normalizeImportedScenarios(parsed);
             if (!normalized) { showToast(t('toast_unsupported')); return; }
 
             var list     = normalized.scenarios;
@@ -13566,8 +13960,6 @@ function importJSON(e) {
                 afterImport(null, list); close();
             };
         } catch(err) { showToast('読み込み失敗：' + err.message); }
-    });
-    e.target.value = '';
 }
 
 function afterImport(focusId, newScenarios) {
