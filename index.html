@@ -1818,7 +1818,12 @@
             margin-left: auto;
             white-space: nowrap;
         }
-        #audio-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+        #audio-upload-btn:hover, #audio-delete-btn:hover { border-color: var(--accent); color: var(--accent); }
+        #audio-delete-btn {
+            background: transparent; border: 1px solid var(--border); border-radius: 3px;
+            color: var(--text-dim); font-size: 0.68rem; padding: 4px 10px; cursor: pointer;
+            transition: all 0.15s; white-space: nowrap;
+        }
 
         #speech-bar {
             position: sticky; bottom: 0; left: 0; right: 0;
@@ -5241,6 +5246,7 @@ min-height: 0;
         <label class="as-radio"><input type="radio" name="audioSource" value="recorded" onchange="overlaySetAudioSource('recorded')"> <span data-i18n="audio_recorded">🎤 録音</span></label>
         <label class="as-radio"><input type="radio" name="audioSource" value="uploaded" onchange="overlaySetAudioSource('uploaded')"> <span data-i18n="audio_uploaded">📁 アップロード</span></label>
         <button id="audio-upload-btn" onclick="overlayUploadAudio()" data-i18n="btn_audio_upload" title="音声ファイルをアップロード">📁 音声を選択</button>
+        <button id="audio-delete-btn" onclick="qcardDeleteCurrentAudio()" title="現在選択中の音声を削除" style="display:none">🗑 音声を削除</button>
         <input type="file" id="overlay-audio-upload-input" accept="audio/*" style="display:none" onchange="overlayHandleAudioUpload(event)">
     </div>
     <div id="speech-bar">
@@ -5255,14 +5261,10 @@ min-height: 0;
             <option value="1.0" selected>1.0x</option>
             <option value="1.2">1.2x</option>
             <option value="1.5">1.5x</option>
-            <option value="1.7">1.7x</option>
+            <option value="1.8">1.8x</option>
             <option value="2.0">2.0x</option>
             <option value="2.5">2.5x</option>
             <option value="3.0">3.0x</option>
-            <option value="3.5">3.5x</option>
-            <option value="4.0">4.0x</option>
-            <option value="4.5">4.5x</option>
-            <option value="5.0">5.0x</option>
         </select>
     </div>
     <!-- 録音モード：録音ステータスバー -->
@@ -11612,42 +11614,215 @@ function mobCardClipboardCopy() {
 window.mobCardClipboardCopy = mobCardClipboardCopy;
 // ══ END モバイル・スワイプ用 カードメタ情報シート ═══════════════
 
-// [NEW] カードの音声ソース設定（speech/recorded/uploaded）をラジオボタンに反映
+// [NEW v3.14] カードの音声ソース設定・共通プレイヤー
+var qcardActiveAudio = null;
+var qcardActiveAudioSource = null;
+var qcardActiveAudioObjectUrl = null;
+
+function qcardGetRate() {
+    var el = document.getElementById('speech-rate');
+    var v = el ? parseFloat(el.value) : 1.0;
+    if (!isFinite(v)) v = 1.0;
+    return Math.max(0.6, Math.min(3.0, v));
+}
+
+function qcardSetAudioButtons(state) {
+    var play = document.getElementById('speech-play-btn');
+    var pause = document.getElementById('speech-pause-btn');
+    var stop = document.getElementById('speech-stop-btn');
+    var status = document.getElementById('speech-status');
+    if (!play || !pause || !stop) return;
+    if (state === 'playing') {
+        play.disabled = true; play.classList.add('speaking');
+        pause.disabled = false; stop.disabled = false;
+        if (status) status.innerText = '再生中...';
+    } else if (state === 'paused') {
+        play.disabled = false; play.classList.remove('speaking');
+        pause.disabled = true; stop.disabled = false;
+        if (status) status.innerText = '一時停止中';
+    } else {
+        play.disabled = false; play.classList.remove('speaking');
+        pause.disabled = true; stop.disabled = true;
+        if (status) status.innerText = '';
+    }
+}
+
+function qcardStopActiveAudio() {
+    var audio = qcardActiveAudio;
+    qcardActiveAudio = null;
+    qcardActiveAudioSource = null;
+    if (audio) {
+        try { audio.pause(); } catch(e) {}
+        try { audio.currentTime = 0; } catch(e) {}
+        audio.onended = null;
+        audio.onerror = null;
+    }
+    if (qcardActiveAudioObjectUrl) {
+        try { URL.revokeObjectURL(qcardActiveAudioObjectUrl); } catch(e) {}
+        qcardActiveAudioObjectUrl = null;
+    }
+    qcardSetAudioButtons('stopped');
+}
+
+function qcardPlayUrl(url, source, objectUrl) {
+    if (!url) return false;
+    // 同じ音声が一時停止中なら、その位置から再開する。
+    if (qcardActiveAudio && qcardActiveAudioSource === source && qcardActiveAudio.src === url && qcardActiveAudio.paused) {
+        qcardActiveAudio.playbackRate = qcardGetRate();
+        qcardActiveAudio.play().catch(function(e){ console.warn('音声再開失敗:', e); });
+        qcardSetAudioButtons('playing');
+        return true;
+    }
+    qcardStopActiveAudio();
+    var audio = new Audio(url);
+    qcardActiveAudio = audio;
+    qcardActiveAudioSource = source;
+    qcardActiveAudioObjectUrl = objectUrl || null;
+    audio.playbackRate = qcardGetRate();
+    audio.onplay = function() { qcardSetAudioButtons('playing'); };
+    audio.onpause = function() {
+        if (qcardActiveAudio === audio && !audio.ended) qcardSetAudioButtons('paused');
+    };
+    audio.onended = function() {
+        if (qcardActiveAudio === audio) {
+            qcardActiveAudio = null;
+            qcardActiveAudioSource = null;
+            if (qcardActiveAudioObjectUrl) { try { URL.revokeObjectURL(qcardActiveAudioObjectUrl); } catch(e) {} }
+            qcardActiveAudioObjectUrl = null;
+            qcardSetAudioButtons('stopped');
+        }
+    };
+    audio.onerror = function() {
+        if (qcardActiveAudio === audio) {
+            qcardActiveAudio = null; qcardActiveAudioSource = null;
+            if (qcardActiveAudioObjectUrl) { try { URL.revokeObjectURL(qcardActiveAudioObjectUrl); } catch(e) {} }
+            qcardActiveAudioObjectUrl = null;
+            qcardSetAudioButtons('stopped');
+            showToast('音声の再生に失敗しました');
+        }
+    };
+    audio.play().catch(function(e) {
+        console.warn('音声再生失敗:', e);
+        if (qcardActiveAudio === audio) qcardStopActiveAudio();
+    });
+    return true;
+}
+
 function overlaySyncAudioSourceUI(cardItem) {
     var row = document.getElementById('audio-source-row');
     if (!row) return;
     var src = cardItem ? (cardItem.dataset.audioSource || 'speech') : 'speech';
     var radios = row.querySelectorAll('input[name="audioSource"]');
     radios.forEach(function(r) { r.checked = (r.value === src); });
+    var del = document.getElementById('audio-delete-btn');
+    if (del) del.style.display = (src === 'recorded' || src === 'uploaded') ? '' : 'none';
 }
 
-// [NEW] 音声ソース設定を変更してカードデータに保存
 function overlaySetAudioSource(value) {
     if (!editCardItem) return;
+    qcardStopActiveAudio();
+    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch(e) {} }
     editCardItem.dataset.audioSource = value;
+    overlaySyncAudioSourceUI(editCardItem);
     saveCurrentGridDataWithIndicator();
 }
 
-// [NEW] アップロードボタン押下 → ファイル選択ダイアログを開く
 function overlayUploadAudio() {
     var input = document.getElementById('overlay-audio-upload-input');
     if (input) input.click();
 }
 
-// [NEW] アップロードされた音声ファイルを保存
 function overlayHandleAudioUpload(e) {
     var file = e.target.files[0];
     if (!file || !editCardItem) return;
     var cardId = itvGetCardId(editCardItem);
     uploadSaveAudioFile(cardId, file).then(function() {
         showToast(t('toast_audio_upload'));
-        // アップロードしたら自動的に「アップロード」を音声ソースに選択
+        qcardStopActiveAudio();
         editCardItem.dataset.audioSource = 'uploaded';
         overlaySyncAudioSourceUI(editCardItem);
         saveCurrentGridDataWithIndicator();
         itvMarkRecordedCards();
+    }).catch(function(err) {
+        console.warn('アップロード音声保存失敗:', err);
+        showToast('音声の保存に失敗しました');
     });
     e.target.value = '';
+}
+
+// 現在選択中の音声をカードから削除する。共有元のSupabaseデータは削除しない。
+async function qcardDeleteCurrentAudio() {
+    if (!editCardItem) return;
+    var src = editCardItem.dataset.audioSource || 'speech';
+    if (src !== 'recorded' && src !== 'uploaded') return;
+    var cardId = itvGetCardId(editCardItem);
+    qcardStopActiveAudio();
+    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch(e) {} }
+    try {
+        if (src === 'uploaded') {
+            await uploadDB.remove(cardId);
+            showToast('アップロード音声を削除しました');
+        } else {
+            var records = await itvDB.getByCardId(cardId);
+            if (records && records.length) {
+                // 現在の再生ロジックと同じ「現在使用する録音」を削除対象とする。
+                var rec = records.slice().sort(function(a,b){
+                    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+                })[0];
+                await itvDB.remove(rec.id);
+                showToast('録音音声を削除しました');
+            } else {
+                showToast('録音音声がありません');
+            }
+        }
+        editCardItem.dataset.audioSource = 'speech';
+        editCardItem.dataset.audioUrl = '';
+        try { editCardItem.dataset.audioUrls = JSON.stringify({recorded:null, uploaded:null}); } catch(e) {}
+        overlaySyncAudioSourceUI(editCardItem);
+        saveCurrentGridDataWithIndicator();
+        itvMarkRecordedCards();
+    } catch(e) {
+        console.warn('音声削除失敗:', e);
+        showToast('音声の削除に失敗しました');
+    }
+}
+
+// [NEW v3.14] 録音した音声の中で現在使用するものを再生
+function overlayPlayRecordedAudio() {
+    if (!editCardItem) return;
+    var cardId = itvGetCardId(editCardItem);
+    itvDB.getByCardId(cardId).then(function(records) {
+        if (records && records.length > 0) {
+            var latest = records.slice().sort(function(a,b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); })[0];
+            var objectUrl = URL.createObjectURL(latest.blob);
+            qcardPlayUrl(objectUrl, 'recorded', objectUrl);
+        } else {
+            var urls = null;
+            try { urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null; } catch(e) {}
+            var url = urls && urls.recorded ? urls.recorded : null;
+            if (!url && editCardItem.dataset.audioSource === 'recorded') url = editCardItem.dataset.audioUrl || null;
+            if (url) qcardPlayUrl(url, 'recorded', null);
+            else showToast(t('toast_no_rec_audio'));
+        }
+    }).catch(function(){ showToast(t('toast_no_rec_audio')); });
+}
+
+function overlayPlayUploadedAudio() {
+    if (!editCardItem) return;
+    var cardId = itvGetCardId(editCardItem);
+    uploadDB.get(cardId).then(function(record) {
+        if (record && record.blob) {
+            var objectUrl = URL.createObjectURL(record.blob);
+            qcardPlayUrl(objectUrl, 'uploaded', objectUrl);
+        } else {
+            var urls = null;
+            try { urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null; } catch(e) {}
+            var url = urls && urls.uploaded ? urls.uploaded : null;
+            if (!url && editCardItem.dataset.audioSource === 'uploaded') url = editCardItem.dataset.audioUrl || null;
+            if (url) qcardPlayUrl(url, 'uploaded', null);
+            else showToast(t('toast_no_upl_audio'));
+        }
+    }).catch(function(){ showToast(t('toast_no_upl_audio')); });
 }
 
 // [NEW] カードに紐づく画像をオーバーレイ内に表示する
@@ -15087,6 +15262,7 @@ function speechPlay() {
         if (src === 'uploaded') { overlayPlayUploadedAudio(); return; }
     }
     if (!('speechSynthesis' in window)) { alert(t('alert_no_speech')); return; }
+    qcardStopActiveAudio();
     if (speechState === 'paused') { window.speechSynthesis.resume(); speechState = 'playing'; speechUpdateUI(); return; }
     clearSpeechHighlight();
     var title = document.getElementById('overlay-title').innerText;
@@ -15167,20 +15343,29 @@ function clearSpeechHighlight() {
 }
 
 function speechPause() {
+    if (qcardActiveAudio) {
+        if (!qcardActiveAudio.paused) { qcardActiveAudio.pause(); }
+        return;
+    }
     if (!window.speechSynthesis) return;
     if (speechState === 'playing') { window.speechSynthesis.pause(); speechState = 'paused'; speechUpdateUI(); }
 }
 
 function speechStop() {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); speechState = 'stopped'; speechUpdateUI();
+    qcardStopActiveAudio();
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        speechState = 'stopped'; speechUpdateUI();
+    }
     clearSpeechHighlight();
 }
 
 function speechUpdateRate() {
     var rateSelect = document.getElementById('speech-rate');
-    speechRate = parseFloat(rateSelect.value);
+    speechRate = qcardGetRate();
+    if (rateSelect) rateSelect.value = String(speechRate);
     if (speechUtterance) speechUtterance.rate = speechRate;
+    if (qcardActiveAudio) qcardActiveAudio.playbackRate = speechRate;
 }
 
 function speechReset() {
