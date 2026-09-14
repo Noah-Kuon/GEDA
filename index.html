@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                                   ║
+  ║  Qcard PRO  v3.10.1        共有+重複再生検証                  ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -9980,7 +9980,12 @@ function getCurrentGridData() {
         if (prev && prev.studyCount)   entry.studyCount   = prev.studyCount;
         // サーバーアップロード後のCDN URLを保持（現時点はnull、将来のShare機能で使用）
         if (prev && prev.mediaUrl)     entry.mediaUrl    = prev.mediaUrl;
-        if (prev && prev.audioUrl)     entry.audioUrl    = prev.audioUrl;
+        // [FIX] 削除直後にprevの古いaudioUrlで復元してしまわないよう、
+        // 現在のDOM（item.dataset.audioUrl）を優先する。属性が存在しない
+        // （＝一度も設定されていない）場合のみ、従来通りprevの値を引き継ぐ。
+        // 空文字での明示的なクリア（削除操作）は "存在する値" として扱う。
+        if (item.dataset.audioUrl !== undefined) entry.audioUrl = item.dataset.audioUrl || undefined;
+        else if (prev && prev.audioUrl)          entry.audioUrl = prev.audioUrl;
         // ── カードメタデータ（フェーズ1） ──
         entry.tags      = (prev && prev.tags)      || [];
         entry.source    = (prev && prev.source)    || '';
@@ -15284,45 +15289,6 @@ function speechPlay() {
 }
 
 // [NEW] 録音した音声の中で最新のものを再生（音声ソース＝録音 の場合）
-function overlayPlayRecordedAudio() {
-    if (!editCardItem) return;
-    var cardId = itvGetCardId(editCardItem);
-    itvDB.getByCardId(cardId).then(function(records) {
-        if (records && records.length > 0) {
-            var latest = records.slice().sort(function(a,b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); })[0];
-            var url = URL.createObjectURL(latest.blob);
-            var audio = new Audio(url);
-            audio.play().catch(function(e){ console.warn('録音再生失敗:',e); });
-            audio.onended = function() { URL.revokeObjectURL(url); };
-        } else {
-            var urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null;
-            var url = urls && urls.recorded ? urls.recorded : null;
-            if (!url && editCardItem.dataset.audioSource === 'recorded') url = editCardItem.dataset.audioUrl || null;
-            if (url) { var audio = new Audio(url); audio.play().catch(function(e){ console.warn('共有録音再生失敗:',e); }); }
-            else showToast(t('toast_no_rec_audio'));
-        }
-    }).catch(function(){ showToast(t('toast_no_rec_audio')); });
-}
-
-function overlayPlayUploadedAudio() {
-    if (!editCardItem) return;
-    var cardId = itvGetCardId(editCardItem);
-    uploadDB.get(cardId).then(function(record) {
-        if (record && record.blob) {
-            var url = URL.createObjectURL(record.blob);
-            var audio = new Audio(url);
-            audio.play().catch(function(e){ console.warn('アップロード音声再生失敗:',e); });
-            audio.onended = function() { URL.revokeObjectURL(url); };
-        } else {
-            var urls = editCardItem.dataset.audioUrls ? JSON.parse(editCardItem.dataset.audioUrls) : null;
-            var url = urls && urls.uploaded ? urls.uploaded : null;
-            if (!url && editCardItem.dataset.audioSource === 'uploaded') url = editCardItem.dataset.audioUrl || null;
-            if (url) { var audio = new Audio(url); audio.play().catch(function(e){ console.warn('共有アップロード音声再生失敗:',e); }); }
-            else showToast(t('toast_no_upl_audio'));
-        }
-    }).catch(function(){ showToast(t('toast_no_upl_audio')); });
-}
-
 // 文をクリック → その文から朗読開始（クリックロックON時は無効）
 function speechPlayFromClick(el) {
     if (speechClickLocked) return;
