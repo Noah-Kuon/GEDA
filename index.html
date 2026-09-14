@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1    QR-被リンク-カード表記             　　　║
+  ║  Qcard PRO  v3.10.1    要共有確認                            ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -4560,7 +4560,7 @@ min-height: 0;
 <!-- TOP BAR -->
 <div class="top-bar">
     <div class="app-logo">QCARD <span style="color:var(--text-dim);font-weight:400;">/ Q-ARCHIVE</span></div>
-    <span class="version-badge">v3.13.1</span>
+    <span class="version-badge">v3.13.2</span>
     <div class="divider"></div>
 
     <!-- MODE TOGGLE -->
@@ -8202,6 +8202,30 @@ window.shareCurrentScenario = async function() {
             } catch(e) { console.warn('[Scenario Share] media upload error card', i, e); }
         }
 
+        // ── 裏面画像アップロード ──
+        // card.mediaIdBack は表面とは別のIndexedDBメディアキー。
+        // 表面と同じStorageパスを使うと衝突するため、_back を付ける。
+        var mediaIdBack = card.mediaIdBack || null;
+        if (mediaIdBack) {
+            try {
+                var backRecord = await mediaDB.get(mediaIdBack);
+                if (backRecord && backRecord.blob) {
+                    var backExt  = await getMediaExt(mediaIdBack);
+                    var backPath = cardUlid + '_back' + backExt;
+                    var backRes  = await sb.storage.from('qcard-media').upload(backPath, backRecord.blob, {
+                        contentType: backRecord.mimeType || 'image/jpeg',
+                        upsert: true
+                    });
+                    if (!backRes.error) {
+                        var backSigned = await sb.storage.from('qcard-media').createSignedUrl(backPath, SHARE_TTL_SEC);
+                        card.mediaUrlBack = (backSigned.data && backSigned.data.signedUrl)
+                            ? backSigned.data.signedUrl : null;
+                        if (card.mediaUrlBack) mediaCount++;
+                    }
+                }
+            } catch(e) { console.warn('[Scenario Share] back media upload error card', i, e); }
+        }
+
         // ── 音声アップロード ──
         // itvId・audioSource も card から直接参照
         var itvId    = card.itvId    || null;
@@ -8242,6 +8266,30 @@ window.shareCurrentScenario = async function() {
                 }
             } catch(e) { console.warn('[Scenario Share] audio upload error card', i, e); }
         }
+    }
+
+    // ── デッキ共通裏面画像アップロード ──
+    // scenario.deckBackMediaId は送信元ブラウザのIndexedDBキーなので、
+    // 共有データにはローカルIDそのものを頼りにせず、Supabase上のURLを設定する。
+    var deckBackMediaId = shareData.deckBackMediaId || null;
+    if (deckBackMediaId) {
+        try {
+            var deckBackRecord = await mediaDB.get(deckBackMediaId);
+            if (deckBackRecord && deckBackRecord.blob) {
+                var deckBackExt  = await getMediaExt(deckBackMediaId);
+                var deckBackPath = shareUlid + '_deckback' + deckBackExt;
+                var deckBackRes  = await sb.storage.from('qcard-media').upload(deckBackPath, deckBackRecord.blob, {
+                    contentType: deckBackRecord.mimeType || 'image/jpeg',
+                    upsert: true
+                });
+                if (!deckBackRes.error) {
+                    var deckBackSigned = await sb.storage.from('qcard-media').createSignedUrl(deckBackPath, SHARE_TTL_SEC);
+                    shareData.deckBackMediaUrl = (deckBackSigned.data && deckBackSigned.data.signedUrl)
+                        ? deckBackSigned.data.signedUrl : null;
+                    if (shareData.deckBackMediaUrl) mediaCount++;
+                }
+            }
+        } catch(e) { console.warn('[Scenario Share] deck back media upload error:', e); }
     }
 
     console.log('[Scenario Share] media uploads:', mediaCount);
