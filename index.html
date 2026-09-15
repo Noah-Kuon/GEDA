@@ -8157,19 +8157,124 @@ async function getUploadExt(cardId) {
  * fetchSharedCard(uri)
  * Supabase から共有カードを取得する。
  */
+/**
+ * fetchSharedCard(uri)
+ * Supabase から共有カードを取得する。
+ *
+ * DEBUG版：
+ * - SELECTエラーを隠さない
+ * - URI変換結果をログ出力
+ * - Supabaseエラーの詳細をコンソールに出す
+ * - 取得成功時もデータを確認できるようにする
+ */
 async function fetchSharedCard(uri) {
-    var sb = getSB();
-    var result = await sb
-        .from('shared_cards')
-        .select('*')
-        .eq('uri', uri)
-        .single();
-    if (result.error) return null;
-    // アクセス数をインクリメント
-    sb.from('shared_cards')
-        .update({ access_count: (result.data.access_count || 0) + 1 })
-        .eq('uri', uri);
-    return result.data;
+    console.log('========================================');
+    console.log('[Card Receive] fetchSharedCard START');
+    console.log('[Card Receive] uri =', uri);
+    console.log('========================================');
+
+    try {
+        var sb = getSB();
+
+        if (!sb) {
+            console.error('[Card Receive] Supabase client is not available');
+            showToast('Supabaseに接続できません');
+            return null;
+        }
+
+        console.log('[Card Receive] querying shared_cards...');
+
+        var result = await sb
+            .from('shared_cards')
+            .select('*')
+            .eq('uri', uri)
+            .single();
+
+        if (result.error) {
+            console.error('========================================');
+            console.error('[Card Receive] shared_cards SELECT ERROR');
+            console.error('[Card Receive] error.message =', result.error.message);
+            console.error('[Card Receive] error.code    =', result.error.code);
+            console.error('[Card Receive] error.details =', result.error.details);
+            console.error('[Card Receive] error.hint    =', result.error.hint);
+            console.error('[Card Receive] full error object =', result.error);
+            console.error('[Card Receive] requested uri =', uri);
+            console.error('========================================');
+
+            showToast(
+                'カード取得エラー: ' +
+                (result.error.message || 'shared_cards取得失敗')
+            );
+
+            return null;
+        }
+
+        if (!result.data) {
+            console.error('[Card Receive] SELECT succeeded but data is null');
+            console.error('[Card Receive] uri =', uri);
+            showToast('共有カードのデータがありません');
+            return null;
+        }
+
+        console.log('========================================');
+        console.log('[Card Receive] shared_cards SELECT SUCCESS');
+        console.log('[Card Receive] data =', result.data);
+        console.log('[Card Receive] card_json =', result.data.card_json);
+        console.log('[Card Receive] expires_at =', result.data.expires_at);
+        console.log('========================================');
+
+        /*
+         * アクセス数をインクリメント
+         *
+         * 受信そのものはアクセス数更新に依存しない。
+         * 更新失敗してもカード取得は成功扱いにする。
+         */
+        try {
+            var nextAccessCount =
+                (Number(result.data.access_count) || 0) + 1;
+
+            var accessResult = await sb
+                .from('shared_cards')
+                .update({
+                    access_count: nextAccessCount
+                })
+                .eq('uri', uri);
+
+            if (accessResult.error) {
+                console.warn(
+                    '[Card Receive] access_count update failed:',
+                    accessResult.error
+                );
+            } else {
+                console.log(
+                    '[Card Receive] access_count updated:',
+                    nextAccessCount
+                );
+            }
+        } catch (accessError) {
+            console.warn(
+                '[Card Receive] access_count update exception:',
+                accessError
+            );
+        }
+
+        return result.data;
+
+    } catch (e) {
+        console.error('========================================');
+        console.error('[Card Receive] fetchSharedCard EXCEPTION');
+        console.error('[Card Receive] message =', e && e.message);
+        console.error('[Card Receive] error =', e);
+        console.error('[Card Receive] uri =', uri);
+        console.error('========================================');
+
+        showToast(
+            'カード取得中にエラーが発生しました: ' +
+            (e && e.message ? e.message : e)
+        );
+
+        return null;
+    }
 }
 
 /**
@@ -8510,18 +8615,99 @@ async function importSharedCard(uri) {
 }
 
 /**
- * URL/QR受信：shared_cards を先に確認し、無ければ従来の shared_scenarios へ。
+ * URL/QR受信：
+ * shared_cards を先に確認し、
+ * カードでなければ shared_scenarios へ。
  */
 async function importShareByUrl(raw) {
-    var uri=await resolveShareUri(raw);
-    if(!uri){showToast('URLの形式が正しくありません');return;}
-    var cardData=await fetchSharedCard(uri);
-    if(cardData&&cardData.card_json){
-        if(cardData.expires_at&&new Date(cardData.expires_at)<new Date()){showToast('この共有URLは期限切れです');return;}
-        closeDataModal(); window.openCardReceivePreview(cardData); return;
+
+    console.log('========================================');
+    console.log('[Card Receive] importShareByUrl START');
+    console.log('[Card Receive] raw input =', raw);
+    console.log('========================================');
+
+    try {
+        var uri = await resolveShareUri(raw);
+
+        console.log('[Card Receive] resolved uri =', uri);
+
+        if (!uri) {
+            console.error('[Card Receive] URI RESOLVE FAILED');
+            console.error('[Card Receive] raw =', raw);
+
+            showToast('URLの形式が正しくありません');
+            return;
+        }
+
+        console.log('[Card Receive] fetching shared card...');
+
+        var cardData = await fetchSharedCard(uri);
+
+        console.log('[Card Receive] fetchSharedCard result =', cardData);
+
+        if (cardData && cardData.card_json) {
+
+            console.log('[Card Receive] CARD SHARE FOUND');
+            console.log('[Card Receive] card_json =', cardData.card_json);
+
+            if (
+                cardData.expires_at &&
+                new Date(cardData.expires_at) < new Date()
+            ) {
+                console.error('[Card Receive] SHARE URL EXPIRED');
+                console.error(
+                    '[Card Receive] expires_at =',
+                    cardData.expires_at
+                );
+
+                showToast('この共有URLは期限切れです');
+                return;
+            }
+
+            console.log(
+                '[Card Receive] opening card receive preview...'
+            );
+
+            closeDataModal();
+
+            window.openCardReceivePreview(cardData);
+
+            console.log(
+                '[Card Receive] card receive preview opened'
+            );
+
+            return;
+        }
+
+        /*
+         * ここまで来た場合は、
+         * shared_cards にカードが存在しなかった。
+         */
+        console.warn(
+            '[Card Receive] CARD SHARE NOT FOUND'
+        );
+        console.warn(
+            '[Card Receive] fallback to shared_scenarios'
+        );
+
+        closeDataModal();
+
+        await importSharedScenario(uri);
+
+    } catch (e) {
+
+        console.error('========================================');
+        console.error('[Card Receive] importShareByUrl EXCEPTION');
+        console.error('[Card Receive] message =', e && e.message);
+        console.error('[Card Receive] error =', e);
+        console.error('[Card Receive] raw =', raw);
+        console.error('========================================');
+
+        showToast(
+            '共有データの取得に失敗しました: ' +
+            (e && e.message ? e.message : e)
+        );
     }
-    // カードでなければ既存シナリオ共有の受信へ。
-    closeDataModal(); await importSharedScenario(uri);
 }
 
 /**
