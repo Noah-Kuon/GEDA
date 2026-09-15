@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1       カード受け渡しCSS追加         ║
+  ║  Qcard PRO  v3.10.1              カードCSS                    ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8430,30 +8430,72 @@ window.confirmCardReceive = async function() {
     if(btn) btn.disabled=true; if(status) status.textContent='カードとメディアを保存中…';
     try {
         if(data.expires_at && new Date(data.expires_at)<new Date()) throw new Error('この共有URLは期限切れです');
+
+        // 「現在のシナリオ」は、プレビューを開いた時点の activeScenarioId を正本として扱う。
+        // メディア復元は非同期なので、その待機中にDOMや表示状態が変わっても
+        // 受信先シナリオを取り違えないようにする。
+        var selected=(document.querySelector('input[name="qcard-receive-target"]:checked')||{}).value||'current';
+        var currentScenarioId = activeScenarioId;
+        var currentTarget = (selected==='current')
+            ? scenarios.find(function(s){ return s && s.id === currentScenarioId; })
+            : null;
+
+        if(selected==='current' && !currentTarget) {
+            throw new Error('現在のシナリオを取得できません');
+        }
+
         var localCardId=cardUid();
         var restored=await qcardRestoreSharedCardMedia(data.card_json,localCardId);
         var newCard=qcardCloneReceivedCard(data.card_json,restored);
         newCard.id=localCardId;
-        var selected=(document.querySelector('input[name="qcard-receive-target"]:checked')||{}).value||'current';
+
         var target=null;
-        if(selected==='current') { target=getActive(); if(!target) selected='new'; }
-        if(selected==='new') {
+        if(selected==='current') {
+            // currentTarget をそのまま使用する。getActive() の再評価に依存しない。
+            target=currentTarget;
+            console.log('[Card Receive] target=current', target.id, target.title);
+        } else if(selected==='new') {
             var base=(data.card_json.title||'受信カード').trim()||'受信カード';
-            target=newScenarioMeta(base); target.title=base; target.description='共有カードから作成';
+            target=newScenarioMeta(base);
+            target.title=base;
+            target.description='共有カードから作成';
             scenarios.push(target);
         } else if(selected==='inbox') {
             target=qcardFindInbox()||qcardCreateInbox();
         }
+
         if(!target) throw new Error('取り込み先を決定できません');
         target.data=Array.isArray(target.data)?target.data:[];
-        target.data.push(newCard); target.updatedAt=nowMs();
-        saveScenarios(); applyBulkImportDisplayDefaults([target]);
-        activeScenarioId=target.id; renderScenarioTabs(); updateGrid();
+        target.data.push(newCard);
+        target.updatedAt=nowMs();
+
+        // 受信カードを確実に保存してから表示を更新する。
+        saveScenarios();
+        applyBulkImportDisplayDefaults([target]);
+
+        // 現在シナリオへの追加では、検索フィルター中だと新カードが
+        // 検索条件に一致せず「追加されていない」ように見えるため、
+        // 受信後の一覧表示だけは通常表示へ戻す。
+        if(typeof searchFilterActive !== 'undefined' && searchFilterActive) {
+            searchFilterActive=false;
+            document.body.classList.remove('search-filter-view');
+            var banner=document.getElementById('search-filter-banner');
+            if(banner) banner.classList.remove('show');
+        }
+
+        activeScenarioId=target.id;
+        saveScenarios();
+        renderScenarioTabs();
+        updateGrid();
         closeCardReceivePreview();
+
         if(restored.errors.length) showToast('⚠ カードは受信しましたが、一部メディアを保存できませんでした: '+restored.errors.join('・'));
         else showToast('✅ カードを受信しました: '+(newCard.title||'（無題）'));
-    } catch(e) { console.error('[Card Receive]',e); if(status) status.textContent='受信に失敗しました: '+(e.message||e); showToast('カードの受信に失敗しました'); }
-    finally { if(btn) btn.disabled=false; }
+    } catch(e) {
+        console.error('[Card Receive]',e);
+        if(status) status.textContent='受信に失敗しました: '+(e.message||e);
+        showToast('カードの受信に失敗しました');
+    } finally { if(btn) btn.disabled=false; }
 };
 
 /**
