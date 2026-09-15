@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1        共有+重複再生検証済                ║
+  ║  Qcard PRO  v3.10.1     複製時に画像も含む検証                       ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -5187,7 +5187,7 @@ min-height: 0;
     <span id="close-btn" onclick="hideOverlay()">×</span>
     <button id="size-panel-btn" onclick="toggleSizePanel(event)" title="表示サイズを調整">⇔</button>
     <button id="edit-mode-btn" onclick="toggleEditMode()" title="編集モード">✏️</button>
-    <button id="share-card-btn" onclick="shareCurrentScenario()" title="このシナリオを共有（URLをコピー）">🔗</button>
+    <button id="share-card-btn" onclick="openCardShareMenu()" title="このカードを共有">🔗</button>
     <!-- 本文内検索バー -->
     <div id="overlay-find-bar">
         <span class="find-icon">🔍</span>
@@ -7964,7 +7964,7 @@ async function shareCard(card, cardItem) {
                 // 署名付きURL（24時間有効）を発行
                 var signedMedia = await sb.storage
                     .from('qcard-media')
-                    .createSignedUrl(ulid + getMediaExt(cid), SHARE_TTL_SEC);
+                    .createSignedUrl(ulid + await getMediaExt(cid), SHARE_TTL_SEC);
                 mediaUrl = (signedMedia.data && signedMedia.data.signedUrl)
                     ? signedMedia.data.signedUrl
                     : mediaPath; // フォールバック: 公開URL
@@ -7975,13 +7975,18 @@ async function shareCard(card, cardItem) {
         // [NEW] 表裏カード：裏面画像も同じタイミングでアップロードする
         // （書き出し先(QCF)は mediaUrlBack を経由してのみ画像を運べるため）
         var cidBack = cardItem.dataset.mediaIdBack || null;
+        // カード固有の裏面がない場合は、シナリオ共通裏面を単体カードへフラット化して共有する。
+        if (!cidBack) {
+            var activeForShare = getActive();
+            cidBack = activeForShare ? (activeForShare.deckBackMediaId || null) : null;
+        }
         if (cidBack) {
             var ulidBack = ulid + '_back'; // 表と同じULID配下だと上書きし合うため専用サフィックスにする
             var mediaPathBack = await uploadMediaToStorage(cidBack, ulidBack);
             if (mediaPathBack) {
                 var signedMediaBack = await sb.storage
                     .from('qcard-media')
-                    .createSignedUrl(ulidBack + getMediaExt(cidBack), SHARE_TTL_SEC);
+                    .createSignedUrl(ulidBack + await getMediaExt(cidBack), SHARE_TTL_SEC);
                 card.mediaUrlBack = (signedMediaBack.data && signedMediaBack.data.signedUrl)
                     ? signedMediaBack.data.signedUrl
                     : mediaPathBack;
@@ -8057,9 +8062,16 @@ async function shareCard(card, cardItem) {
             sourceUrl:   card.sourceUrl   || '',
             note:        card.note        || '',
             studyStatus: card.studyStatus || '',
+            studyCount:  0,
             createdAt:   card.createdAt   || null,
             updatedAt:   card.updatedAt   || null,
+            createdBy:   card.createdBy   || '',
+            updatedBy:   card.updatedBy   || '',
+            originCardId: card.originCardId || '',
+            hidden:      !!card.hidden,
+            links:       Array.isArray(card.links) ? card.links : [],
             mediaUrl:    mediaUrl,
+            mediaUrlBack: card.mediaUrlBack || null,
             audioUrl:    audioUrl,
             audioSource: audioSource,
             audioUrls:   audioUrls
@@ -8120,24 +8132,406 @@ async function fetchSharedCard(uri) {
 }
 
 /**
- * importSharedCard(uri)
- * 共有カードを取得して現在のシナリオに追加する。
+ * Card Share v1 (v3.15.0)
+ * 受信したカードをプレビューし、取り込み先を選択してローカル保存する。
+ * - 受信カードの URI / id は新規発行
+ * - originCardId に送信元 URI を保持
+ * - links はそのまま保持（リンク先カード自体は取得しない）
+ * - 画像・音声は署名URLのまま保持せず、受信時にIndexedDBへ実体保存
+ * - 受信箱は name ではなく isInbox:true で識別
+ */
+var qcardPendingSharedCard = null;
+
+function qcardShareEscapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+}
+
+function qcardBuildCardSharePreview(card, expiresAt) {
+    var title = card.title || '（タイトルなし）';
+    var content = card.content || '';
+    var links = Array.isArray(card.links) ? card.links.length : 0;
+    var hasFront = !!card.mediaUrl;
+    var hasBack  = !!card.mediaUrlBack;
+    var hasAudio = !!(card.audioUrl || (card.audioUrls && (card.audioUrls.recorded || card.audioUrls.uploaded)));
+    var meta = [];
+    if (hasFront) meta.push('表画像あり');
+    if (hasBack) meta.push('裏画像あり');
+    if (hasAudio) meta.push('音声あり');
+    if (links) meta.push('リンク ' + links + '件');
+    return '<div class="qcard-share-preview-card">' +
+        (hasFront ? '<div class="qcard-share-preview-image"><img src="' + qcardShareEscapeHtml(card.mediaUrl) + '" alt="カード画像" loading="lazy"></div>' : '') +
+        '<div class="qcard-share-preview-title">' + qcardShareEscapeHtml(title) + '</div>' +
+        (content ? '<div class="qcard-share-preview-content">' + qcardShareEscapeHtml(content).replace(/\n/g, '<br>') + '</div>' : '') +
+        (meta.length ? '<div class="qcard-share-preview-meta">' + qcardShareEscapeHtml(meta.join(' · ')) + '</div>' : '') +
+        '<div class="qcard-share-preview-expiry">共有URL有効期限: ' + qcardShareEscapeHtml(expiresAt ? new Date(expiresAt).toLocaleString() : '不明') + '</div>' +
+        '</div>';
+}
+
+function qcardEnsureCardShareModal() {
+    if (document.getElementById('qcard-card-share-modal')) return;
+    var style = document.createElement('style');
+    style.id = 'qcard-card-share-v150-style';
+    style.textContent = `
+#qcard-card-share-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58);z-index:2147483000;padding:18px;box-sizing:border-box}
+#qcard-card-share-modal.open{display:flex}
+.qcard-cs-panel{width:min(560px,96vw);max-height:min(88vh,760px);overflow:auto;background:var(--surface,#15191f);color:var(--text,#eee);border:1px solid var(--border,#333);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.38);padding:18px;box-sizing:border-box}
+.qcard-cs-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.qcard-cs-head h3{margin:0;font-size:1rem}.qcard-cs-close{border:0;background:transparent;color:var(--text-muted,#aaa);font-size:1.35rem;cursor:pointer}
+.qcard-cs-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.qcard-cs-btn{border:1px solid var(--border,#333);background:var(--surface2,#20252c);color:var(--text,#eee);border-radius:6px;padding:8px 11px;cursor:pointer;font-size:.78rem}.qcard-cs-btn:hover{border-color:var(--accent,#7aa7ff);color:var(--accent,#7aa7ff)}
+.qcard-cs-url{font-family:'DM Mono',monospace;font-size:.66rem;line-height:1.5;word-break:break-all;color:var(--text-muted,#aaa);padding:8px 10px;border:1px solid var(--border,#333);border-radius:5px;background:var(--surface2,#20252c);margin-top:10px}
+.qcard-share-preview-card{border:1px solid var(--border,#333);border-radius:8px;padding:12px;background:var(--surface2,#20252c)}.qcard-share-preview-image{max-height:220px;text-align:center;margin-bottom:10px}.qcard-share-preview-image img{max-width:100%;max-height:210px;object-fit:contain;border-radius:4px}.qcard-share-preview-title{font-size:.95rem;font-weight:600;margin-bottom:7px}.qcard-share-preview-content{font-size:.76rem;line-height:1.6;white-space:normal;max-height:170px;overflow:auto}.qcard-share-preview-meta,.qcard-share-preview-expiry{font-size:.64rem;color:var(--text-muted,#aaa);margin-top:8px}
+.qcard-cs-choice{display:grid;gap:7px;margin-top:12px}.qcard-cs-choice label{display:flex;align-items:center;gap:8px;border:1px solid var(--border,#333);border-radius:6px;padding:9px 10px;cursor:pointer;font-size:.76rem}.qcard-cs-choice label:has(input:checked){border-color:var(--accent,#7aa7ff);background:rgba(127,155,255,.08)}
+.qcard-cs-status{font-size:.7rem;color:var(--text-muted,#aaa);min-height:1.4em;margin-top:8px}
+#qcard-card-receive-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58);z-index:2147483001;padding:18px;box-sizing:border-box}#qcard-card-receive-modal.open{display:flex}.qcard-cr-panel{width:min(620px,96vw);max-height:min(90vh,800px);overflow:auto;background:var(--surface,#15191f);color:var(--text,#eee);border:1px solid var(--border,#333);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.38);padding:18px;box-sizing:border-box}.qcard-cr-head{display:flex;justify-content:space-between;align-items:center}.qcard-cr-head h3{margin:0;font-size:1rem}.qcard-cr-close{border:0;background:transparent;color:var(--text-muted,#aaa);font-size:1.35rem;cursor:pointer}.qcard-cr-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.qcard-cr-btn{border:1px solid var(--border,#333);background:var(--surface2,#20252c);color:var(--text,#eee);border-radius:6px;padding:8px 14px;cursor:pointer}.qcard-cr-btn.primary{border-color:var(--accent,#7aa7ff)}
+@media(max-width:600px){#qcard-card-share-modal,#qcard-card-receive-modal{padding:10px}.qcard-cs-panel,.qcard-cr-panel{width:100%;max-height:92vh;padding:14px}}
+`;
+    document.head.appendChild(style);
+
+    var modal = document.createElement('div');
+    modal.id = 'qcard-card-share-modal';
+    modal.setAttribute('aria-hidden','true');
+    modal.innerHTML = '<div class="qcard-cs-panel" role="dialog" aria-modal="true" aria-label="カードを共有">' +
+        '<div class="qcard-cs-head"><h3>カードを共有</h3><button class="qcard-cs-close" type="button" onclick="closeCardShareMenu()">×</button></div>' +
+        '<div id="qcard-cs-body"></div>' +
+        '</div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e){ if (e.target === modal) closeCardShareMenu(); });
+
+    var rmodal = document.createElement('div');
+    rmodal.id = 'qcard-card-receive-modal';
+    rmodal.setAttribute('aria-hidden','true');
+    rmodal.innerHTML = '<div class="qcard-cr-panel" role="dialog" aria-modal="true" aria-label="カードを受信">' +
+        '<div class="qcard-cr-head"><h3>カードを受信</h3><button class="qcard-cr-close" type="button" onclick="closeCardReceivePreview()">×</button></div>' +
+        '<div id="qcard-cr-body"></div>' +
+        '<div class="qcard-cr-actions"><button class="qcard-cr-btn" type="button" onclick="closeCardReceivePreview()">キャンセル</button><button class="qcard-cr-btn primary" type="button" onclick="confirmCardReceive()">受信する</button></div>' +
+        '</div>';
+    document.body.appendChild(rmodal);
+    rmodal.addEventListener('click', function(e){ if (e.target === rmodal) closeCardReceivePreview(); });
+}
+
+function qcardResolveShareCardItem() {
+    // 画像の遅延読み込み等でグリッドが再描画されると、
+    // editCardItem が古いDOMを指したり null になることがある。
+    // 共有開始時に保存したURIを永続的な主キーとして再解決する。
+    var uri = window._qcardCardShareUri || null;
+    if (editCardItem && (!uri || editCardItem.dataset.uri === uri)) return editCardItem;
+    if (!uri) return null;
+    var active = getActive();
+    if (!active || !Array.isArray(active.data)) return null;
+    var card = active.data.find(function(c){ return c && c.uri === uri; });
+    if (!card) return null;
+    var item = grid.querySelector('.grid-item[data-uri="' + CSS.escape(uri) + '"]');
+    if (item) { editCardItem = item; return item; }
+    return null;
+}
+
+function openCardShareMenu() {
+    qcardEnsureCardShareModal();
+    if (!editCardItem) { showToast('共有するカードを開いてください'); return; }
+    var card = getCardMeta(editCardItem);
+    if (!card || !card.uri) { showToast('カード情報を取得できません'); return; }
+    // ここでURIとシナリオIDを保持しておく。画像の非同期処理による再描画後も共有対象を失わない。
+    window._qcardCardShareUri = card.uri;
+    window._qcardCardShareScenarioId = (getActive() && getActive().id) ? getActive().id : null;
+    saveCurrentGridData();
+    // 保存処理後にDOMが差し替わった場合は、URIから新しいDOMを取得する。
+    qcardResolveShareCardItem();
+    card = getCardMeta(editCardItem);
+    if (!card || !card.uri) { showToast('カード情報を取得できません'); return; }
+    var modal = document.getElementById('qcard-card-share-modal');
+    var body = document.getElementById('qcard-cs-body');
+    body.innerHTML = '<div style="font-size:.72rem;color:var(--text-muted);">現在のカードをスナップショットとして共有します。</div>' +
+        '<div class="qcard-cs-actions">' +
+        '<button class="qcard-cs-btn" type="button" onclick="createCardShareUrl()">🔗 共有URLを作成</button>' +
+        '<button class="qcard-cs-btn" type="button" onclick="createCardShareQR()">▦ QRで表示</button>' +
+        '</div>' +
+        '<div id="qcard-cs-status" class="qcard-cs-status"></div>';
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+}
+function closeCardShareMenu() {
+    var modal = document.getElementById('qcard-card-share-modal');
+    if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+}
+
+async function qcardCreateCardShare() {
+    // DOMのeditCardItemは、画像の非同期処理や再描画で失われることがある。
+    // 共有対象はURI＋シナリオIDを正本として再解決し、DOMが無くても共有できるようにする。
+    var item = qcardResolveShareCardItem();
+    var card = item ? getCardMeta(item) : null;
+
+    if (!card || !card.uri) {
+        var uri = window._qcardCardShareUri || null;
+        var scenarioId = window._qcardCardShareScenarioId || activeScenarioId || null;
+        var scenario = Array.isArray(scenarios) ? scenarios.find(function(s) { return s && s.id === scenarioId; }) : null;
+        if (!scenario && typeof getActive === 'function') scenario = getActive();
+        if (scenario && Array.isArray(scenario.data) && uri) {
+            card = scenario.data.find(function(c) { return c && c.uri === uri; }) || null;
+            if (card) {
+                // shareCard() は画像・音声のローカルIDをDOM datasetから読むため、
+                // DOMが無い場合はカードデータから最小限のproxyを作る。
+                item = { dataset: {
+                    uri: card.uri,
+                    mediaId: card.mediaId || '',
+                    mediaIdBack: card.mediaIdBack || '',
+                    itvId: card.itvId || '',
+                    audioSource: card.audioSource || 'speech'
+                } };
+            }
+        }
+    }
+
+    if (!card || !card.uri) throw new Error('共有するカードがありません');
+    if (!item) throw new Error('共有対象カードの表示情報を取得できません');
+
+    // 最新のDOMが取得できていれば、画像・音声のdatasetを優先する。
+    // 取得できない場合でも上のproxyでカードデータを使って共有を継続する。
+    var result = await shareCard(card, item);
+    if (!result || !result.friendlyUrl) throw new Error('共有URLの発行に失敗しました');
+    return result;
+}
+
+window.createCardShareUrl = async function() {
+    var status = document.getElementById('qcard-cs-status');
+    if (status) status.textContent = '共有URLを作成中…';
+    try {
+        var result = await qcardCreateCardShare();
+        var body = document.getElementById('qcard-cs-body');
+        if (body) body.innerHTML = '<div style="font-size:.72rem;">カード共有URLを発行しました。</div>' +
+            '<div class="qcard-cs-url" id="qcard-cs-url">' + qcardShareEscapeHtml(result.friendlyUrl) + '</div>' +
+            '<div class="qcard-cs-actions"><button class="qcard-cs-btn" type="button" onclick="copyCardShareUrl()">URLをコピー</button><button class="qcard-cs-btn" type="button" onclick="createCardShareQR()">▦ QRで表示</button></div>' +
+            '<div class="qcard-cs-status">このURLは24時間有効です。受信後のカードはローカル保存されます。</div>';
+        window._qcardLastCardShareUrl = result.friendlyUrl;
+        try { await navigator.clipboard.writeText(result.friendlyUrl); showToast('✅ カード共有URLをコピーしました'); } catch(_) { showToast('カード共有URLを作成しました'); }
+    } catch(e) { console.error('[Card Share]',e); if(status) status.textContent='共有に失敗しました: '+(e.message||e); showToast('カード共有に失敗しました'); }
+};
+window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl; if(!u)return; try{await navigator.clipboard.writeText(u);showToast('✅ URLをコピーしました');}catch(e){showToast('URLのコピーに失敗しました');} };
+
+window.createCardShareQR = async function() {
+    try {
+        var result = window._qcardLastCardShareUrl ? {friendlyUrl:window._qcardLastCardShareUrl} : await qcardCreateCardShare();
+        await window.loadQRCode();
+        var box=document.getElementById('qcard-qr-code'), urlEl=document.getElementById('qcard-qr-url'), modal=document.getElementById('qcard-qr-modal');
+        if(!box||!modal) throw new Error('QR表示UIがありません');
+        box.innerHTML=''; new window.QRCode(box,{text:result.friendlyUrl,width:240,height:240,colorDark:'#111111',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
+        if(urlEl) urlEl.textContent=result.friendlyUrl;
+        closeCardShareMenu(); modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+    } catch(e){ console.error('[Card QR Share]',e); showToast('QRコードの生成に失敗しました: '+(e.message||e)); }
+};
+
+async function qcardDownloadBlob(url) {
+    if (!url) return null;
+    var res = await fetch(url, {cache:'no-store'});
+    if (!res.ok) throw new Error('メディア取得に失敗しました（HTTP '+res.status+'）');
+    return await res.blob();
+}
+function qcardMimeExt(mime, fallback) {
+    var ext=((mime||'').split('/')[1]||fallback||'bin').toLowerCase();
+    if(ext==='jpeg') ext='jpg'; if(ext==='mpeg') ext='mp3'; return ext;
+}
+async function qcardSaveReceivedImage(blob, sourceUrl) {
+    if(!blob) return null;
+    var id='media_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+    var mime=blob.type||'image/jpeg';
+    await mediaDB.save({cardId:id,type:'image',blob:blob,mimeType:mime,optimizedMimeType:mime,size:blob.size,savedAt:new Date().toISOString(),hash:null,mediaUrl:null,sourceUrl:null});
+    return id;
+}
+async function qcardSaveReceivedAudio(blob, source, cardId, fileName) {
+    if(!blob || !cardId) return null;
+    var mime=blob.type || (source==='recorded'?'audio/webm':'audio/mpeg');
+    var ext=qcardMimeExt(mime, source==='recorded'?'webm':'mp3');
+    if(source==='uploaded') {
+        await uploadDB.save({cardId:cardId,blob:blob,mimeType:mime,fileName:fileName||('shared_'+cardId+'.'+ext),savedAt:new Date().toISOString(),size:blob.size,hash:null,audioUrl:null});
+    } else {
+        await itvDB.save({id:crypto.randomUUID(),cardId:cardId,scenarioId:activeScenarioId,createdAt:new Date().toISOString(),blob:blob,mimeType:mime,size:blob.size,hash:null,audioUrl:null});
+    }
+    return cardId;
+}
+
+function qcardGetSharedAudioUrls(card) {
+    var a=card.audioUrls||{};
+    return {recorded:a.recorded||null, uploaded:a.uploaded||null};
+}
+
+async function qcardRestoreSharedCardMedia(sharedCard, localAudioCardId) {
+    var result={mediaId:null,mediaIdBack:null,itvId:null,audioSource:'speech',audioUrls:{recorded:null,uploaded:null},completed:true,errors:[]};
+    localAudioCardId = localAudioCardId || ('card_'+crypto.randomUUID());
+    try { if(sharedCard.mediaUrl) result.mediaId=await qcardSaveReceivedImage(await qcardDownloadBlob(sharedCard.mediaUrl)); }
+    catch(e){result.errors.push('表画像');console.warn('[Card Receive] front image',e);}
+    try { if(sharedCard.mediaUrlBack) result.mediaIdBack=await qcardSaveReceivedImage(await qcardDownloadBlob(sharedCard.mediaUrlBack)); }
+    catch(e){result.errors.push('裏画像');console.warn('[Card Receive] back image',e);}
+    var urls=qcardGetSharedAudioUrls(sharedCard);
+    // 共有元が現在使用していた音声を優先しつつ、もう一方も利用可能なら保存する。
+    var source=sharedCard.audioSource||'speech';
+    for(var key of ['recorded','uploaded']) {
+        if(!urls[key]) continue;
+        try {
+            var blob=await qcardDownloadBlob(urls[key]);
+            var id=await qcardSaveReceivedAudio(blob,key,localAudioCardId,'shared_'+key+'_'+Date.now()+'.'+qcardMimeExt(blob.type,key==='recorded'?'webm':'mp3'));
+            if(id) result.audioUrls[key]=id;
+            if(key===source) result.itvId=id;
+        } catch(e){result.errors.push(key==='recorded'?'録音音声':'アップロード音声');console.warn('[Card Receive] audio',key,e);}
+    }
+    if(!result.itvId) {
+        if(source==='recorded' && result.audioUrls.recorded) { result.itvId=result.audioUrls.recorded; }
+        else if(source==='uploaded' && result.audioUrls.uploaded) { result.itvId=result.audioUrls.uploaded; }
+        else if(result.audioUrls.recorded) {source='recorded';result.itvId=result.audioUrls.recorded;}
+        else if(result.audioUrls.uploaded) {source='uploaded';result.itvId=result.audioUrls.uploaded;}
+        else source='speech';
+    }
+    result.audioSource=source;
+    result.completed = result.errors.length===0;
+    return result;
+}
+
+function qcardFindInbox() { return scenarios.find(function(s){return s && s.isInbox===true;}) || null; }
+function qcardCreateInbox() {
+    var s=newScenarioMeta('受信箱'); s.isInbox=true; s.title='受信箱'; s.description='共有カードの一時保管場所'; scenarios.push(s); return s;
+}
+function qcardCloneReceivedCard(shared, restored) {
+    var now=nowMs();
+    var newUri=cardUri();
+    return {
+        id:cardUid(), uri:newUri, title:shared.title||'', content:shared.content||'',
+        createdAt:now, updatedAt:now, createdBy:'', updatedBy:'',
+        originCardId:shared.uri||shared.originCardId||'', tags:Array.isArray(shared.tags)?shared.tags.slice():[],
+        source:shared.source||'', sourceUrl:shared.sourceUrl||'', note:shared.note||'', hidden:!!shared.hidden,
+        studyStatus:'', studyCount:0, links:Array.isArray(shared.links)?JSON.parse(JSON.stringify(shared.links)):[],
+        mediaId:restored.mediaId||undefined, mediaIdBack:restored.mediaIdBack||undefined,
+        audioSource:restored.audioSource||'speech', itvId:restored.itvId||undefined,
+        audioUrls:undefined, mediaUrl:undefined, mediaUrlBack:undefined, audioUrl:undefined
+    };
+}
+
+function qcardRenderReceiveChoices() {
+    var active=getActive();
+    var choices='';
+    if(active) choices += '<label><input type="radio" name="qcard-receive-target" value="current" checked> 現在のシナリオに追加 <span style="margin-left:auto;color:var(--text-muted);font-size:.64rem;">'+qcardShareEscapeHtml(displayScenarioName(active,scenarios.indexOf(active)))+'</span></label>';
+    choices += '<label><input type="radio" name="qcard-receive-target" value="new"'+(active?'':' checked')+'> 新規シナリオを作成</label>';
+    choices += '<label><input type="radio" name="qcard-receive-target" value="inbox"> 受信箱に入れる</label>';
+    return choices;
+}
+
+window.openCardReceivePreview = function(data) {
+    qcardEnsureCardShareModal();
+    qcardPendingSharedCard=data;
+    var modal=document.getElementById('qcard-card-receive-modal'), body=document.getElementById('qcard-cr-body');
+    if(!modal||!body) return;
+    var card=data.card_json;
+    body.innerHTML=qcardBuildCardSharePreview(card,data.expires_at)+'<div style="font-size:.72rem;margin-top:14px;font-weight:600;">取り込み先</div><div class="qcard-cs-choice">'+qcardRenderReceiveChoices()+'</div><div id="qcard-cr-status" class="qcard-cs-status">画像・音声は「受信する」を押した時点でローカル保存します。</div>';
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+};
+window.closeCardReceivePreview=function(){qcardPendingSharedCard=null;var m=document.getElementById('qcard-card-receive-modal');if(m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}};
+
+window.confirmCardReceive = async function() {
+    var data=qcardPendingSharedCard; if(!data||!data.card_json){return;}
+    var status=document.getElementById('qcard-cr-status');
+    var btn=document.querySelector('#qcard-card-receive-modal .qcard-cr-btn.primary');
+    if(btn) btn.disabled=true; if(status) status.textContent='カードとメディアを保存中…';
+    try {
+        if(data.expires_at && new Date(data.expires_at)<new Date()) throw new Error('この共有URLは期限切れです');
+
+        // 「現在のシナリオ」は、プレビューを開いた時点の activeScenarioId を正本として扱う。
+        // メディア復元は非同期なので、その待機中にDOMや表示状態が変わっても
+        // 受信先シナリオを取り違えないようにする。
+        var selected=(document.querySelector('input[name="qcard-receive-target"]:checked')||{}).value||'current';
+        var currentScenarioId = activeScenarioId;
+        var currentTarget = (selected==='current')
+            ? scenarios.find(function(s){ return s && s.id === currentScenarioId; })
+            : null;
+
+        if(selected==='current' && !currentTarget) {
+            throw new Error('現在のシナリオを取得できません');
+        }
+
+        var localCardId=cardUid();
+        var restored=await qcardRestoreSharedCardMedia(data.card_json,localCardId);
+        var newCard=qcardCloneReceivedCard(data.card_json,restored);
+        newCard.id=localCardId;
+
+        var target=null;
+        if(selected==='current') {
+            // currentTarget をそのまま使用する。getActive() の再評価に依存しない。
+            target=currentTarget;
+            console.log('[Card Receive] target=current', target.id, target.title);
+        } else if(selected==='new') {
+            var base=(data.card_json.title||'受信カード').trim()||'受信カード';
+            target=newScenarioMeta(base);
+            target.title=base;
+            target.description='共有カードから作成';
+            scenarios.push(target);
+        } else if(selected==='inbox') {
+            target=qcardFindInbox()||qcardCreateInbox();
+        }
+
+        if(!target) throw new Error('取り込み先を決定できません');
+        target.data=Array.isArray(target.data)?target.data:[];
+        target.data.push(newCard);
+
+        // [FIX v3.15.6] 現在のシナリオへ追加したカードが、既存の
+        // rows × cols の表示枠を超えている場合は行を自動追加する。
+        // updateGrid() は rows × cols 枚だけ描画するため、data に保存できても
+        // 表示枠が足りないと「受信成功なのにカードが見えない」状態になる。
+        var targetCols = parseInt(target.cols, 10) || 3;
+        var targetRows = parseInt(target.rows, 10) || 3;
+        var requiredRows = Math.ceil(target.data.length / targetCols);
+        if (requiredRows > targetRows) target.rows = requiredRows;
+        target.updatedAt=nowMs();
+
+        // 受信カードを確実に保存してから表示を更新する。
+        saveScenarios();
+        applyBulkImportDisplayDefaults([target]);
+
+        // 現在シナリオへの追加では、検索フィルター中だと新カードが
+        // 検索条件に一致せず「追加されていない」ように見えるため、
+        // 受信後の一覧表示だけは通常表示へ戻す。
+        if(typeof searchFilterActive !== 'undefined' && searchFilterActive) {
+            searchFilterActive=false;
+            document.body.classList.remove('search-filter-view');
+            var banner=document.getElementById('search-filter-banner');
+            if(banner) banner.classList.remove('show');
+        }
+
+        activeScenarioId=target.id;
+        saveScenarios();
+        renderScenarioTabs();
+        updateGrid();
+        closeCardReceivePreview();
+
+        if(restored.errors.length) showToast('⚠ カードは受信しましたが、一部メディアを保存できませんでした: '+restored.errors.join('・'));
+        else showToast('✅ カードを受信しました: '+(newCard.title||'（無題）'));
+    } catch(e) {
+        console.error('[Card Receive]',e);
+        if(status) status.textContent='受信に失敗しました: '+(e.message||e);
+        showToast('カードの受信に失敗しました');
+    } finally { if(btn) btn.disabled=false; }
+};
+
+/**
+ * 既存の単体カード受信APIも新仕様へ接続する。
+ * 直接呼ばれた場合はプレビューを表示する。
  */
 async function importSharedCard(uri) {
-    showToast('カードを取得中...');
-    var data = await fetchSharedCard(uri);
-    if (!data || !data.card_json) {
-        showToast('カードが見つかりません');
-        return;
+    showToast('カードを取得中…');
+    var data=await fetchSharedCard(uri);
+    if(!data||!data.card_json){showToast('カードが見つかりません');return;}
+    if(data.expires_at&&new Date(data.expires_at)<new Date()){showToast('この共有URLは期限切れです');return;}
+    window.openCardReceivePreview(data);
+}
+
+/**
+ * URL/QR受信：shared_cards を先に確認し、無ければ従来の shared_scenarios へ。
+ */
+async function importShareByUrl(raw) {
+    var uri=await resolveShareUri(raw);
+    if(!uri){showToast('URLの形式が正しくありません');return;}
+    var cardData=await fetchSharedCard(uri);
+    if(cardData&&cardData.card_json){
+        if(cardData.expires_at&&new Date(cardData.expires_at)<new Date()){showToast('この共有URLは期限切れです');return;}
+        closeDataModal(); window.openCardReceivePreview(cardData); return;
     }
-    var card = data.card_json;
-    // URIは元のまま保持（重複しても上書きしない）
-    var active = getActive();
-    if (!active) { showToast('シナリオがありません'); return; }
-    active.data.push(card);
-    saveScenarios();
-    updateGrid();
-    showToast('✅ カードをインポートしました: ' + (card.title || '（無題）'));
+    // カードでなければ既存シナリオ共有の受信へ。
+    closeDataModal(); await importSharedScenario(uri);
 }
 
 /**
@@ -8159,9 +8553,9 @@ window.testSupabaseConnection = async function() {
     }
 };
 
-// shareCurrentCard: 旧カード共有（廃止）→ シナリオ共有に委譲
+// shareCurrentCard: カード共有v1。現在開いているカードを共有UIへ接続する。
 window.shareCurrentCard = async function() {
-    await window.shareCurrentScenario();
+    openCardShareMenu();
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -8874,6 +9268,8 @@ function newScenarioMeta(name) {
         // ── 内部管理 ──
         id:            scnUid(),
         name:          name,
+        // [NEW v3.15.0] 受信箱などの役割を名前から切り離すための内部フラグ
+        isInbox:       false,
         cols:          3,
         rows:          3,
         data:          [],
@@ -11112,140 +11508,231 @@ function overlayMetaSync(cardItem) {
 // 将来的に「同じKnowledge Unitを参照するReference」機能を追加する場合も、
 // 本クリップボードの「Copy=複製」とは別概念として実装すること
 // （URIを共有する参照は、このv0.1の対象外）。
-var cardClipboard = null; // { title, content, tags, source, sourceUrl, note, originUri }
+var cardClipboard = null; // 軽量参照：本文/メタデータ + IndexedDBキー + Card Link
 
-// ── 中核ロジック：カードのデータオブジェクト単位で完結させる（DOM構造に依存しない）
-// これにより PC/Overlay・モバイルGrid・モバイルSwipe のどのUIからでも同じ挙動で呼び出せる。
+function qcardClipboardNewMediaId() {
+    return 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+
+/* Blobは再エンコードせず、そのままIndexedDBへ複製する。 */
+async function qcardClipboardCloneImage(sourceMediaId, targetMediaId) {
+    if (!sourceMediaId) return null;
+    if (typeof mediaDB === 'undefined') throw new Error('画像DBが利用できません');
+    var src = await mediaDB.get(sourceMediaId);
+    if (!src || !src.blob) throw new Error('コピー元の画像データが見つかりません');
+    var id = targetMediaId || qcardClipboardNewMediaId();
+    await mediaDB.save(Object.assign({}, src, {cardId:id}));
+    return id;
+}
+
+async function qcardClipboardCloneAudio(source, target, overwrite) {
+    var srcCardId = source.sourceCardId;
+    if (!srcCardId) return {source:'speech', itvId:null};
+
+    if ((source.audioSource || 'speech') === 'uploaded') {
+        var up = (typeof uploadDB !== 'undefined') ? await uploadDB.get(srcCardId) : null;
+        if (!up || !up.blob) throw new Error('コピー元のアップロード音声が見つかりません');
+        if (typeof uploadDB === 'undefined') throw new Error('アップロード音声DBが利用できません');
+        await uploadDB.save(Object.assign({}, up, {
+            cardId: target.id,
+            savedAt: new Date().toISOString(),
+            audioUrl: null
+        }));
+        return {source:'uploaded', itvId:target.id};
+    }
+
+    if ((source.audioSource || 'speech') === 'recorded') {
+        if (typeof itvDB === 'undefined') throw new Error('録音DBが利用できません');
+        var recs = await itvDB.getByCardId(srcCardId);
+        var rec = source.itvId ? (recs.find(function(r){return r && r.id===source.itvId;}) || null) : null;
+        if (!rec && recs.length) {
+            recs = recs.slice().sort(function(a,b){
+                return String(b.createdAt||'').localeCompare(String(a.createdAt||''));
+            });
+            rec = recs[0];
+        }
+        if (!rec || !rec.blob) throw new Error('コピー元の録音データが見つかりません');
+        var newItvId = crypto.randomUUID();
+        await itvDB.save(Object.assign({}, rec, {
+            id:newItvId,
+            cardId:target.id,
+            createdAt:new Date().toISOString(),
+            audioUrl:null
+        }));
+        if (overwrite && target.itvId && target.itvId !== newItvId) {
+            try { await itvDB.remove(target.itvId); } catch (_) {}
+        }
+        return {source:'recorded', itvId:newItvId};
+    }
+
+    if (overwrite) {
+        if (typeof uploadDB !== 'undefined') { try { await uploadDB.remove(target.id); } catch (_) {} }
+        if (target.itvId && typeof itvDB !== 'undefined') { try { await itvDB.remove(target.itvId); } catch (_) {} }
+    }
+    return {source:'speech', itvId:null};
+}
+
+/* 画像・音声を保存し終えてからカードデータへ反映する。 */
+async function qcardClipboardDuplicateMedia(source, target, overwrite) {
+    var result = {mediaId:null, mediaIdBack:null, audioSource:'speech', itvId:null};
+
+    if (source.mediaId) {
+        result.mediaId = await qcardClipboardCloneImage(
+            source.mediaId,
+            overwrite && target.mediaId ? target.mediaId : null
+        );
+    } else if (overwrite && target.mediaId && typeof mediaDB !== 'undefined') {
+        await mediaDB.remove(target.mediaId);
+    }
+
+    if (source.mediaIdBack) {
+        result.mediaIdBack = await qcardClipboardCloneImage(
+            source.mediaIdBack,
+            overwrite && target.mediaIdBack ? target.mediaIdBack : null
+        );
+    } else if (overwrite && target.mediaIdBack && typeof mediaDB !== 'undefined') {
+        await mediaDB.remove(target.mediaIdBack);
+    }
+
+    var audio = await qcardClipboardCloneAudio(source, target, overwrite);
+    result.audioSource = audio.source;
+    result.itvId = audio.itvId;
+    return result;
+}
+
+// ── コピー：IndexedDBのBlob自体はここでは触らず、参照だけ保持する ──
 function cardClipboardCopyFromData(meta) {
     if (!meta) return;
     cardClipboard = {
-        title:     meta.title     || '',
-        content:   meta.content   || '',
-        tags:      (meta.tags || []).slice(),
-        source:    meta.source    || '',
-        sourceUrl: meta.sourceUrl || '',
-        note:      meta.note      || '',
-        // コピー元カードの uri（永続識別子）は「派生元の記録」としてのみ保持する。
-        // 新カードの uri としては絶対に使わない（① 新規カード作成時にのみ originCardId へ書き込む）。
-        originUri: meta.uri || ''
-        // uri / id 自体は意図的にコピーしない（Cardの同一性を表すため）
+        title:meta.title||'',
+        content:meta.content||'',
+        tags:(meta.tags||[]).slice(),
+        source:meta.source||'',
+        sourceUrl:meta.sourceUrl||'',
+        note:meta.note||'',
+        originUri:meta.uri||'',
+        sourceCardId:meta.id||'',
+        mediaId:meta.mediaId||'',
+        mediaIdBack:meta.mediaIdBack||'',
+        audioSource:meta.audioSource||'speech',
+        itvId:meta.itvId||'',
+        links:Array.isArray(meta.links) ? JSON.parse(JSON.stringify(meta.links)) : []
     };
     updateCardClipboardUI();
-    showToast('📋 「' + (cardClipboard.title || '無題のカード') + '」をコピーしました。複数のカードに貼り付けできます。');
+    showToast('📋 「'+(cardClipboard.title||'無題のカード')+'」をコピーしました。複数のカードに貼り付けできます。');
 }
 
-// [NEW] v0.2: クリップボードの明示的な解除。
-// PASTE操作ではクリップボードは消費しない（保持型）。「解除」を押した時だけ空にする。
 function cardClipboardClear() {
     if (!cardClipboard) return;
-    cardClipboard = null;
+    cardClipboard=null;
     updateCardClipboardUI();
     showToast('📋 クリップボードを解除しました');
 }
 
-// ② このカードに貼り付け：uri / id / originCardId は一切変更しない。
-// 「別カードに変える」のではなく「今のカードの内容を、コピー元の内容で置き換える」操作。
 function cardClipboardApplyToData(meta) {
     if (!cardClipboard || !meta) return false;
-    meta.title     = cardClipboard.title;
-    meta.content   = cardClipboard.content;
-    meta.tags      = cardClipboard.tags.slice();
-    meta.source    = cardClipboard.source;
-    meta.sourceUrl = cardClipboard.sourceUrl;
-    meta.note      = cardClipboard.note;
-    // uri / id / originCardId には触れない（維持）
+    meta.title=cardClipboard.title;
+    meta.content=cardClipboard.content;
+    meta.tags=cardClipboard.tags.slice();
+    meta.source=cardClipboard.source;
+    meta.sourceUrl=cardClipboard.sourceUrl;
+    meta.note=cardClipboard.note;
+    meta.links=Array.isArray(cardClipboard.links) ? JSON.parse(JSON.stringify(cardClipboard.links)) : [];
     return true;
 }
 
-// ── PC / モバイルGrid（オーバーレイ経由）用ラッパー ──
 function cardClipboardCopy() {
     if (!editCardItem) return;
     cardClipboardCopyFromData(getCardMeta(editCardItem));
 }
 
-function cardClipboardPaste() {
+async function cardClipboardPaste() {
     if (!cardClipboard) return;
-    var active = getActive();
+    var clipboard=JSON.parse(JSON.stringify(cardClipboard));
+    var active=getActive();
     if (!active) return;
-
-    // [FIX] 貼り付け前にグリッドの現在状態をactive.dataへ確定同期する（空き枠判定を正確にするため）
     saveCurrentGridData();
 
-    var rows  = getActiveRows();
-    var cols  = getActiveCols();
-    var total = rows * cols;
+    var rows=getActiveRows(), cols=getActiveCols(), total=rows*cols;
+    var card=newCardMeta(clipboard.title, clipboard.content);
+    card.tags=clipboard.tags.slice();
+    card.source=clipboard.source;
+    card.sourceUrl=clipboard.sourceUrl;
+    card.note=clipboard.note;
+    card.originCardId=clipboard.originUri||'';
+    card.links=Array.isArray(clipboard.links) ? JSON.parse(JSON.stringify(clipboard.links)) : [];
 
-    // ① 複製して追加：newCardMeta() が新しい id / uri を発行する（既存関数をそのまま利用）
-    var card = newCardMeta(cardClipboard.title, cardClipboard.content);
-    card.tags      = cardClipboard.tags.slice();
-    card.source    = cardClipboard.source;
-    card.sourceUrl = cardClipboard.sourceUrl;
-    card.note      = cardClipboard.note;
-    // 既存スキーマの originCardId に「複製元カードのuri」を記録する（派生カードの追跡＝lineage）
-    card.originCardId = cardClipboard.originUri || '';
-
-    // [NEW] 配置先の決定：
-    //   1) 現在の表示領域内（rows×cols）に title/content ともに空の枠があれば、そこへ配置
-    //   2) データ配列が表示領域よりまだ短ければ（暗黙の空き枠）、末尾に追加
-    //   3) どちらも無ければ（グリッドが満杯）、行を1つ自動追加してから新しい枠へ配置
-    //   ※ ユーザーが事前に空カードを用意しておく必要がないようにするための挙動。
-    var emptyIdx = -1;
-    for (var pi = 0; pi < Math.min(active.data.length, total); pi++) {
-        var existing = active.data[pi];
-        if (existing && !(existing.title || '').trim() && !(existing.content || '').trim()) {
-            emptyIdx = pi;
-            break;
-        }
+    try {
+        var mediaAudio=await qcardClipboardDuplicateMedia(clipboard, card, false);
+        card.mediaId=mediaAudio.mediaId||undefined;
+        card.mediaIdBack=mediaAudio.mediaIdBack||undefined;
+        card.audioSource=mediaAudio.audioSource||'speech';
+        card.itvId=mediaAudio.itvId||undefined;
+    } catch(e) {
+        console.error('[Clipboard] duplicate failed',e);
+        showToast('⚠️ 複製に失敗しました: '+(e.message||e));
+        return;
     }
 
-    if (emptyIdx !== -1) {
-        active.data[emptyIdx] = card; // 既存の空き枠を新カードで置き換え
-    } else if (active.data.length < total) {
-        active.data.push(card); // まだ表示領域に余裕がある（暗黙の空き枠）
-    } else {
-        // 空き枠が無い（グリッド満杯）→ 行を1つ自動追加してカード領域を確保する（addRow()と同じ方式）
-        active.rows = rows + 1;
-        var rowsEl  = document.getElementById('rowsInput');
-        if (rowsEl)  rowsEl.value  = active.rows;
-        var rowsMob = document.getElementById('rowsInputMob');
-        if (rowsMob) rowsMob.value = active.rows;
+    var emptyIdx=-1;
+    for(var pi=0;pi<Math.min(active.data.length,total);pi++){
+        var existing=active.data[pi];
+        if(existing && !(existing.title||'').trim() && !(existing.content||'').trim()){emptyIdx=pi;break;}
+    }
+    if(emptyIdx!==-1) active.data[emptyIdx]=card;
+    else if(active.data.length<total) active.data.push(card);
+    else {
+        active.rows=rows+1;
+        var rowsEl=document.getElementById('rowsInput'); if(rowsEl) rowsEl.value=active.rows;
+        var rowsMob=document.getElementById('rowsInputMob'); if(rowsMob) rowsMob.value=active.rows;
         active.data.push(card);
     }
-
-    active.updatedAt = nowMs();
+    active.updatedAt=nowMs();
     saveScenarios();
     updateGrid();
-    showToast('📋 複製して追加しました');
+    showToast('📋 複製して追加しました（画像・音声・リンクを含む）');
 }
 
-// [NEW] 既存カードへの「上書き貼り付け」。uri/id/originCardIdは維持し、内容だけをクリップボードで置き換える。
-// 用途1: 内容ありのカードを開いた状態から上書き
-// 用途2: 空カード（オーバーレイが開けない）に対して、グリッド上のヒントから直接呼び出す
-function cardClipboardPasteInto(cardItem) {
+async function cardClipboardPasteInto(cardItem) {
     if (!cardClipboard || !cardItem) return;
-    // [FIX] グリッド末尾の空セルはまだ active.data に実体が無い場合があるため、
-    // 先に現在のグリッド状態を確定保存してから対象カードのメタ情報を取得する
+    var clipboard=JSON.parse(JSON.stringify(cardClipboard));
     saveCurrentGridData();
-    var meta = getCardMeta(cardItem);
-    if (!meta) return;
-    if (!cardClipboardApplyToData(meta)) return; // meta は active.data[idx] への直接参照
-    setCardMeta(cardItem, {
-        title: meta.title, content: meta.content, tags: meta.tags,
-        source: meta.source, sourceUrl: meta.sourceUrl, note: meta.note
+    var meta=getCardMeta(cardItem);
+    if(!meta) return;
+
+    // ID/URI/origin/学習状態は変更しない。メディア枠だけ既存キーを再利用する。
+    var target={
+        id:meta.id, uri:meta.uri, originCardId:meta.originCardId,
+        mediaId:meta.mediaId||'', mediaIdBack:meta.mediaIdBack||'', itvId:meta.itvId||''
+    };
+    var result;
+    try {
+        result=await qcardClipboardDuplicateMedia(clipboard,target,true);
+    } catch(e) {
+        console.error('[Clipboard] overwrite failed',e);
+        showToast('⚠️ 貼り付けに失敗しました: '+(e.message||e));
+        return;
+    }
+
+    if(!cardClipboardApplyToData(meta)) return;
+    meta.mediaId=result.mediaId||undefined;
+    meta.mediaIdBack=result.mediaIdBack||undefined;
+    meta.audioSource=result.audioSource||'speech';
+    meta.itvId=result.itvId||undefined;
+
+    setCardMeta(cardItem,{
+        title:meta.title,content:meta.content,tags:meta.tags,
+        source:meta.source,sourceUrl:meta.sourceUrl,note:meta.note
     });
-    // グリッド上の実際のタイトル／本文入力欄にも反映
-    var titleEl   = cardItem.querySelector('.title-input');
-    var contentEl = cardItem.querySelector('.content-textarea');
-    if (titleEl)   titleEl.value   = meta.title;
-    if (contentEl) contentEl.value = meta.content;
-    // [NEW] 空カード状態を更新（画像追加UIの見せ方切替のため）
-    cardItem.classList.toggle('is-blank-card', !meta.title.trim() && !meta.content.trim());
-    if (currentQuery) applySearch(currentQuery);
-    // 内容が入ったのでオーバーレイを開いて結果を確認できるようにする
-    isLocked = true;
-    showOverlay(meta.title, meta.content, cardItem);
+    var titleEl=cardItem.querySelector('.title-input'), contentEl=cardItem.querySelector('.content-textarea');
+    if(titleEl) titleEl.value=meta.title;
+    if(contentEl) contentEl.value=meta.content;
+    cardItem.classList.toggle('is-blank-card',!meta.title.trim()&&!meta.content.trim());
+    if(currentQuery) applySearch(currentQuery);
+    isLocked=true;
+    showOverlay(meta.title,meta.content,cardItem);
     updateCardClipboardUI();
-    showToast('📥 このカードに貼り付けました');
+    showToast('📥 このカードに貼り付けました（画像・音声・リンクを含む）');
 }
 
 function updateCardClipboardUI() {
@@ -11782,7 +12269,19 @@ async function qcardDeleteCurrentAudio() {
         }
         editCardItem.dataset.audioSource = 'speech';
         editCardItem.dataset.audioUrl = '';
-        try { editCardItem.dataset.audioUrls = JSON.stringify({recorded:null, uploaded:null}); } catch(e) {}
+        try {
+            var currentAudioUrls = editCardItem.dataset.audioUrls
+                ? JSON.parse(editCardItem.dataset.audioUrls)
+                : {recorded:null, uploaded:null};
+
+            if (src === 'recorded') {
+                currentAudioUrls.recorded = null;
+            } else if (src === 'uploaded') {
+                currentAudioUrls.uploaded = null;
+            }
+
+            editCardItem.dataset.audioUrls = JSON.stringify(currentAudioUrls);
+        } catch(e) {}
         overlaySyncAudioSourceUI(editCardItem);
         saveCurrentGridDataWithIndicator();
         itvMarkRecordedCards();
@@ -12712,13 +13211,8 @@ window.dmImportScenarioFromUrl = async function() {
     if (!input) return;
     var raw = input.value.trim();
     if (!raw) { showToast('URLを入力してください'); return; }
-
-    var uri = await resolveShareUri(raw);
-    if (!uri) { showToast('URLの形式が正しくありません'); return; }
-
     input.value = '';
-    closeDataModal();
-    await importSharedScenario(uri);
+    await importShareByUrl(raw);
 };
 
 // ── データ管理パネル タブ切替 ──
@@ -16149,7 +16643,7 @@ function rdSaveRate(v) {
     }
 
     // [NEW] スワイプ画面用：表示中のカードへ「上書き貼り付け」（uri/id/originCardIdは維持）
-    function mobClipboardPasteInto(idx) {
+    async function mobClipboardPasteInto(idx) {
         var data = getData();
         var d = data[idx];
         if (!d || typeof cardClipboardApplyToData !== 'function') return;
@@ -19514,6 +20008,12 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (!jsqrPromise) jsqrPromise = loadScriptOnce(JSQR_CDN, 'jsQR');
         return jsqrPromise;
     }
+
+    // [v3.15.7] カード共有QRからも同じ遅延ロード関数を使えるよう公開する。
+    // createCardShareQR() はこのIIFEの外で定義されているため、
+    // ローカル関数のままだと ReferenceError: loadQRCode is not defined になる。
+    window.loadQRCode = loadQRCode;
+    window.loadJsQR = loadJsQR;
 
     window.shareCurrentScenarioAsQR = async function(){
         // データ管理モーダルを先に閉じ、共有処理中に二重モーダルにならないようにする
