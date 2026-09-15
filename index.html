@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1              カードCSS                    ║
+  ║  Qcard PRO  v3.10.1       カードが最後に追加するか確認          ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8467,6 +8467,15 @@ window.confirmCardReceive = async function() {
         if(!target) throw new Error('取り込み先を決定できません');
         target.data=Array.isArray(target.data)?target.data:[];
         target.data.push(newCard);
+
+        // [FIX v3.15.6] 現在のシナリオへ追加したカードが、既存の
+        // rows × cols の表示枠を超えている場合は行を自動追加する。
+        // updateGrid() は rows × cols 枚だけ描画するため、data に保存できても
+        // 表示枠が足りないと「受信成功なのにカードが見えない」状態になる。
+        var targetCols = parseInt(target.cols, 10) || 3;
+        var targetRows = parseInt(target.rows, 10) || 3;
+        var requiredRows = Math.ceil(target.data.length / targetCols);
+        if (requiredRows > targetRows) target.rows = requiredRows;
         target.updatedAt=nowMs();
 
         // 受信カードを確実に保存してから表示を更新する。
