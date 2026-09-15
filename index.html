@@ -10756,10 +10756,10 @@ function renderGrid(data, total) {
 
         var displayData = d;
         if (isLearningReversed && (d.title || d.content)) {
-            displayData = {
-                title: d.content,  
-                content: d.title   
-            };
+            displayData = Object.assign({}, d, {
+                title: d.content,
+                content: d.title
+            });
         }
 
         grid.appendChild(createItem(i, displayData));
