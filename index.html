@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1     シングルカード共有確認                           ║
+  ║  Qcard PRO  v3.10.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -7964,7 +7964,7 @@ async function shareCard(card, cardItem) {
                 // 署名付きURL（24時間有効）を発行
                 var signedMedia = await sb.storage
                     .from('qcard-media')
-                    .createSignedUrl(ulid + getMediaExt(cid), SHARE_TTL_SEC);
+                    .createSignedUrl(ulid + await getMediaExt(cid), SHARE_TTL_SEC);
                 mediaUrl = (signedMedia.data && signedMedia.data.signedUrl)
                     ? signedMedia.data.signedUrl
                     : mediaPath; // フォールバック: 公開URL
@@ -7986,7 +7986,7 @@ async function shareCard(card, cardItem) {
             if (mediaPathBack) {
                 var signedMediaBack = await sb.storage
                     .from('qcard-media')
-                    .createSignedUrl(ulidBack + getMediaExt(cidBack), SHARE_TTL_SEC);
+                    .createSignedUrl(ulidBack + await getMediaExt(cidBack), SHARE_TTL_SEC);
                 card.mediaUrlBack = (signedMediaBack.data && signedMediaBack.data.signedUrl)
                     ? signedMediaBack.data.signedUrl
                     : mediaPathBack;
