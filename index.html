@@ -8082,11 +8082,52 @@ async function shareCard(card, cardItem) {
         access_count: 0
     };
 
-    var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
-    if (result.error) {
-        showToast('共有に失敗しました: ' + result.error.message);
-        return null;
+// shared_cards に保存
+var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
+
+if (result.error) {
+    // ============================================================
+    // [DEBUG] shared_cards upsert エラー詳細
+    // ============================================================
+    console.error('========================================');
+    console.error('[Card Share] shared_cards UPSERT ERROR');
+    console.error('========================================');
+
+    console.error('[Card Share] error.message =', result.error.message);
+    console.error('[Card Share] error.code    =', result.error.code);
+    console.error('[Card Share] error.details =', result.error.details);
+    console.error('[Card Share] error.hint    =', result.error.hint);
+
+    console.error('[Card Share] full error object =', result.error);
+
+    // Supabaseへ送信したrowそのものも確認
+    console.error('[Card Share] upsert row =', row);
+
+    // JSONとしても確認しやすいように出力
+    try {
+        console.error(
+            '[Card Share] upsert row JSON =',
+            JSON.stringify(row, null, 2)
+        );
+    } catch (jsonError) {
+        console.error(
+            '[Card Share] row JSON stringify error =',
+            jsonError
+        );
     }
+
+    console.error('========================================');
+
+    showToast(
+        '共有に失敗しました: ' +
+        (result.error.message || 'shared_cards保存エラー')
+    );
+
+    return null;
+}
+
+console.log('[Card Share] shared_cards UPSERT SUCCESS');
+console.log('[Card Share] saved data =', result.data);
 
     var friendlyUrl = 'https://qcard.app/share/' + ulid;
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
