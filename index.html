@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1     複製時に画像も含む検証                       ║
+  ║  Qcard PRO  v3.10.1                                                   ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -11643,7 +11643,94 @@ function cardClipboardApplyToData(meta) {
 
 function cardClipboardCopy() {
     if (!editCardItem) return;
-    cardClipboardCopyFromData(getCardMeta(editCardItem));
+
+    // [FIX v3.16.1]
+    // 画面上のカードと active.data の mediaId / mediaIdBack 等を先に同期する。
+    // 画像Blobそのものはここでは読み込まず、最新のIndexedDBキーだけを保持する。
+    try { saveCurrentGridData(); } catch (_) {}
+
+    var meta = getCardMeta(editCardItem);
+    if (!meta) return;
+    cardClipboardCopyFromData(meta);
+}
+
+// [FIX v3.16.1] クリップボード貼り付け後の画像を明示的に再読込する。
+// Lazy Observerだけに依存せず、IndexedDBへ保存した直後のBlobを確実に<img>へ接続する。
+// 既存mediaIdを再利用する上書きでも同じ処理を使う。
+function qcardClipboardRefreshImagesByUri(uri) {
+    if (!uri || typeof mediaLoadForCard !== 'function') return;
+    var item = qcardClipboardFindItemByUri(uri);
+    if (!item) return;
+
+    var meta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+    if (!meta) return;
+
+    // 表画像
+    var frontImg = item.querySelector('.card-media-layer img');
+    if (meta.mediaId && frontImg) {
+        item.dataset.mediaId = meta.mediaId;
+        item.classList.add('has-media');
+        mediaLoadForCard(meta.mediaId, item, frontImg);
+    } else {
+        item.classList.remove('has-media', 'media-ready');
+        if (frontImg) {
+            if (frontImg.dataset.mediaObjectUrl) {
+                try { URL.revokeObjectURL(frontImg.dataset.mediaObjectUrl); } catch (_) {}
+                delete frontImg.dataset.mediaObjectUrl;
+            }
+            frontImg.removeAttribute('src');
+        }
+    }
+
+    // 裏画像の存在状態もDOMへ反映する。
+    // 裏面そのものの表示は既存の表裏表示ロジックに任せる。
+    if (meta.mediaIdBack) {
+        item.dataset.mediaIdBack = meta.mediaIdBack;
+        item.classList.add('has-media-back');
+    } else {
+        delete item.dataset.mediaIdBack;
+        item.classList.remove('has-media-back');
+    }
+}
+
+// CSS.escape が利用できない古い環境向けの安全なURI検索。
+function qcardClipboardFindItemByUri(uri) {
+    if (!uri) return null;
+    var items = document.querySelectorAll('.grid-item');
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].dataset && items[i].dataset.uri === uri) return items[i];
+    }
+    return null;
+}
+
+function qcardClipboardRefreshImages(item) {
+    if (!item || typeof mediaLoadForCard !== 'function') return;
+    var meta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+    if (!meta) return;
+
+    var frontImg = item.querySelector('.card-media-layer img');
+    if (meta.mediaId && frontImg) {
+        item.dataset.mediaId = meta.mediaId;
+        item.classList.add('has-media');
+        mediaLoadForCard(meta.mediaId, item, frontImg);
+    } else {
+        item.classList.remove('has-media', 'media-ready');
+        if (frontImg) {
+            if (frontImg.dataset.mediaObjectUrl) {
+                try { URL.revokeObjectURL(frontImg.dataset.mediaObjectUrl); } catch (_) {}
+                delete frontImg.dataset.mediaObjectUrl;
+            }
+            frontImg.removeAttribute('src');
+        }
+    }
+
+    if (meta.mediaIdBack) {
+        item.dataset.mediaIdBack = meta.mediaIdBack;
+        item.classList.add('has-media-back');
+    } else {
+        delete item.dataset.mediaIdBack;
+        item.classList.remove('has-media-back');
+    }
 }
 
 async function cardClipboardPaste() {
@@ -11690,6 +11777,12 @@ async function cardClipboardPaste() {
     active.updatedAt=nowMs();
     saveScenarios();
     updateGrid();
+
+    // [FIX v3.16.1] 新しいDOMが生成された後、画像を明示的にIndexedDBから表示する。
+    // Lazy Loadingの発火タイミングに依存しない。
+    var newItem = qcardClipboardFindItemByUri(card.uri);
+    if (newItem) qcardClipboardRefreshImages(newItem);
+
     showToast('📋 複製して追加しました（画像・音声・リンクを含む）');
 }
 
@@ -11720,14 +11813,36 @@ async function cardClipboardPasteInto(cardItem) {
     meta.audioSource=result.audioSource||'speech';
     meta.itvId=result.itvId||undefined;
 
-    setCardMeta(cardItem,{
-        title:meta.title,content:meta.content,tags:meta.tags,
-        source:meta.source,sourceUrl:meta.sourceUrl,note:meta.note
-    });
+    // [FIX v3.16.1]
+    // setCardMeta() はDOM index依存のため、検索・並び替え時に別カードを更新する危険がある。
+    // ここでは既にURIで正しく取得した meta を直接保存する。
+    meta.title = clipboard.title;
+    meta.content = clipboard.content;
+    meta.tags = Array.isArray(clipboard.tags) ? clipboard.tags.slice() : [];
+    meta.source = clipboard.source || '';
+    meta.sourceUrl = clipboard.sourceUrl || '';
+    meta.note = clipboard.note || '';
+    meta.links = Array.isArray(clipboard.links)
+        ? JSON.parse(JSON.stringify(clipboard.links)) : [];
+    meta.mediaId = result.mediaId || undefined;
+    meta.mediaIdBack = result.mediaIdBack || undefined;
+    meta.audioSource = result.audioSource || 'speech';
+    meta.itvId = result.itvId || undefined;
+    meta.updatedAt = nowMs();
+
+    var activeNow = getActive();
+    if (activeNow) activeNow.updatedAt = nowMs();
+    saveScenarios();
+
     var titleEl=cardItem.querySelector('.title-input'), contentEl=cardItem.querySelector('.content-textarea');
     if(titleEl) titleEl.value=meta.title;
     if(contentEl) contentEl.value=meta.content;
     cardItem.classList.toggle('is-blank-card',!meta.title.trim()&&!meta.content.trim());
+
+    // [FIX v3.16.1] 既存mediaIdを再利用した場合も、古いObjectURLを使い続けず、
+    // 今保存したBlobをmediaLoadForCard()から再取得して表示する。
+    qcardClipboardRefreshImages(cardItem);
+
     if(currentQuery) applySearch(currentQuery);
     isLocked=true;
     showOverlay(meta.title,meta.content,cardItem);
