@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                                   ║
+  ║  Qcard PRO  v3.10.1     シングルカード共有確認                           ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8210,11 +8210,34 @@ function qcardEnsureCardShareModal() {
     rmodal.addEventListener('click', function(e){ if (e.target === rmodal) closeCardReceivePreview(); });
 }
 
+function qcardResolveShareCardItem() {
+    // 画像の遅延読み込み等でグリッドが再描画されると、
+    // editCardItem が古いDOMを指したり null になることがある。
+    // 共有開始時に保存したURIを永続的な主キーとして再解決する。
+    var uri = window._qcardCardShareUri || null;
+    if (editCardItem && (!uri || editCardItem.dataset.uri === uri)) return editCardItem;
+    if (!uri) return null;
+    var active = getActive();
+    if (!active || !Array.isArray(active.data)) return null;
+    var card = active.data.find(function(c){ return c && c.uri === uri; });
+    if (!card) return null;
+    var item = grid.querySelector('.grid-item[data-uri="' + CSS.escape(uri) + '"]');
+    if (item) { editCardItem = item; return item; }
+    return null;
+}
+
 function openCardShareMenu() {
     qcardEnsureCardShareModal();
     if (!editCardItem) { showToast('共有するカードを開いてください'); return; }
-    saveCurrentGridData();
     var card = getCardMeta(editCardItem);
+    if (!card || !card.uri) { showToast('カード情報を取得できません'); return; }
+    // ここでURIとシナリオIDを保持しておく。画像の非同期処理による再描画後も共有対象を失わない。
+    window._qcardCardShareUri = card.uri;
+    window._qcardCardShareScenarioId = (getActive() && getActive().id) ? getActive().id : null;
+    saveCurrentGridData();
+    // 保存処理後にDOMが差し替わった場合は、URIから新しいDOMを取得する。
+    qcardResolveShareCardItem();
+    card = getCardMeta(editCardItem);
     if (!card || !card.uri) { showToast('カード情報を取得できません'); return; }
     var modal = document.getElementById('qcard-card-share-modal');
     var body = document.getElementById('qcard-cs-body');
@@ -8232,11 +8255,38 @@ function closeCardShareMenu() {
 }
 
 async function qcardCreateCardShare() {
-    if (!editCardItem) throw new Error('共有するカードがありません');
-    saveCurrentGridData();
-    var card = getCardMeta(editCardItem);
-    if (!card || !card.uri) throw new Error('カード情報を取得できません');
-    var result = await shareCard(card, editCardItem);
+    // DOMのeditCardItemは、画像の非同期処理や再描画で失われることがある。
+    // 共有対象はURI＋シナリオIDを正本として再解決し、DOMが無くても共有できるようにする。
+    var item = qcardResolveShareCardItem();
+    var card = item ? getCardMeta(item) : null;
+
+    if (!card || !card.uri) {
+        var uri = window._qcardCardShareUri || null;
+        var scenarioId = window._qcardCardShareScenarioId || activeScenarioId || null;
+        var scenario = Array.isArray(scenarios) ? scenarios.find(function(s) { return s && s.id === scenarioId; }) : null;
+        if (!scenario && typeof getActive === 'function') scenario = getActive();
+        if (scenario && Array.isArray(scenario.data) && uri) {
+            card = scenario.data.find(function(c) { return c && c.uri === uri; }) || null;
+            if (card) {
+                // shareCard() は画像・音声のローカルIDをDOM datasetから読むため、
+                // DOMが無い場合はカードデータから最小限のproxyを作る。
+                item = { dataset: {
+                    uri: card.uri,
+                    mediaId: card.mediaId || '',
+                    mediaIdBack: card.mediaIdBack || '',
+                    itvId: card.itvId || '',
+                    audioSource: card.audioSource || 'speech'
+                } };
+            }
+        }
+    }
+
+    if (!card || !card.uri) throw new Error('共有するカードがありません');
+    if (!item) throw new Error('共有対象カードの表示情報を取得できません');
+
+    // 最新のDOMが取得できていれば、画像・音声のdatasetを優先する。
+    // 取得できない場合でも上のproxyでカードデータを使って共有を継続する。
+    var result = await shareCard(card, item);
     if (!result || !result.friendlyUrl) throw new Error('共有URLの発行に失敗しました');
     return result;
 }
