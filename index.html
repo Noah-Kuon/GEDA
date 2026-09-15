@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1       カードが最後に追加するか確認          ║
+  ║  Qcard PRO  v3.10.1  QR表示確認                         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8310,7 +8310,7 @@ window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl;
 window.createCardShareQR = async function() {
     try {
         var result = window._qcardLastCardShareUrl ? {friendlyUrl:window._qcardLastCardShareUrl} : await qcardCreateCardShare();
-        await loadQRCode();
+        await window.loadQRCode();
         var box=document.getElementById('qcard-qr-code'), urlEl=document.getElementById('qcard-qr-url'), modal=document.getElementById('qcard-qr-modal');
         if(!box||!modal) throw new Error('QR表示UIがありません');
         box.innerHTML=''; new window.QRCode(box,{text:result.friendlyUrl,width:240,height:240,colorDark:'#111111',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
@@ -19917,6 +19917,12 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
         if (!jsqrPromise) jsqrPromise = loadScriptOnce(JSQR_CDN, 'jsQR');
         return jsqrPromise;
     }
+
+    // [v3.15.7] カード共有QRからも同じ遅延ロード関数を使えるよう公開する。
+    // createCardShareQR() はこのIIFEの外で定義されているため、
+    // ローカル関数のままだと ReferenceError: loadQRCode is not defined になる。
+    window.loadQRCode = loadQRCode;
+    window.loadJsQR = loadJsQR;
 
     window.shareCurrentScenarioAsQR = async function(){
         // データ管理モーダルを先に閉じ、共有処理中に二重モーダルにならないようにする
