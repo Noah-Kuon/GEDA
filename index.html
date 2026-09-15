@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1       単発カード受け渡し要確認               ║
+  ║  Qcard PRO  v3.10.1       カード受け渡しCSS追加         ║
   ║  © 2025 Qcard Project. All rights reserved.                 ║
   ║  無断複製・改変・再配布を禁じます。                              ║
   ║  Unauthorized copying, modification or redistribution       ║
@@ -8082,52 +8082,11 @@ async function shareCard(card, cardItem) {
         access_count: 0
     };
 
-// shared_cards に保存
-var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
-
-if (result.error) {
-    // ============================================================
-    // [DEBUG] shared_cards upsert エラー詳細
-    // ============================================================
-    console.error('========================================');
-    console.error('[Card Share] shared_cards UPSERT ERROR');
-    console.error('========================================');
-
-    console.error('[Card Share] error.message =', result.error.message);
-    console.error('[Card Share] error.code    =', result.error.code);
-    console.error('[Card Share] error.details =', result.error.details);
-    console.error('[Card Share] error.hint    =', result.error.hint);
-
-    console.error('[Card Share] full error object =', result.error);
-
-    // Supabaseへ送信したrowそのものも確認
-    console.error('[Card Share] upsert row =', row);
-
-    // JSONとしても確認しやすいように出力
-    try {
-        console.error(
-            '[Card Share] upsert row JSON =',
-            JSON.stringify(row, null, 2)
-        );
-    } catch (jsonError) {
-        console.error(
-            '[Card Share] row JSON stringify error =',
-            jsonError
-        );
+    var result = await sb.from('shared_cards').upsert(row, { onConflict: 'uri' });
+    if (result.error) {
+        showToast('共有に失敗しました: ' + result.error.message);
+        return null;
     }
-
-    console.error('========================================');
-
-    showToast(
-        '共有に失敗しました: ' +
-        (result.error.message || 'shared_cards保存エラー')
-    );
-
-    return null;
-}
-
-console.log('[Card Share] shared_cards UPSERT SUCCESS');
-console.log('[Card Share] saved data =', result.data);
 
     var friendlyUrl = 'https://qcard.app/share/' + ulid;
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
@@ -8157,124 +8116,19 @@ async function getUploadExt(cardId) {
  * fetchSharedCard(uri)
  * Supabase から共有カードを取得する。
  */
-/**
- * fetchSharedCard(uri)
- * Supabase から共有カードを取得する。
- *
- * DEBUG版：
- * - SELECTエラーを隠さない
- * - URI変換結果をログ出力
- * - Supabaseエラーの詳細をコンソールに出す
- * - 取得成功時もデータを確認できるようにする
- */
 async function fetchSharedCard(uri) {
-    console.log('========================================');
-    console.log('[Card Receive] fetchSharedCard START');
-    console.log('[Card Receive] uri =', uri);
-    console.log('========================================');
-
-    try {
-        var sb = getSB();
-
-        if (!sb) {
-            console.error('[Card Receive] Supabase client is not available');
-            showToast('Supabaseに接続できません');
-            return null;
-        }
-
-        console.log('[Card Receive] querying shared_cards...');
-
-        var result = await sb
-            .from('shared_cards')
-            .select('*')
-            .eq('uri', uri)
-            .single();
-
-        if (result.error) {
-            console.error('========================================');
-            console.error('[Card Receive] shared_cards SELECT ERROR');
-            console.error('[Card Receive] error.message =', result.error.message);
-            console.error('[Card Receive] error.code    =', result.error.code);
-            console.error('[Card Receive] error.details =', result.error.details);
-            console.error('[Card Receive] error.hint    =', result.error.hint);
-            console.error('[Card Receive] full error object =', result.error);
-            console.error('[Card Receive] requested uri =', uri);
-            console.error('========================================');
-
-            showToast(
-                'カード取得エラー: ' +
-                (result.error.message || 'shared_cards取得失敗')
-            );
-
-            return null;
-        }
-
-        if (!result.data) {
-            console.error('[Card Receive] SELECT succeeded but data is null');
-            console.error('[Card Receive] uri =', uri);
-            showToast('共有カードのデータがありません');
-            return null;
-        }
-
-        console.log('========================================');
-        console.log('[Card Receive] shared_cards SELECT SUCCESS');
-        console.log('[Card Receive] data =', result.data);
-        console.log('[Card Receive] card_json =', result.data.card_json);
-        console.log('[Card Receive] expires_at =', result.data.expires_at);
-        console.log('========================================');
-
-        /*
-         * アクセス数をインクリメント
-         *
-         * 受信そのものはアクセス数更新に依存しない。
-         * 更新失敗してもカード取得は成功扱いにする。
-         */
-        try {
-            var nextAccessCount =
-                (Number(result.data.access_count) || 0) + 1;
-
-            var accessResult = await sb
-                .from('shared_cards')
-                .update({
-                    access_count: nextAccessCount
-                })
-                .eq('uri', uri);
-
-            if (accessResult.error) {
-                console.warn(
-                    '[Card Receive] access_count update failed:',
-                    accessResult.error
-                );
-            } else {
-                console.log(
-                    '[Card Receive] access_count updated:',
-                    nextAccessCount
-                );
-            }
-        } catch (accessError) {
-            console.warn(
-                '[Card Receive] access_count update exception:',
-                accessError
-            );
-        }
-
-        return result.data;
-
-    } catch (e) {
-        console.error('========================================');
-        console.error('[Card Receive] fetchSharedCard EXCEPTION');
-        console.error('[Card Receive] message =', e && e.message);
-        console.error('[Card Receive] error =', e);
-        console.error('[Card Receive] uri =', uri);
-        console.error('========================================');
-
-        showToast(
-            'カード取得中にエラーが発生しました: ' +
-            (e && e.message ? e.message : e)
-        );
-
-        return null;
-    }
+    var sb = getSB();
+    var result = await sb
+        .from('shared_cards')
+        .select('*')
+        .eq('uri', uri)
+        .single();
+    if (result.error) return null;
+    // アクセス数をインクリメント
+    sb.from('shared_cards')
+        .update({ access_count: (result.data.access_count || 0) + 1 })
+        .eq('uri', uri);
+    return result.data;
 }
 
 /**
@@ -8329,7 +8183,7 @@ function qcardEnsureCardShareModal() {
 .qcard-share-preview-card{border:1px solid var(--border,#333);border-radius:8px;padding:12px;background:var(--surface2,#20252c)}.qcard-share-preview-image{max-height:220px;text-align:center;margin-bottom:10px}.qcard-share-preview-image img{max-width:100%;max-height:210px;object-fit:contain;border-radius:4px}.qcard-share-preview-title{font-size:.95rem;font-weight:600;margin-bottom:7px}.qcard-share-preview-content{font-size:.76rem;line-height:1.6;white-space:normal;max-height:170px;overflow:auto}.qcard-share-preview-meta,.qcard-share-preview-expiry{font-size:.64rem;color:var(--text-muted,#aaa);margin-top:8px}
 .qcard-cs-choice{display:grid;gap:7px;margin-top:12px}.qcard-cs-choice label{display:flex;align-items:center;gap:8px;border:1px solid var(--border,#333);border-radius:6px;padding:9px 10px;cursor:pointer;font-size:.76rem}.qcard-cs-choice label:has(input:checked){border-color:var(--accent,#7aa7ff);background:rgba(127,155,255,.08)}
 .qcard-cs-status{font-size:.7rem;color:var(--text-muted,#aaa);min-height:1.4em;margin-top:8px}
-#qcard-card-receive-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58);z-index:2147483001;padding:18px;box-sizing:border-box}.qcard-cr-panel{width:min(620px,96vw);max-height:min(90vh,800px);overflow:auto;background:var(--surface,#15191f);color:var(--text,#eee);border:1px solid var(--border,#333);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.38);padding:18px;box-sizing:border-box}.qcard-cr-head{display:flex;justify-content:space-between;align-items:center}.qcard-cr-head h3{margin:0;font-size:1rem}.qcard-cr-close{border:0;background:transparent;color:var(--text-muted,#aaa);font-size:1.35rem;cursor:pointer}.qcard-cr-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.qcard-cr-btn{border:1px solid var(--border,#333);background:var(--surface2,#20252c);color:var(--text,#eee);border-radius:6px;padding:8px 14px;cursor:pointer}.qcard-cr-btn.primary{border-color:var(--accent,#7aa7ff)}
+#qcard-card-receive-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58);z-index:2147483001;padding:18px;box-sizing:border-box}#qcard-card-receive-modal.open{display:flex}.qcard-cr-panel{width:min(620px,96vw);max-height:min(90vh,800px);overflow:auto;background:var(--surface,#15191f);color:var(--text,#eee);border:1px solid var(--border,#333);border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.38);padding:18px;box-sizing:border-box}.qcard-cr-head{display:flex;justify-content:space-between;align-items:center}.qcard-cr-head h3{margin:0;font-size:1rem}.qcard-cr-close{border:0;background:transparent;color:var(--text-muted,#aaa);font-size:1.35rem;cursor:pointer}.qcard-cr-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.qcard-cr-btn{border:1px solid var(--border,#333);background:var(--surface2,#20252c);color:var(--text,#eee);border-radius:6px;padding:8px 14px;cursor:pointer}.qcard-cr-btn.primary{border-color:var(--accent,#7aa7ff)}
 @media(max-width:600px){#qcard-card-share-modal,#qcard-card-receive-modal{padding:10px}.qcard-cs-panel,.qcard-cr-panel{width:100%;max-height:92vh;padding:14px}}
 `;
     document.head.appendChild(style);
@@ -8615,99 +8469,18 @@ async function importSharedCard(uri) {
 }
 
 /**
- * URL/QR受信：
- * shared_cards を先に確認し、
- * カードでなければ shared_scenarios へ。
+ * URL/QR受信：shared_cards を先に確認し、無ければ従来の shared_scenarios へ。
  */
 async function importShareByUrl(raw) {
-
-    console.log('========================================');
-    console.log('[Card Receive] importShareByUrl START');
-    console.log('[Card Receive] raw input =', raw);
-    console.log('========================================');
-
-    try {
-        var uri = await resolveShareUri(raw);
-
-        console.log('[Card Receive] resolved uri =', uri);
-
-        if (!uri) {
-            console.error('[Card Receive] URI RESOLVE FAILED');
-            console.error('[Card Receive] raw =', raw);
-
-            showToast('URLの形式が正しくありません');
-            return;
-        }
-
-        console.log('[Card Receive] fetching shared card...');
-
-        var cardData = await fetchSharedCard(uri);
-
-        console.log('[Card Receive] fetchSharedCard result =', cardData);
-
-        if (cardData && cardData.card_json) {
-
-            console.log('[Card Receive] CARD SHARE FOUND');
-            console.log('[Card Receive] card_json =', cardData.card_json);
-
-            if (
-                cardData.expires_at &&
-                new Date(cardData.expires_at) < new Date()
-            ) {
-                console.error('[Card Receive] SHARE URL EXPIRED');
-                console.error(
-                    '[Card Receive] expires_at =',
-                    cardData.expires_at
-                );
-
-                showToast('この共有URLは期限切れです');
-                return;
-            }
-
-            console.log(
-                '[Card Receive] opening card receive preview...'
-            );
-
-            closeDataModal();
-
-            window.openCardReceivePreview(cardData);
-
-            console.log(
-                '[Card Receive] card receive preview opened'
-            );
-
-            return;
-        }
-
-        /*
-         * ここまで来た場合は、
-         * shared_cards にカードが存在しなかった。
-         */
-        console.warn(
-            '[Card Receive] CARD SHARE NOT FOUND'
-        );
-        console.warn(
-            '[Card Receive] fallback to shared_scenarios'
-        );
-
-        closeDataModal();
-
-        await importSharedScenario(uri);
-
-    } catch (e) {
-
-        console.error('========================================');
-        console.error('[Card Receive] importShareByUrl EXCEPTION');
-        console.error('[Card Receive] message =', e && e.message);
-        console.error('[Card Receive] error =', e);
-        console.error('[Card Receive] raw =', raw);
-        console.error('========================================');
-
-        showToast(
-            '共有データの取得に失敗しました: ' +
-            (e && e.message ? e.message : e)
-        );
+    var uri=await resolveShareUri(raw);
+    if(!uri){showToast('URLの形式が正しくありません');return;}
+    var cardData=await fetchSharedCard(uri);
+    if(cardData&&cardData.card_json){
+        if(cardData.expires_at&&new Date(cardData.expires_at)<new Date()){showToast('この共有URLは期限切れです');return;}
+        closeDataModal(); window.openCardReceivePreview(cardData); return;
     }
+    // カードでなければ既存シナリオ共有の受信へ。
+    closeDataModal(); await importSharedScenario(uri);
 }
 
 /**
