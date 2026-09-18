@@ -1,15 +1,23 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1   カードコピー+カードシナリオ共有検証     ║
-  ║  © 2025 Qcard Project. All rights reserved.                 ║
-  ║  無断複製・改変・再配布を禁じます。                              ║
-  ║  Unauthorized copying, modification or redistribution       ║
-  ║  of this file, via any medium, is strictly prohibited.      ║
+  ║  Qcard PRO  v3.10.1  GA4　実装                                ║
+  ║  © 2025 Qcard Project. All rights reserved.                  ║
+  ║  無断複製・改変・再配布を禁じます。                             ║
+  ║  Unauthorized copying, modification or redistribution        ║
+  ║  of this file, via any medium, is strictly prohibited.       ║
   ╚══════════════════════════════════════════════════════════════╝
 -->
 <html lang="ja">
 <head>
+    <!-- Google Analytics 4 (Qcard) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-N4YT1WL75G"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-N4YT1WL75G');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qcard PRO</title>
@@ -2200,8 +2208,12 @@
             content: ''; width: 7px; height: 7px; border-radius: 50%;
             background: var(--accent); box-shadow: 0 0 5px var(--accent-glow);
         }
+        .tutorial-tagline {
+            font-size: 1.05rem; color: var(--text); font-weight: 600; line-height: 1.5;
+            margin-bottom: 8px;
+        }
         .tutorial-subtitle {
-            font-size: 0.8rem; color: var(--text-muted); font-weight: 400; line-height: 1.5;
+            font-size: 0.8rem; color: var(--text-muted); font-weight: 400; line-height: 1.6;
         }
         .tutorial-steps {
             padding: 20px 32px;
@@ -9989,36 +10001,37 @@ function showTutorial() {
     backdrop.innerHTML = `
     <div id="tutorial-modal">
         <div class="tutorial-header">
-            <div class="tutorial-logo">Qcard PRO</div>
-            <div class="tutorial-subtitle">面接・録音・プレゼン用キューカード管理ツールへようこそ。<br>まずは基本的な使い方を確認しましょう。</div>
+            <div class="tutorial-logo">Qcard</div>
+            <div class="tutorial-tagline">知識をカードとして記録し、つなぎ、育てる。</div>
+            <div class="tutorial-subtitle">読む・書く・聴く・学ぶ。バラバラだった知識の断片を1枚のカードにまとめ、<br>カード同士をリンクでつなげていく知識管理ツールです。</div>
         </div>
         <div class="tutorial-steps">
             <div class="tutorial-step">
                 <div class="step-icon">✏️</div>
                 <div class="step-body">
-                    <div class="step-title">カードに内容を入力</div>
-                    <div class="step-desc">グリッドの各カードにタイトルと本文を入力します。入力はリアルタイムで自動保存されます。</div>
+                    <div class="step-title">カードに記録する</div>
+                    <div class="step-desc">テキストだけでなく、表裏の画像や音声も1枚のカードにまとめられます。入力はリアルタイムで自動保存されます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
                 <div class="step-icon">👁</div>
                 <div class="step-body">
-                    <div class="step-title">閲覧モードに切り替えて確認</div>
-                    <div class="step-desc">画面上部の <strong>「閲覧」</strong> ボタンで閲覧専用モードに切替。カードをクリックまたは <kbd>1</kbd>〜<kbd>9</kbd> キーで大きく表示できます。</div>
+                    <div class="step-title">目的に応じて切り替える</div>
+                    <div class="step-desc">編集・閲覧・音読・録音・学習——同じカードを、書く時・見る時・聞く時・覚える時で使い分けられます。閲覧モードでは <kbd>1</kbd>〜<kbd>9</kbd> キーでカードを大きく表示できます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
-                <div class="step-icon">📂</div>
+                <div class="step-icon">🔗</div>
                 <div class="step-body">
-                    <div class="step-title">シナリオで場面ごとに管理</div>
-                    <div class="step-desc">シナリオバーでカードセットを切り替えられます。<kbd>F1</kbd>〜<kbd>F8</kbd> キーでも素早く切り替え可能です。</div>
+                    <div class="step-title">カード同士をつなげる</div>
+                    <div class="step-desc">関連するカードをリンクでつなぎ、知識と知識の関係を作っていけます。つながりは自動的に双方向に把握できます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
-                <div class="step-icon">🔍</div>
+                <div class="step-icon">📤</div>
                 <div class="step-body">
-                    <div class="step-title">検索でカードを素早く見つける</div>
-                    <div class="step-desc">検索バー（<kbd>Ctrl+F</kbd>）でタイトルや本文からカードを絞り込めます。</div>
+                    <div class="step-title">持ち出す・共有する</div>
+                    <div class="step-desc">1枚のカードだけ、あるいはシナリオごと、QRコードやURLで人に渡せます。データはファイルとして自分の手元にも残せます。</div>
                 </div>
             </div>
         </div>
