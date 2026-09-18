@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                                   ║
-  ║  © 2025 Qcard Project. All rights reserved.                 ║
-  ║  無断複製・改変・再配布を禁じます。                              ║
-  ║  Unauthorized copying, modification or redistribution       ║
-  ║  of this file, via any medium, is strictly prohibited.      ║
+  ║  Qcard PRO  v3.10.1                                          ║
+  ║  © 2025 Qcard Project. All rights reserved.                  ║
+  ║  無断複製・改変・再配布を禁じます。                             ║
+  ║  Unauthorized copying, modification or redistribution        ║
+  ║  of this file, via any medium, is strictly prohibited.       ║
   ╚══════════════════════════════════════════════════════════════╝
 -->
 <html lang="ja">
@@ -2200,8 +2200,12 @@
             content: ''; width: 7px; height: 7px; border-radius: 50%;
             background: var(--accent); box-shadow: 0 0 5px var(--accent-glow);
         }
+        .tutorial-tagline {
+            font-size: 1.05rem; color: var(--text); font-weight: 600; line-height: 1.5;
+            margin-bottom: 8px;
+        }
         .tutorial-subtitle {
-            font-size: 0.8rem; color: var(--text-muted); font-weight: 400; line-height: 1.5;
+            font-size: 0.8rem; color: var(--text-muted); font-weight: 400; line-height: 1.6;
         }
         .tutorial-steps {
             padding: 20px 32px;
@@ -5187,7 +5191,7 @@ min-height: 0;
     <span id="close-btn" onclick="hideOverlay()">×</span>
     <button id="size-panel-btn" onclick="toggleSizePanel(event)" title="表示サイズを調整">⇔</button>
     <button id="edit-mode-btn" onclick="toggleEditMode()" title="編集モード">✏️</button>
-    <button id="share-card-btn" onclick="openCardShareMenu()" title="このカードを共有">🔗</button>
+    <button id="share-card-btn" onclick="openCardShareMenu()" title="共有（カード／シナリオ）">🔗</button>
     <!-- 本文内検索バー -->
     <div id="overlay-find-bar">
         <span class="find-icon">🔍</span>
@@ -8191,8 +8195,8 @@ function qcardEnsureCardShareModal() {
     var modal = document.createElement('div');
     modal.id = 'qcard-card-share-modal';
     modal.setAttribute('aria-hidden','true');
-    modal.innerHTML = '<div class="qcard-cs-panel" role="dialog" aria-modal="true" aria-label="カードを共有">' +
-        '<div class="qcard-cs-head"><h3>カードを共有</h3><button class="qcard-cs-close" type="button" onclick="closeCardShareMenu()">×</button></div>' +
+    modal.innerHTML = '<div class="qcard-cs-panel" role="dialog" aria-modal="true" aria-label="共有">' +
+        '<div class="qcard-cs-head"><h3>共有</h3><button class="qcard-cs-close" type="button" onclick="closeCardShareMenu()">×</button></div>' +
         '<div id="qcard-cs-body"></div>' +
         '</div>';
     document.body.appendChild(modal);
@@ -8209,6 +8213,30 @@ function qcardEnsureCardShareModal() {
     document.body.appendChild(rmodal);
     rmodal.addEventListener('click', function(e){ if (e.target === rmodal) closeCardReceivePreview(); });
 }
+
+// [NEW] 共有範囲（このカードだけ／シナリオ全体）。直前の選択を記憶する。
+function qcardGetShareScope() {
+    return localStorage.getItem('kp_card_share_scope') === 'scenario' ? 'scenario' : 'card';
+}
+function qcardSetShareScope(scope) {
+    localStorage.setItem('kp_card_share_scope', scope === 'scenario' ? 'scenario' : 'card');
+}
+function qcardActiveCardCount() {
+    var active = getActive();
+    if (!active || !Array.isArray(active.data)) return 0;
+    return active.data.filter(function(c) { return c && ((c.title||'').trim() || (c.content||'').trim()); }).length;
+}
+function qcardShareScopeDescText(scope) {
+    return scope === 'scenario'
+        ? ('シナリオ全体（' + qcardActiveCardCount() + '枚）をスナップショットとして共有します。')
+        : '現在のカードをスナップショットとして共有します。';
+}
+window.qcardOnShareScopeChange = function(value) {
+    qcardSetShareScope(value);
+    window._qcardLastCardShareUrl = null; // 範囲変更時は前回発行したURLを破棄する
+    var desc = document.getElementById('qcard-cs-desc');
+    if (desc) desc.textContent = qcardShareScopeDescText(value);
+};
 
 function qcardResolveShareCardItem() {
     // 画像の遅延読み込み等でグリッドが再描画されると、
@@ -8241,7 +8269,13 @@ function openCardShareMenu() {
     if (!card || !card.uri) { showToast('カード情報を取得できません'); return; }
     var modal = document.getElementById('qcard-card-share-modal');
     var body = document.getElementById('qcard-cs-body');
-    body.innerHTML = '<div style="font-size:.72rem;color:var(--text-muted);">現在のカードをスナップショットとして共有します。</div>' +
+    var scope = qcardGetShareScope();
+    body.innerHTML =
+        '<div class="qcard-cs-choice">' +
+            '<label><input type="radio" name="qcard-share-scope" value="card" ' + (scope === 'card' ? 'checked' : '') + ' onchange="qcardOnShareScopeChange(this.value)"> このカードだけ</label>' +
+            '<label><input type="radio" name="qcard-share-scope" value="scenario" ' + (scope === 'scenario' ? 'checked' : '') + ' onchange="qcardOnShareScopeChange(this.value)"> シナリオ全体（全' + qcardActiveCardCount() + '枚）</label>' +
+        '</div>' +
+        '<div id="qcard-cs-desc" style="font-size:.72rem;color:var(--text-muted);margin-top:10px;">' + qcardShareScopeDescText(scope) + '</div>' +
         '<div class="qcard-cs-actions">' +
         '<button class="qcard-cs-btn" type="button" onclick="createCardShareUrl()">🔗 共有URLを作成</button>' +
         '<button class="qcard-cs-btn" type="button" onclick="createCardShareQR()">▦ QRで表示</button>' +
@@ -8255,6 +8289,13 @@ function closeCardShareMenu() {
 }
 
 async function qcardCreateCardShare() {
+    var scope = qcardGetShareScope();
+    if (scope === 'scenario') {
+        var scenarioResult = await window.shareCurrentScenario(true); // silent: このモーダル側でUI・トーストを出すため
+        if (!scenarioResult || !scenarioResult.friendlyUrl) throw new Error('共有URLの発行に失敗しました');
+        return scenarioResult;
+    }
+
     // DOMのeditCardItemは、画像の非同期処理や再描画で失われることがある。
     // 共有対象はURI＋シナリオIDを正本として再解決し、DOMが無くても共有できるようにする。
     var item = qcardResolveShareCardItem();
@@ -8295,15 +8336,17 @@ window.createCardShareUrl = async function() {
     var status = document.getElementById('qcard-cs-status');
     if (status) status.textContent = '共有URLを作成中…';
     try {
+        var scope = qcardGetShareScope();
+        var label = scope === 'scenario' ? 'シナリオ' : 'カード';
         var result = await qcardCreateCardShare();
         var body = document.getElementById('qcard-cs-body');
-        if (body) body.innerHTML = '<div style="font-size:.72rem;">カード共有URLを発行しました。</div>' +
+        if (body) body.innerHTML = '<div style="font-size:.72rem;">' + label + '共有URLを発行しました。</div>' +
             '<div class="qcard-cs-url" id="qcard-cs-url">' + qcardShareEscapeHtml(result.friendlyUrl) + '</div>' +
             '<div class="qcard-cs-actions"><button class="qcard-cs-btn" type="button" onclick="copyCardShareUrl()">URLをコピー</button><button class="qcard-cs-btn" type="button" onclick="createCardShareQR()">▦ QRで表示</button></div>' +
-            '<div class="qcard-cs-status">このURLは24時間有効です。受信後のカードはローカル保存されます。</div>';
+            '<div class="qcard-cs-status">このURLは24時間有効です。受信後は' + (scope === 'scenario' ? 'シナリオ' : 'カード') + 'がローカル保存されます。</div>';
         window._qcardLastCardShareUrl = result.friendlyUrl;
-        try { await navigator.clipboard.writeText(result.friendlyUrl); showToast('✅ カード共有URLをコピーしました'); } catch(_) { showToast('カード共有URLを作成しました'); }
-    } catch(e) { console.error('[Card Share]',e); if(status) status.textContent='共有に失敗しました: '+(e.message||e); showToast('カード共有に失敗しました'); }
+        try { await navigator.clipboard.writeText(result.friendlyUrl); showToast('✅ ' + label + '共有URLをコピーしました'); } catch(_) { showToast(label + '共有URLを作成しました'); }
+    } catch(e) { console.error('[Card Share]',e); if(status) status.textContent='共有に失敗しました: '+(e.message||e); showToast('共有に失敗しました'); }
 };
 window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl; if(!u)return; try{await navigator.clipboard.writeText(u);showToast('✅ URLをコピーしました');}catch(e){showToast('URLのコピーに失敗しました');} };
 
@@ -8570,7 +8613,7 @@ window.shareCurrentCard = async function() {
  * - 各カードの画像・音声をStorageにアップロードしSigned URLを設定
  * - shared_scenarios テーブルに保存（shared_cards は使用しない）
  */
-window.shareCurrentScenario = async function() {
+window.shareCurrentScenario = async function(silent) {
     // 共有前にDOM上の最新編集内容を保存
     saveCurrentGridData();
 
@@ -8757,15 +8800,25 @@ window.shareCurrentScenario = async function() {
     console.log('[Scenario Share] shared URI:', shareUri);
     console.log('[Scenario Share] expires:', expiresAt);
 
-    if (navigator.clipboard) {
-        await navigator.clipboard.writeText(friendlyUrl);
+    // [FIX] クリップボード書き込みは補助的な処理であり、失敗しても共有自体は成功済み。
+    // ここで例外を吸収しないと、この関数が最後のreturnに到達できず、
+    // 呼び出し元（QR共有モーダル・カード共有モーダル等）まで丸ごと失敗して見えてしまう。
+    var copied = false;
+    if (!silent && navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(friendlyUrl);
+            copied = true;
+        } catch (copyErr) {
+            console.warn('[Scenario Share] clipboard copy failed (share itself succeeded):', copyErr);
+        }
+    }
+    if (!silent) {
         var msg = '✅ シナリオを共有しました';
         if (mediaCount) msg += ' · 画像' + mediaCount + '枚';
         if (audioCount) msg += ' · 音声' + audioCount + '件';
         msg += ' · 24時間有効';
+        msg += copied ? '（リンクをコピーしました）' : '（リンクは手動でコピーしてください）';
         showToast(msg);
-    } else {
-        showToast('✅ シナリオを共有しました（24時間有効）');
     }
 
     return { uri: shareUri, friendlyUrl: friendlyUrl, expiresAt: expiresAt };
@@ -9940,36 +9993,37 @@ function showTutorial() {
     backdrop.innerHTML = `
     <div id="tutorial-modal">
         <div class="tutorial-header">
-            <div class="tutorial-logo">Qcard PRO</div>
-            <div class="tutorial-subtitle">面接・録音・プレゼン用キューカード管理ツールへようこそ。<br>まずは基本的な使い方を確認しましょう。</div>
+            <div class="tutorial-logo">Qcard</div>
+            <div class="tutorial-tagline">知識をカードとして記録し、つなぎ、育てる。</div>
+            <div class="tutorial-subtitle">読む・書く・聴く・学ぶ。バラバラだった知識の断片を1枚のカードにまとめ、<br>カード同士をリンクでつなげていく知識管理ツールです。</div>
         </div>
         <div class="tutorial-steps">
             <div class="tutorial-step">
                 <div class="step-icon">✏️</div>
                 <div class="step-body">
-                    <div class="step-title">カードに内容を入力</div>
-                    <div class="step-desc">グリッドの各カードにタイトルと本文を入力します。入力はリアルタイムで自動保存されます。</div>
+                    <div class="step-title">カードに記録する</div>
+                    <div class="step-desc">テキストだけでなく、表裏の画像や音声も1枚のカードにまとめられます。入力はリアルタイムで自動保存されます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
                 <div class="step-icon">👁</div>
                 <div class="step-body">
-                    <div class="step-title">閲覧モードに切り替えて確認</div>
-                    <div class="step-desc">画面上部の <strong>「閲覧」</strong> ボタンで閲覧専用モードに切替。カードをクリックまたは <kbd>1</kbd>〜<kbd>9</kbd> キーで大きく表示できます。</div>
+                    <div class="step-title">目的に応じて切り替える</div>
+                    <div class="step-desc">編集・閲覧・音読・録音・学習——同じカードを、書く時・見る時・聞く時・覚える時で使い分けられます。閲覧モードでは <kbd>1</kbd>〜<kbd>9</kbd> キーでカードを大きく表示できます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
-                <div class="step-icon">📂</div>
+                <div class="step-icon">🔗</div>
                 <div class="step-body">
-                    <div class="step-title">シナリオで場面ごとに管理</div>
-                    <div class="step-desc">シナリオバーでカードセットを切り替えられます。<kbd>F1</kbd>〜<kbd>F8</kbd> キーでも素早く切り替え可能です。</div>
+                    <div class="step-title">カード同士をつなげる</div>
+                    <div class="step-desc">関連するカードをリンクでつなぎ、知識と知識の関係を作っていけます。つながりは自動的に双方向に把握できます。</div>
                 </div>
             </div>
             <div class="tutorial-step">
-                <div class="step-icon">🔍</div>
+                <div class="step-icon">📤</div>
                 <div class="step-body">
-                    <div class="step-title">検索でカードを素早く見つける</div>
-                    <div class="step-desc">検索バー（<kbd>Ctrl+F</kbd>）でタイトルや本文からカードを絞り込めます。</div>
+                    <div class="step-title">持ち出す・共有する</div>
+                    <div class="step-desc">1枚のカードだけ、あるいはシナリオごと、QRコードやURLで人に渡せます。データはファイルとして自分の手元にも残せます。</div>
                 </div>
             </div>
         </div>
@@ -10756,6 +10810,9 @@ function renderGrid(data, total) {
 
         var displayData = d;
         if (isLearningReversed && (d.title || d.content)) {
+            // [FIX] title/contentだけの別オブジェクトを作ると、mediaId等が
+            // 丸ごと欠落してグリッドの画像が表示されなくなる。元のdをベースに
+            // title/contentだけ入れ替える。
             displayData = Object.assign({}, d, {
                 title: d.content,
                 content: d.title
@@ -11643,94 +11700,7 @@ function cardClipboardApplyToData(meta) {
 
 function cardClipboardCopy() {
     if (!editCardItem) return;
-
-    // [FIX v3.16.1]
-    // 画面上のカードと active.data の mediaId / mediaIdBack 等を先に同期する。
-    // 画像Blobそのものはここでは読み込まず、最新のIndexedDBキーだけを保持する。
-    try { saveCurrentGridData(); } catch (_) {}
-
-    var meta = getCardMeta(editCardItem);
-    if (!meta) return;
-    cardClipboardCopyFromData(meta);
-}
-
-// [FIX v3.16.1] クリップボード貼り付け後の画像を明示的に再読込する。
-// Lazy Observerだけに依存せず、IndexedDBへ保存した直後のBlobを確実に<img>へ接続する。
-// 既存mediaIdを再利用する上書きでも同じ処理を使う。
-function qcardClipboardRefreshImagesByUri(uri) {
-    if (!uri || typeof mediaLoadForCard !== 'function') return;
-    var item = qcardClipboardFindItemByUri(uri);
-    if (!item) return;
-
-    var meta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
-    if (!meta) return;
-
-    // 表画像
-    var frontImg = item.querySelector('.card-media-layer img');
-    if (meta.mediaId && frontImg) {
-        item.dataset.mediaId = meta.mediaId;
-        item.classList.add('has-media');
-        mediaLoadForCard(meta.mediaId, item, frontImg);
-    } else {
-        item.classList.remove('has-media', 'media-ready');
-        if (frontImg) {
-            if (frontImg.dataset.mediaObjectUrl) {
-                try { URL.revokeObjectURL(frontImg.dataset.mediaObjectUrl); } catch (_) {}
-                delete frontImg.dataset.mediaObjectUrl;
-            }
-            frontImg.removeAttribute('src');
-        }
-    }
-
-    // 裏画像の存在状態もDOMへ反映する。
-    // 裏面そのものの表示は既存の表裏表示ロジックに任せる。
-    if (meta.mediaIdBack) {
-        item.dataset.mediaIdBack = meta.mediaIdBack;
-        item.classList.add('has-media-back');
-    } else {
-        delete item.dataset.mediaIdBack;
-        item.classList.remove('has-media-back');
-    }
-}
-
-// CSS.escape が利用できない古い環境向けの安全なURI検索。
-function qcardClipboardFindItemByUri(uri) {
-    if (!uri) return null;
-    var items = document.querySelectorAll('.grid-item');
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].dataset && items[i].dataset.uri === uri) return items[i];
-    }
-    return null;
-}
-
-function qcardClipboardRefreshImages(item) {
-    if (!item || typeof mediaLoadForCard !== 'function') return;
-    var meta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
-    if (!meta) return;
-
-    var frontImg = item.querySelector('.card-media-layer img');
-    if (meta.mediaId && frontImg) {
-        item.dataset.mediaId = meta.mediaId;
-        item.classList.add('has-media');
-        mediaLoadForCard(meta.mediaId, item, frontImg);
-    } else {
-        item.classList.remove('has-media', 'media-ready');
-        if (frontImg) {
-            if (frontImg.dataset.mediaObjectUrl) {
-                try { URL.revokeObjectURL(frontImg.dataset.mediaObjectUrl); } catch (_) {}
-                delete frontImg.dataset.mediaObjectUrl;
-            }
-            frontImg.removeAttribute('src');
-        }
-    }
-
-    if (meta.mediaIdBack) {
-        item.dataset.mediaIdBack = meta.mediaIdBack;
-        item.classList.add('has-media-back');
-    } else {
-        delete item.dataset.mediaIdBack;
-        item.classList.remove('has-media-back');
-    }
+    cardClipboardCopyFromData(getCardMeta(editCardItem));
 }
 
 async function cardClipboardPaste() {
@@ -11777,12 +11747,6 @@ async function cardClipboardPaste() {
     active.updatedAt=nowMs();
     saveScenarios();
     updateGrid();
-
-    // [FIX v3.16.1] 新しいDOMが生成された後、画像を明示的にIndexedDBから表示する。
-    // Lazy Loadingの発火タイミングに依存しない。
-    var newItem = qcardClipboardFindItemByUri(card.uri);
-    if (newItem) qcardClipboardRefreshImages(newItem);
-
     showToast('📋 複製して追加しました（画像・音声・リンクを含む）');
 }
 
@@ -11813,36 +11777,40 @@ async function cardClipboardPasteInto(cardItem) {
     meta.audioSource=result.audioSource||'speech';
     meta.itvId=result.itvId||undefined;
 
-    // [FIX v3.16.1]
-    // setCardMeta() はDOM index依存のため、検索・並び替え時に別カードを更新する危険がある。
-    // ここでは既にURIで正しく取得した meta を直接保存する。
-    meta.title = clipboard.title;
-    meta.content = clipboard.content;
-    meta.tags = Array.isArray(clipboard.tags) ? clipboard.tags.slice() : [];
-    meta.source = clipboard.source || '';
-    meta.sourceUrl = clipboard.sourceUrl || '';
-    meta.note = clipboard.note || '';
-    meta.links = Array.isArray(clipboard.links)
-        ? JSON.parse(JSON.stringify(clipboard.links)) : [];
-    meta.mediaId = result.mediaId || undefined;
-    meta.mediaIdBack = result.mediaIdBack || undefined;
-    meta.audioSource = result.audioSource || 'speech';
-    meta.itvId = result.itvId || undefined;
-    meta.updatedAt = nowMs();
+    setCardMeta(cardItem,{
+        title:meta.title,content:meta.content,tags:meta.tags,
+        source:meta.source,sourceUrl:meta.sourceUrl,note:meta.note,
+        mediaId:meta.mediaId, mediaIdBack:meta.mediaIdBack,
+        audioSource:meta.audioSource, itvId:meta.itvId
+    });
 
-    var activeNow = getActive();
-    if (activeNow) activeNow.updatedAt = nowMs();
-    saveScenarios();
+    // [FIX] setCardMeta()はシナリオデータを更新するだけで、グリッドのDOM（表示中の
+    // カード要素）は同期しない。画像・音声を上書きした直後にその場で反映されるよう、
+    // このカード要素のdataset・has-mediaクラス・画像読み込みを明示的にやり直す。
+    if (meta.mediaId) {
+        cardItem.dataset.mediaId = meta.mediaId;
+        cardItem.classList.add('has-media');
+        var frontImg = cardItem.querySelector('.card-media-layer img');
+        if (frontImg && typeof mediaLoadForCard === 'function') mediaLoadForCard(meta.mediaId, cardItem, frontImg);
+    } else {
+        delete cardItem.dataset.mediaId;
+        cardItem.classList.remove('has-media', 'media-ready');
+        var frontImgClear = cardItem.querySelector('.card-media-layer img');
+        if (frontImgClear) frontImgClear.removeAttribute('src');
+    }
+    if (meta.mediaIdBack) {
+        cardItem.dataset.mediaIdBack = meta.mediaIdBack;
+        cardItem.classList.add('has-media-back');
+    } else {
+        delete cardItem.dataset.mediaIdBack;
+        cardItem.classList.remove('has-media-back');
+    }
+    if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(cardItem);
 
     var titleEl=cardItem.querySelector('.title-input'), contentEl=cardItem.querySelector('.content-textarea');
     if(titleEl) titleEl.value=meta.title;
     if(contentEl) contentEl.value=meta.content;
     cardItem.classList.toggle('is-blank-card',!meta.title.trim()&&!meta.content.trim());
-
-    // [FIX v3.16.1] 既存mediaIdを再利用した場合も、古いObjectURLを使い続けず、
-    // 今保存したBlobをmediaLoadForCard()から再取得して表示する。
-    qcardClipboardRefreshImages(cardItem);
-
     if(currentQuery) applySearch(currentQuery);
     isLocked=true;
     showOverlay(meta.title,meta.content,cardItem);
