@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1  GA4　実装                                ║
+  ║  Qcard PRO  v3.10.1     qcardSecureShare                  ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -20348,6 +20348,242 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
             stopGedaObservationClock();
         }
     });
+})();
+
+/* ══════════════════════════════════════════════════════════════════
+   Stage 21.5 — Secure Share: 暗号化・復号 単体実装 ＋ サイズ実測ハーネス
+   ------------------------------------------------------------------
+   まだ共有ボタン・Supabase送信には一切組み込まない。
+   コンソールから window.qcardSecureShareBench() を呼んで、
+   代表5パターンのPayload生成→暗号化→復号までを単体で検証・実測する。
+   仕様（Stage 21確定版）:
+     - AES-GCM-256 / Web Crypto API
+     - 鍵: 32byte乱数、CryptoKeyはextractable:false
+     - IV: 12byte乱数、鍵ごとに使い捨て
+     - AADは使用しない
+     - Envelope: {version, type, alg, iv, ciphertext}
+     - Payload(card):     {core, media:{front,back}, audio}
+     - Payload(scenario): {core, deckMedia:{back}, cards:[{core,media,audio}]}
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+    var ALG = 'AES-GCM';
+    var VERSION = 1;
+
+    // ---- Base64 / Base64URL ヘルパー ----
+    function bytesToBase64(bytes) {
+        var bin = '';
+        for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+    }
+    function base64ToBytes(b64) {
+        var bin = atob(b64);
+        var out = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+    }
+    function bytesToBase64Url(bytes) {
+        return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function base64UrlToBytes(b64url) {
+        var b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        return base64ToBytes(b64);
+    }
+    function blobToBase64(blob) {
+        return blob.arrayBuffer().then(function (buf) { return bytesToBase64(new Uint8Array(buf)); });
+    }
+    function base64ToBlob(b64, mimeType) {
+        return new Blob([base64ToBytes(b64)], { type: mimeType || 'application/octet-stream' });
+    }
+
+    // ---- 鍵生成 ----
+    // 仕様どおり: 元の32byte鍵素材はURL用にBase64URL化して保持し、
+    // CryptoKey自体はextractable:falseでimportする。
+    function qcardGenerateShareKey() {
+        var keyBytes = crypto.getRandomValues(new Uint8Array(32));
+        return crypto.subtle.importKey('raw', keyBytes, { name: ALG }, false, ['encrypt', 'decrypt'])
+            .then(function (cryptoKey) {
+                return { cryptoKey: cryptoKey, keyBase64Url: bytesToBase64Url(keyBytes) };
+            });
+    }
+    function qcardImportShareKeyFromUrl(keyBase64Url) {
+        var keyBytes = base64UrlToBytes(keyBase64Url);
+        return crypto.subtle.importKey('raw', keyBytes, { name: ALG }, false, ['encrypt', 'decrypt']);
+    }
+
+    // ---- Payload構築（Card） ----
+    // card: 内部のカードデータオブジェクト（active.data の要素）
+    // frontBlob/backBlob: Blob or null、audioBlob: Blob or null
+    async function qcardBuildCardPayload(card, frontBlob, backBlob, audioInfo, audioBlob) {
+        var media = { front: null, back: null };
+        if (frontBlob) media.front = { mimeType: frontBlob.type || 'image/webp', data: await blobToBase64(frontBlob) };
+        if (backBlob)  media.back  = { mimeType: backBlob.type  || 'image/webp', data: await blobToBase64(backBlob) };
+
+        var audio = { source: (audioInfo && audioInfo.source) || 'speech', mimeType: null, data: null };
+        if (audioBlob && audio.source !== 'speech') {
+            audio.mimeType = audioBlob.type || 'audio/webm';
+            audio.data = await blobToBase64(audioBlob);
+        }
+
+        return {
+            core: {
+                id: card.id, uri: card.uri,
+                title: card.title || '', content: card.content || '',
+                tags: card.tags || [],
+                source: card.source || '', sourceUrl: card.sourceUrl || '', note: card.note || '',
+                originCardId: card.originCardId || '',
+                links: Array.isArray(card.links) ? card.links : [],
+                createdAt: card.createdAt || null, updatedAt: card.updatedAt || null
+            },
+            media: media,
+            audio: audio
+        };
+    }
+
+    // ---- Payload構築（Scenario） ----
+    async function qcardBuildScenarioPayload(scenario, deckBackBlob, cardPayloads) {
+        var deckMedia = { back: null };
+        if (deckBackBlob) deckMedia.back = { mimeType: deckBackBlob.type || 'image/webp', data: await blobToBase64(deckBackBlob) };
+        return {
+            core: {
+                title: scenario.title || scenario.name || '', description: scenario.description || '',
+                tags: scenario.tags || [], cols: scenario.cols || 4, rows: scenario.rows || 4,
+                createdAt: scenario.createdAt || null, updatedAt: scenario.updatedAt || null
+            },
+            deckMedia: deckMedia,
+            cards: cardPayloads // [{core, media, audio}, ...]（qcardBuildCardPayloadの戻り値をそのまま並べる）
+        };
+    }
+
+    // ---- 暗号化 / 復号 ----
+    async function qcardEncryptSharePayload(type, payloadObj, cryptoKey) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        var plaintext = new TextEncoder().encode(JSON.stringify(payloadObj));
+        var cipherBuf = await crypto.subtle.encrypt({ name: ALG, iv: iv }, cryptoKey, plaintext);
+        return {
+            version: VERSION, type: type, alg: 'AES-GCM-256', encrypted: true,
+            iv: bytesToBase64(iv),
+            ciphertext: bytesToBase64(new Uint8Array(cipherBuf)),
+            plaintextSize: plaintext.byteLength,
+            ciphertextSize: cipherBuf.byteLength
+        };
+    }
+    async function qcardDecryptSharePayload(envelope, cryptoKey) {
+        try {
+            var iv = base64ToBytes(envelope.iv);
+            var cipherBytes = base64ToBytes(envelope.ciphertext);
+            var plainBuf = await crypto.subtle.decrypt({ name: ALG, iv: iv }, cryptoKey, cipherBytes);
+            var json = new TextDecoder('utf-8').decode(plainBuf);
+            return JSON.parse(json); // 呼び出し側でさらにschema validation / normalizeへ
+        } catch (e) {
+            // [仕様] 失敗理由は区別せず、常に同じ失敗として扱う
+            throw new Error('共有データを復号できませんでした。');
+        }
+    }
+
+    window.qcardSecureShare = {
+        generateKey: qcardGenerateShareKey,
+        importKeyFromUrl: qcardImportShareKeyFromUrl,
+        buildCardPayload: qcardBuildCardPayload,
+        buildScenarioPayload: qcardBuildScenarioPayload,
+        encrypt: qcardEncryptSharePayload,
+        decrypt: qcardDecryptSharePayload,
+        blobToBase64: blobToBase64,
+        base64ToBlob: base64ToBlob,
+        bytesToBase64Url: bytesToBase64Url,
+        base64UrlToBytes: base64UrlToBytes
+    };
+
+    // ── Stage 21.5 実測ハーネス ──────────────────────────────────
+    // 代表5パターンをダミーデータで生成し、Payload生成→暗号化→復号までの
+    // サイズ・所要時間を計測してコンソールへ表を出す。実データではなく
+    // ダミーBlob（指定サイズのランダムバイト列）を使うため、実運用前の
+    // 「机上のオーダー感」を掴む目的の計測にとどまる。
+    function qcardMakeDummyBlob(sizeBytes, mimeType) {
+        var bytes = new Uint8Array(sizeBytes);
+        crypto.getRandomValues(bytes.subarray(0, Math.min(sizeBytes, 65536))); // 先頭だけ乱数、残りは0埋め（生成コスト削減）
+        return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+    }
+    function qcardMakeDummyCard(i, withImage, withBackImage, withAudio) {
+        return {
+            id: 'card_' + i, uri: 'fig://DUMMY' + i,
+            title: 'サンプルカード ' + i, content: 'これは実測用のダミー本文です。'.repeat(20),
+            tags: ['sample', 'bench'], source: '', sourceUrl: '', note: '',
+            originCardId: '', links: [{ targetUri: 'fig://OTHER' + i, label: '関連' }],
+            createdAt: Date.now(), updatedAt: Date.now(),
+            _frontBlob: withImage ? qcardMakeDummyBlob(30 * 1024, 'image/webp') : null,
+            _backBlob: withBackImage ? qcardMakeDummyBlob(30 * 1024, 'image/webp') : null,
+            _audioInfo: withAudio ? { source: 'recorded' } : { source: 'speech' },
+            _audioBlob: withAudio ? qcardMakeDummyBlob(80 * 1024, 'audio/webm') : null
+        };
+    }
+
+    async function qcardBenchOne(label, type, payloadObj) {
+        var t0 = performance.now();
+        var keyInfo = await qcardGenerateShareKey();
+        var t1 = performance.now();
+        var envelope = await qcardEncryptSharePayload(type, payloadObj, keyInfo.cryptoKey);
+        var t2 = performance.now();
+        var decrypted = await qcardDecryptSharePayload(envelope, keyInfo.cryptoKey);
+        var t3 = performance.now();
+        var ok = JSON.stringify(decrypted) === JSON.stringify(payloadObj);
+
+        var row = {
+            'パターン': label,
+            '平文サイズ(KB)': (envelope.plaintextSize / 1024).toFixed(1),
+            '暗号文サイズ(KB)': (envelope.ciphertextSize / 1024).toFixed(1),
+            '鍵生成(ms)': (t1 - t0).toFixed(1),
+            '暗号化(ms)': (t2 - t1).toFixed(1),
+            '復号(ms)': (t3 - t2).toFixed(1),
+            '往復検証': ok ? 'OK' : 'NG'
+        };
+        return row;
+    }
+
+    window.qcardSecureShareBench = async function () {
+        console.log('[Secure Share Bench] Stage 21.5 実測を開始します…');
+        var results = [];
+
+        // ① テキストのみ（画像・音声なし）
+        var c1 = qcardMakeDummyCard(1, false, false, false);
+        var p1 = await qcardBuildCardPayload(c1, null, null, c1._audioInfo, null);
+        results.push(await qcardBenchOne('①テキストのみ(card)', 'card', p1));
+
+        // ② 画像付きカード（表のみ）
+        var c2 = qcardMakeDummyCard(2, true, false, false);
+        var p2 = await qcardBuildCardPayload(c2, c2._frontBlob, null, c2._audioInfo, null);
+        results.push(await qcardBenchOne('②画像付き(表のみ)', 'card', p2));
+
+        // ③ 画像＋音声付きカード（表裏＋録音）
+        var c3 = qcardMakeDummyCard(3, true, true, true);
+        var p3 = await qcardBuildCardPayload(c3, c3._frontBlob, c3._backBlob, c3._audioInfo, c3._audioBlob);
+        results.push(await qcardBenchOne('③画像(表裏)＋音声', 'card', p3));
+
+        // ④ 複数カードのシナリオ（テキストのみ・50枚）
+        var cards4 = [];
+        for (var i = 0; i < 50; i++) {
+            var c = qcardMakeDummyCard(100 + i, false, false, false);
+            cards4.push(await qcardBuildCardPayload(c, null, null, c._audioInfo, null));
+        }
+        var scenario4 = { title: 'ベンチ用シナリオ(テキストのみ50枚)', description: '', tags: [], cols: 4, rows: 13, createdAt: Date.now(), updatedAt: Date.now() };
+        var p4 = await qcardBuildScenarioPayload(scenario4, null, cards4);
+        results.push(await qcardBenchOne('④シナリオ50枚(テキストのみ)', 'scenario', p4));
+
+        // ⑤ 画像＋音声付き複数カード（10枚、デッキ共通裏面あり）
+        var cards5 = [];
+        for (var j = 0; j < 10; j++) {
+            var c5 = qcardMakeDummyCard(200 + j, true, false, true);
+            cards5.push(await qcardBuildCardPayload(c5, c5._frontBlob, null, c5._audioInfo, c5._audioBlob));
+        }
+        var deckBack5 = qcardMakeDummyBlob(30 * 1024, 'image/webp');
+        var scenario5 = { title: 'ベンチ用シナリオ(画像+音声10枚)', description: '', tags: [], cols: 5, rows: 2, createdAt: Date.now(), updatedAt: Date.now() };
+        var p5 = await qcardBuildScenarioPayload(scenario5, deckBack5, cards5);
+        results.push(await qcardBenchOne('⑤シナリオ10枚(画像+音声+共通裏面)', 'scenario', p5));
+
+        console.table(results);
+        console.log('[Secure Share Bench] 完了。上表のサイズ・所要時間を基に実用上限を検討してください。');
+        return results;
+    };
 })();
 
 </script>
