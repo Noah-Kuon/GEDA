@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1                                          ║
+  ║  Qcard PRO  v3.18.4                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -2973,6 +2973,8 @@
             font-size: 0.92rem;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            user-select: none;
             transition: color 0.15s, border-color 0.15s, background 0.15s;
         }
         #mob-flip-btn.active {
@@ -4880,7 +4882,7 @@ min-height: 0;
         <span id="mob-scenario-trigger-name" class="mstn"></span>
         <span class="mstn-caret">▾</span>
     </button>
-    <button id="mob-flip-btn" onclick="toggleLearningDirection()" data-i18n-title="mob_flip_title" title="タイトルと本文を反転して練習">⇄</button>
+    <button type="button" id="mob-flip-btn" data-i18n-title="mob_flip_title" title="タイトルと本文を反転して練習">⇄</button>
     <div id="mob-view-toggle">
         <button class="mob-view-btn active" data-view="swipe" onclick="mobSetView('swipe')" data-i18n-title="mob_swipe_title" title="スワイプ">⬜</button>
         <button class="mob-view-btn"        data-view="grid1" onclick="mobSetView('grid1')" data-i18n-title="mob_grid1_title" title="1列">▤</button>
@@ -5111,7 +5113,7 @@ min-height: 0;
             <button id="mob-shuffle-btn"     onclick="studyShuffle()"   data-i18n="drawer_shuffle"    title="シャッフル">🔀 シャッフル</button>
             <button id="mob-unshuffle-btn"   onclick="studyUnshuffle()" data-i18n="btn_unshuffle"     title="元の順番" style="display:none">↩ 元順</button>
             <button id="mob-study-reset-btn" onclick="studyResetAll()"  data-i18n="mob_study_reset"   title="学習記録をリセット">🗑 リセット</button>
-            <button id="mobStudyBarToggleBtn" onclick="toggleLearningDirection()" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:3px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
+            <button type="button" id="mobStudyBarToggleBtn" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:3px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
         </div>
         <div id="mob-study-progress-bar-wrap">
             <div id="mob-study-progress-again" class="mob-study-prog-seg"></div>
@@ -10767,7 +10769,7 @@ function toggleLearningDirection() {
             window.studyRefreshCard();
         } else if (document.body.classList.contains('mob-grid1') ||
                    document.body.classList.contains('mob-grid2')) {
-            if (typeof updateGrid === 'function') updateGrid();
+            if (typeof updateGrid === 'function') updateGrid({ skipMobileSync: true });
         } else if (typeof window.mRenderAll === 'function') {
             window.mRenderAll();
         }
@@ -10782,6 +10784,43 @@ function toggleLearningDirection() {
 }
 
 // 全ての反転ボタンの表示を現在状態に同期する
+// [FIX v3.18.4] モバイル反転ボタンは click だけに依存しない。
+// 実機で最初のタップが「反応しない」ように見える環境を避けるため、
+// タッチ系は pointerup で即時処理し、合成 click は1回だけ抑止する。
+(function bindMobileDirectionButtons() {
+    function bind(id) {
+        var btn = document.getElementById(id);
+        if (!btn || btn.dataset.directionBound === '1') return;
+        btn.dataset.directionBound = '1';
+        var suppressClick = false;
+
+        btn.addEventListener('pointerup', function(e) {
+            // マウスは通常の click に任せる。
+            if (e.pointerType === 'mouse') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (suppressClick) return;
+            suppressClick = true;
+            toggleLearningDirection();
+            // 直後の合成 click だけを捨てる。
+            setTimeout(function() { suppressClick = false; }, 450);
+        });
+
+        btn.addEventListener('click', function(e) {
+            if (suppressClick) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            toggleLearningDirection();
+        });
+    }
+
+    // 上部の反転ボタン＋学習バー内のモバイル反転ボタン
+    bind('mob-flip-btn');
+    bind('mobStudyBarToggleBtn');
+})();
+
 function updateLearningDirectionBtn() {
     var reversed = isLearningReversed;
     var label    = reversed ? t('dir_reversed') : t('dir_normal');
@@ -10807,7 +10846,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function updateGrid() {
+function updateGrid(options) {
+    options = options || {};
     cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 
     var cols = getActiveCols();
@@ -10847,8 +10887,9 @@ function updateGrid() {
     applyCardRatio(); 
     
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
-    if (typeof window.mSync === 'function') setTimeout(window.mSync, 0);
+    if (!options.skipMobileSync && typeof window.mSync === 'function') setTimeout(window.mSync, 0);
 }
+
 
 function renderGrid(data, total) {
     // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
