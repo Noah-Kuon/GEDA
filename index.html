@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1     qcardSecureShare                  ║
+  ║  Qcard PRO  v3.10.1                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -446,6 +446,17 @@
         }
         .to-menu-item:hover { background: var(--surface2); }
         #display-settings-popover #cardRatioSelect {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            font-size: 0.7rem;
+            padding: 3px 4px;
+            cursor: pointer;
+        }
+        #display-settings-popover #popupModeSelect {
+            margin-left: auto;
+            min-width: 112px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 2px;
@@ -2910,7 +2921,6 @@
             font-size: 0.65rem;
             padding: 0 2px;
         }
-
         /* ── 言語切替（表示設定ポップオーバー内） ── */
         #lang-select-row { align-items: center; }
         .ds-lang-label { font-size: 1rem; flex-shrink: 0; }
@@ -4794,6 +4804,14 @@ min-height: 0;
                 <label data-i18n="label_height">高さ</label>
                 <input type="range" id="heightSlider" min="20" max="95" value="55">
                 <span class="val-badge" id="heightDisplay">55%</span>
+            </div>
+            <div class="ds-row" id="popupModeGroup">
+                <label>展開</label>
+                <select id="popupModeSelect" onchange="setPopupMode(this.value)" title="カードポップアップの開き方">
+                    <option value="instant">即時</option>
+                    <option value="delay" selected>少し待つ</option>
+                    <option value="click">クリックのみ</option>
+                </select>
             </div>
             <div class="ds-row" id="ratioCtrlGroup">
                 <label data-i18n="label_ratio">比率</label>
@@ -9005,6 +9023,23 @@ let isLocked     = false;
 let isEditMode   = false;
 let editCardItem = null;
 let hideTimeout  = null;
+// カードポップアップの開き方：即時／少し待つ／クリックのみ
+var hoverShowTimeout = null;
+var savedPopupMode = localStorage.getItem('kp_popup_mode');
+var popupMode = (savedPopupMode === 'instant' || savedPopupMode === 'click')
+    ? savedPopupMode
+    : 'delay'; // 旧 'hover' もここに吸収し、既定値は「少し待つ」
+function syncPopupModeUI() {
+    var select = document.getElementById('popupModeSelect');
+    if (select) select.value = popupMode;
+}
+function setPopupMode(mode) {
+    popupMode = (mode === 'instant' || mode === 'click') ? mode : 'delay';
+    localStorage.setItem('kp_popup_mode', popupMode);
+    syncPopupModeUI();
+    clearTimeout(hoverShowTimeout);
+}
+syncPopupModeUI();
 let dragSrcEl    = null;
 let toastTimeout = null;
 let saveTimeout  = null;
@@ -10921,21 +10956,36 @@ function createItem(index, d) {
     item.addEventListener('mouseenter', (function(t, c) {
         return function() {
             if (isLocked) return;
+            if (popupMode === 'click') return;
             clearTimeout(hideTimeout);
-            // [MOD] 朗読モードでもホバーでプレビュー表示する（本文クリックで朗読開始するため）
-            showOverlay(t.value, c.value, item);
+            clearTimeout(hoverShowTimeout);
+            // [FIX] 前のカードのポップアップが残っていると、通過中の次のカードに
+            // かぶって編集を邪魔するため、別カードへ移った瞬間は待たずに閉じる。
+            if (overlay.style.display !== 'none' && editCardItem && editCardItem !== item) {
+                overlay.style.display = 'none';
+                backdrop.style.display = 'none';
+            }
+            // ポップアップ表示方式に応じて、即時／少し待ってから表示
+            if (popupMode === 'instant') {
+                showOverlay(t.value, c.value, item);
+            } else {
+                hoverShowTimeout = setTimeout(function() {
+                    showOverlay(t.value, c.value, item);
+                }, 300);
+            }
         };
     })(titleInput, contentTextarea));
 
     item.addEventListener('mouseleave', function() {
         if (isLocked) return;
+        clearTimeout(hoverShowTimeout);
+        if (popupMode === 'click') return;
         hideTimeout = setTimeout(hideOverlay, 300);
     });
 
     item.addEventListener('click', (function(t, c) {
         return function(e) {
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
-            if (appMode === 'reading') return;
             if (appMode === 'study') return; // 学習モード中はカードクリックを無視
 
             // [FIX] モバイル1列・2列グリッドで「非表示（ブランク）カード」をタップした場合は
@@ -10967,7 +11017,12 @@ function createItem(index, d) {
                 }
                 return;
             }
-            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media')) {
+            // [MOD] クリックモードでは、朗読モード・空カードでもクリックで確実に開く
+            // （ホバーモードでは通過中の誤展開を防ぐため、これまで通り条件を課す）
+            var canOpenByCondition = (popupMode === 'click') ||
+                (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media'));
+            if (appMode === 'reading' && popupMode !== 'click') return;
+            if (canOpenByCondition) {
                 isLocked = true;
                 showOverlay(t.value, c.value, item);
             }
@@ -11367,9 +11422,10 @@ overlay.addEventListener('mouseleave', function(){
 });
 
 function showOverlay(title, text, cardItem) {
-    // タイトル・本文が空でも、画像があるカードはオーバーレイを開く
+    // タイトル・本文が空でも、画像があるカード、またはクリックモードでの明示的な操作なら開く
     if (!title.trim() && !text.trim() &&
-        !(cardItem && cardItem.classList.contains('has-media'))) return;
+        !(cardItem && cardItem.classList.contains('has-media')) &&
+        popupMode !== 'click') return;
     exitEditMode();
     overlay.classList.remove('overlay-collapsed'); // [NEW] カードを開き直すたびに折りたたみ状態はリセットする
     if (cardItem !== undefined) editCardItem = cardItem;
