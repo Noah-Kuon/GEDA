@@ -1783,6 +1783,8 @@
             width: 20px; height: 20px;
             cursor: nwse-resize;
             z-index: 6;
+            touch-action: none;
+            user-select: none;
         }
         #overlay-resize-handle::after {
             content: '';
@@ -10741,6 +10743,7 @@ function onCardRatioCustomChange(value) {
 var isLearningReversed = false;
 
 function toggleLearningDirection() {
+    // 1タップ＝1回だけ反転。描画処理は端末／モードに応じて1系統に絞る。
     isLearningReversed = !isLearningReversed;
 
     // シナリオオブジェクトに保存（saveScenarios で localStorage に永続化）
@@ -10750,16 +10753,29 @@ function toggleLearningDirection() {
         if (typeof saveScenarios === 'function') saveScenarios();
     }
 
+    // ボタン状態は先に同期するが、カード本体は下の「1回の再描画」で確定させる。
     updateLearningDirectionBtn();
 
-    // PCグリッドを再描画
-    if (typeof updateGrid === 'function') updateGrid();
+    var isMobile = (typeof isMobileViewport === 'function') && isMobileViewport();
 
-    // モバイルスワイプを再描画
-    if (typeof window.mRenderAll === 'function') window.mRenderAll();
-
-    // 学習モード中はカードを再表示（PC＋モバイル）
-    if (typeof window.studyRefreshCard === 'function') window.studyRefreshCard();
+    if (isMobile) {
+        // モバイルは「通常表示」と「学習表示」で描画経路を完全に分離する。
+        // studyRefreshCard() → studyShow() 内でも mRenderAll() が呼ばれるため、
+        // 学習中に mRenderAll() を先に呼ぶと1タップで二重描画になり、
+        // 表示が1テンポ遅れたように見える原因になる。
+        if (appMode === 'study' && typeof window.studyRefreshCard === 'function') {
+            window.studyRefreshCard();
+        } else if (typeof window.mRenderAll === 'function') {
+            window.mRenderAll();
+        }
+    } else {
+        // PCも「通常表示」と「学習表示」を1系統だけ通す。
+        if (appMode === 'study' && typeof window.studyRefreshCard === 'function') {
+            window.studyRefreshCard();
+        } else if (typeof updateGrid === 'function') {
+            updateGrid();
+        }
+    }
 }
 
 // 全ての反転ボタンの表示を現在状態に同期する
@@ -11414,11 +11430,17 @@ function clearSearchFilterView() {
 }
 
 // ===== OVERLAY =====
-overlay.addEventListener('mouseenter', function(){ clearTimeout(hideTimeout); });
+overlay.addEventListener('mouseenter', function(){
+    clearTimeout(hideTimeout);
+});
 overlay.addEventListener('mouseleave', function(){
-    // [FIX] リサイズ／ヘッダードラッグ中は、素早い操作でカーソルが一瞬カードの外に出ても
-    // ホバー解除とみなして閉じてしまわないようにする（掴み判定が外れてカードが消える不具合の原因）
-    if (!isLocked && overlay.dataset.interacting !== '1') hideOverlay();
+    // [FIX v3.18.2] リサイズ／ヘッダードラッグ中は、カーソルがカード外へ出ても閉じない。
+    // 既にセット済みのhideTimeoutもここで破棄する。
+    if (overlay.dataset.interacting === '1') {
+        clearTimeout(hideTimeout);
+        return;
+    }
+    if (!isLocked) hideOverlay();
 });
 
 function showOverlay(title, text, cardItem) {
@@ -12638,6 +12660,10 @@ window.rdStartFromOverlaySentence = function(contentSentIdx) {
 };
 
 function hideOverlay() {
+    // [FIX v3.18.2] リサイズ／ドラッグ中に、既に予約されていたhideTimeout等から
+    // hideOverlay()へ到達してもカードを閉じない。ここを最終防衛線にする。
+    if (overlay.dataset.interacting === '1') return;
+
     // [FIX] タグ欄に未確定の入力が残ったままオーバーレイを閉じると消えてしまうため、先に確定保存する
     if (typeof metaTagCommitPending === 'function') metaTagCommitPending();
     exitEditMode();
@@ -15516,45 +15542,85 @@ function fallbackCopy(text, label) {
 (function initOverlayResize() {
     var rHandle = document.getElementById('overlay-resize-handle');
     if (!rHandle) return;
-    var resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+    var resizing = false, pointerId = null;
+    var startX = 0, startY = 0, startW = 0, startH = 0;
 
-    rHandle.addEventListener('mousedown', function(e) {
-        if (overlay.classList.contains('overlay-collapsed')) return; // 折りたたみ中は不可
-        var rect = overlay.getBoundingClientRect();
-        // ドラッグ中に位置がずれないよう、既存のヘッダードラッグと同じ絶対座標化を行う
-        overlay.style.transform = 'none';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top  = rect.top + 'px';
-        overlay.dataset.dragged = '1';
-        overlay.dataset.interacting = '1'; // [FIX] 素早いドラッグでカーソルが枠外に出てもホバー解除扱いにしない
-        startW = rect.width; startH = rect.height;
-        startX = e.clientX; startY = e.clientY;
-        resizing = true;
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    document.addEventListener('mousemove', function(e) {
-        if (!resizing) return;
-        var maxW = window.innerWidth  - overlay.offsetLeft - 8;
-        var maxH = window.innerHeight - overlay.offsetTop  - 8;
-        var newW = Math.max(320, Math.min(maxW, startW + (e.clientX - startX)));
-        var newH = Math.max(220, Math.min(maxH, startH + (e.clientY - startY)));
-        overlay.style.width  = newW + 'px';
-        overlay.style.height = newH + 'px';
-        // [NEW] +/-パネルと単位（%）を揃えて連動させる
-        currentWidth  = Math.round(newW / window.innerWidth  * 100);
-        currentHeight = Math.round(newH / window.innerHeight * 100);
-        syncSizeBar();
-    });
-    document.addEventListener('mouseup', function() {
+    function finishResize() {
         if (!resizing) return;
         resizing = false;
+        pointerId = null;
         delete overlay.dataset.interacting;
         // 以後は%基準（+/-ボタン、リロード時の復元）に統一する
         overlay.style.width  = currentWidth  + '%';
         overlay.style.height = currentHeight + '%';
         localStorage.setItem('kp_width',  currentWidth);
         localStorage.setItem('kp_height', currentHeight);
+    }
+
+    rHandle.addEventListener('pointerdown', function(e) {
+        if (overlay.classList.contains('overlay-collapsed')) return; // 折りたたみ中は不可
+        // 左クリック／主ボタン以外はリサイズ開始しない
+        if (e.button !== 0) return;
+
+        var rect = overlay.getBoundingClientRect();
+        // ドラッグ中に位置がずれないよう、既存のヘッダードラッグと同じ絶対座標化を行う
+        overlay.style.transform = 'none';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top  = rect.top + 'px';
+        overlay.dataset.dragged = '1';
+        overlay.dataset.interacting = '1';
+        // リサイズ開始前にホバー由来の「閉じる予約」を必ず解除する。
+        clearTimeout(hideTimeout);
+        clearTimeout(hoverShowTimeout);
+        startW = rect.width; startH = rect.height;
+        startX = e.clientX; startY = e.clientY;
+        pointerId = e.pointerId;
+        resizing = true;
+
+        // ポインターキャプチャで、カーソルがカード外へ高速移動しても
+        // resize のmousemove相当イベントをこのハンドルが受け続けるようにする。
+        try { rHandle.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    rHandle.addEventListener('pointermove', function(e) {
+        if (!resizing || (pointerId !== null && e.pointerId !== pointerId)) return;
+
+        // ポインタが画面外へ出ても、カード左上を固定したまま右下だけを拡大する。
+        var maxW = Math.max(320, window.innerWidth  - overlay.offsetLeft - 8);
+        var maxH = Math.max(220, window.innerHeight - overlay.offsetTop  - 8);
+        var newW = Math.max(320, Math.min(maxW, startW + (e.clientX - startX)));
+        var newH = Math.max(220, Math.min(maxH, startH + (e.clientY - startY)));
+        overlay.style.width  = newW + 'px';
+        overlay.style.height = newH + 'px';
+        // +/-パネルと単位（%）を揃えて連動させる
+        currentWidth  = Math.round(newW / window.innerWidth  * 100);
+        currentHeight = Math.round(newH / window.innerHeight * 100);
+        syncSizeBar();
+        e.preventDefault();
+    });
+
+    rHandle.addEventListener('pointerup', function(e) {
+        if (pointerId !== null && e.pointerId !== pointerId) return;
+        try { if (rHandle.hasPointerCapture(e.pointerId)) rHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+        finishResize();
+        e.preventDefault();
+    });
+
+    rHandle.addEventListener('pointercancel', function(e) {
+        try { if (rHandle.hasPointerCapture(e.pointerId)) rHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+        finishResize();
+    });
+
+    // ブラウザ／OS側でpointerupがハンドルに届かなかった場合の保険。
+    document.addEventListener('pointerup', function(e) {
+        if (!resizing) return;
+        if (pointerId !== null && e.pointerId !== pointerId) return;
+        finishResize();
+    });
+    document.addEventListener('pointercancel', function() {
+        if (resizing) finishResize();
     });
 })();
 
