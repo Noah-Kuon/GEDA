@@ -10744,8 +10744,23 @@ function onCardRatioCustomChange(value) {
 // 状態は各シナリオオブジェクトの .isReversed に保存される。
 var isLearningReversed = false;
 
+// [VERIFY v3.18.5] 反転表示の「状態→描画→DOM」を確認するための追跡フラグ。
+// 動作そのものは変更せず、コンソールへ必要最小限の値だけ出力する。
+window.__QCARD_REVERSE_TRACE__ = true;
+
 function toggleLearningDirection() {
-    if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('ENTER toggleLearningDirection');
+    if (window.__QCARD_REVERSE_TRACE__) {
+        var _traceActive0 = (typeof getActive === 'function') ? getActive() : null;
+        console.log('[REVERSE_TRACE] toggle ENTER', {
+            reversed: isLearningReversed,
+            activeReversed: !!(_traceActive0 && _traceActive0.isReversed),
+            mobView: typeof mobView !== 'undefined' ? mobView : null,
+            appMode: typeof appMode !== 'undefined' ? appMode : null,
+            bodyGrid1: document.body.classList.contains('mob-grid1'),
+            bodyGrid2: document.body.classList.contains('mob-grid2')
+        });
+    }
+
     // 1タップ＝1回だけ反転。描画処理は端末／モードに応じて1系統に絞る。
     isLearningReversed = !isLearningReversed;
 
@@ -10781,6 +10796,14 @@ function toggleLearningDirection() {
         } else if (typeof updateGrid === 'function') {
             updateGrid();
         }
+    }
+
+    if (window.__QCARD_REVERSE_TRACE__) {
+        var _traceActive1 = (typeof getActive === 'function') ? getActive() : null;
+        console.log('[REVERSE_TRACE] toggle EXIT', {
+            reversed: isLearningReversed,
+            activeReversed: !!(_traceActive1 && _traceActive1.isReversed)
+        });
     }
 }
 
@@ -10848,7 +10871,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function updateGrid(options) {
-    if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('ENTER updateGrid', {options: options || {}});
     options = options || {};
     cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 
@@ -10890,11 +10912,21 @@ function updateGrid(options) {
     
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
     if (!options.skipMobileSync && typeof window.mSync === 'function') setTimeout(window.mSync, 0);
-    if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('EXIT updateGrid', {skipMobileSync: !!options.skipMobileSync});
 }
 
 
 function renderGrid(data, total) {
+    if (window.__QCARD_REVERSE_TRACE__) {
+        console.log('[REVERSE_TRACE] renderGrid ENTER', {
+            reversed: isLearningReversed,
+            mobView: typeof mobView !== 'undefined' ? mobView : null,
+            dataLength: data ? data.length : 0,
+            total: total,
+            bodyGrid1: document.body.classList.contains('mob-grid1'),
+            bodyGrid2: document.body.classList.contains('mob-grid2')
+        });
+    }
+
     // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
     // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
     if (_mediaLazyObserver) {
@@ -10925,7 +10957,30 @@ function renderGrid(data, total) {
             });
         }
 
-        grid.appendChild(createItem(i, displayData));
+        var _traceItem = createItem(i, displayData);
+        grid.appendChild(_traceItem);
+
+        // 最初の3枚だけ、入力元→反転後データ→実DOMの値を比較する。
+        if (window.__QCARD_REVERSE_TRACE__ && i < 3) {
+            var _traceTitleEl = _traceItem.querySelector('.title-input');
+            var _traceContentEl = _traceItem.querySelector('.content-textarea');
+            console.log('[REVERSE_TRACE] card', i + 1, {
+                sourceTitle: d && d.title,
+                sourceContent: d && d.content,
+                displayTitle: displayData && displayData.title,
+                displayContent: displayData && displayData.content,
+                domTitle: _traceTitleEl ? _traceTitleEl.value : null,
+                domContent: _traceContentEl ? _traceContentEl.value : null,
+                reversed: isLearningReversed
+            });
+        }
+    }
+
+    if (window.__QCARD_REVERSE_TRACE__) {
+        console.log('[REVERSE_TRACE] renderGrid EXIT', {
+            reversed: isLearningReversed,
+            renderedItems: grid.children.length
+        });
     }
 
     if ((document.body.classList.contains('mob-grid1') ||
@@ -12001,7 +12056,12 @@ function updateCardClipboardUI() {
 // updateGrid() でグリッドが再構築されるたびに、貼り付けヒントの表示状態も同期する
 var _origUpdateGridForClipboard = window.updateGrid;
 window.updateGrid = function() {
-    _origUpdateGridForClipboard();
+    // [VERIFY v3.18.5] ラッパーでupdateGridの引数を落とさない。
+    // toggleLearningDirection() の { skipMobileSync:true } をそのまま本体へ渡す。
+    if (window.__QCARD_REVERSE_TRACE__) {
+        console.log('[REVERSE_TRACE] updateGrid wrapper args=', Array.prototype.slice.call(arguments));
+    }
+    _origUpdateGridForClipboard.apply(this, arguments);
     if (typeof updateCardClipboardUI === 'function') updateCardClipboardUI();
 };
 
@@ -17006,7 +17066,6 @@ function rdSaveRate(v) {
 
     // ── カード内容を1スライドに書き込む ──
     function renderSlide(slide, dataArr, idx) {
-        if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('ENTER renderSlide', {idx: idx});
         var inner = slide.querySelector('.mob-card-inner');
         if (!inner) return;
         var titleEl   = inner.querySelector('.mob-card-title');
@@ -17206,8 +17265,7 @@ function rdSaveRate(v) {
                 if (typeof window._mobSentences !== 'undefined') window._mobSentences = sentences;
             }
         }
-            if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('EXIT renderSlide', {idx: idx});
-}
+    }
 
     function updateMobEditCommitButton() {
         var buttons = document.querySelectorAll('.mob-edit-done-btn');
@@ -17242,7 +17300,6 @@ function rdSaveRate(v) {
 
     // ── 3スライド全描画 ──
     function mRenderAll() {
-        if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('ENTER mRenderAll');
         // 学習モード中はstudyIdx（出題順インデックス）でスワイプ位置を同期
         if (appMode === 'study' && typeof window._studyMobIdx !== 'undefined') {
             mIdx = window._studyMobIdx;
@@ -17302,7 +17359,6 @@ function rdSaveRate(v) {
         // ステージを初期位置にリセット（アニメなし）
         stage.classList.remove('mob-animating');
         stage.style.transform = 'translateX(-33.3333%)';
-        if (window.__qcardRenderTrace) window.__qcardRenderTrace.log('EXIT mRenderAll');
     }
     window.mRenderAll = mRenderAll;
     window.mobGetCurSlide = function() { return slides[1]; };
@@ -20759,28 +20815,6 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
     };
 })();
 
-</script>
-<!-- QCARD_RENDER_TRACE_V2 -->
-<script>
-(function(){
-  'use strict';
-  var R = window.__qcardRenderTrace = window.__qcardRenderTrace || {seq:0,records:[],enabled:true};
-  function state(){
-    var a = (typeof getActive==='function') ? getActive() : null;
-    return {appMode: typeof appMode!=='undefined'?appMode:null,
-      reversed: typeof isLearningReversed!=='undefined'?isLearningReversed:null,
-      activeReversed:a ? !!a.isReversed:null,
-      activeId: typeof activeScenarioId!=='undefined'?activeScenarioId:null,
-      mobView: typeof mobView!=='undefined'?mobView:null,
-      body: document.body ? document.body.className : ''};
-  }
-  function log(type,data){
-    var rec={seq:++R.seq,t:Math.round(performance.now()),type:type,data:data||{},state:state()};
-    R.records.push(rec); console.log('[Qcard Render Trace]',rec); return rec;
-  }
-  R.log=log; R.dump=function(){console.table(R.records);return R.records;}; R.clear=function(){R.records=[];R.seq=0;};
-  log('TRACE_READY',{version:'v2-direct-instrumentation'});
-})();
 </script>
 </body>
 </html>
