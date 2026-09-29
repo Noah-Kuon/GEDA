@@ -10759,12 +10759,15 @@ function toggleLearningDirection() {
     var isMobile = (typeof isMobileViewport === 'function') && isMobileViewport();
 
     if (isMobile) {
-        // モバイルは「通常表示」と「学習表示」で描画経路を完全に分離する。
-        // studyRefreshCard() → studyShow() 内でも mRenderAll() が呼ばれるため、
-        // 学習中に mRenderAll() を先に呼ぶと1タップで二重描画になり、
-        // 表示が1テンポ遅れたように見える原因になる。
+        // モバイルは表示方式ごとに描画経路を分ける。
+        // swipe は mRenderAll()、1列/2列グリッドは renderGrid() を通る updateGrid()。
+        // grid1/grid2 では mRenderAll() は実際の表示DOMを更新しないため、
+        // ここで updateGrid() を呼ばないとタイトル⇄本文の反転が画面に反映されない。
         if (appMode === 'study' && typeof window.studyRefreshCard === 'function') {
             window.studyRefreshCard();
+        } else if (document.body.classList.contains('mob-grid1') ||
+                   document.body.classList.contains('mob-grid2')) {
+            if (typeof updateGrid === 'function') updateGrid();
         } else if (typeof window.mRenderAll === 'function') {
             window.mRenderAll();
         }
