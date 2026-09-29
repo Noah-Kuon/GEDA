@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1  GA4　実装                                ║
+  ║  Qcard PRO  v3.18.6  カード表示修正済                          ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -446,6 +446,17 @@
         }
         .to-menu-item:hover { background: var(--surface2); }
         #display-settings-popover #cardRatioSelect {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text);
+            font-size: 0.7rem;
+            padding: 3px 4px;
+            cursor: pointer;
+        }
+        #display-settings-popover #popupModeSelect {
+            margin-left: auto;
+            min-width: 112px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 2px;
@@ -1772,6 +1783,8 @@
             width: 20px; height: 20px;
             cursor: nwse-resize;
             z-index: 6;
+            touch-action: none;
+            user-select: none;
         }
         #overlay-resize-handle::after {
             content: '';
@@ -2910,7 +2923,6 @@
             font-size: 0.65rem;
             padding: 0 2px;
         }
-
         /* ── 言語切替（表示設定ポップオーバー内） ── */
         #lang-select-row { align-items: center; }
         .ds-lang-label { font-size: 1rem; flex-shrink: 0; }
@@ -2961,6 +2973,8 @@
             font-size: 0.92rem;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            user-select: none;
             transition: color 0.15s, border-color 0.15s, background 0.15s;
         }
         #mob-flip-btn.active {
@@ -4795,6 +4809,14 @@ min-height: 0;
                 <input type="range" id="heightSlider" min="20" max="95" value="55">
                 <span class="val-badge" id="heightDisplay">55%</span>
             </div>
+            <div class="ds-row" id="popupModeGroup">
+                <label>展開</label>
+                <select id="popupModeSelect" onchange="setPopupMode(this.value)" title="カードポップアップの開き方">
+                    <option value="instant">即時</option>
+                    <option value="delay" selected>少し待つ</option>
+                    <option value="click">クリックのみ</option>
+                </select>
+            </div>
             <div class="ds-row" id="ratioCtrlGroup">
                 <label data-i18n="label_ratio">比率</label>
                 <select id="cardRatioSelect" onchange="onCardRatioChange(this.value)">
@@ -4860,7 +4882,7 @@ min-height: 0;
         <span id="mob-scenario-trigger-name" class="mstn"></span>
         <span class="mstn-caret">▾</span>
     </button>
-    <button id="mob-flip-btn" onclick="toggleLearningDirection()" data-i18n-title="mob_flip_title" title="タイトルと本文を反転して練習">⇄</button>
+    <button type="button" id="mob-flip-btn" data-i18n-title="mob_flip_title" title="タイトルと本文を反転して練習">⇄</button>
     <div id="mob-view-toggle">
         <button class="mob-view-btn active" data-view="swipe" onclick="mobSetView('swipe')" data-i18n-title="mob_swipe_title" title="スワイプ">⬜</button>
         <button class="mob-view-btn"        data-view="grid1" onclick="mobSetView('grid1')" data-i18n-title="mob_grid1_title" title="1列">▤</button>
@@ -5091,7 +5113,7 @@ min-height: 0;
             <button id="mob-shuffle-btn"     onclick="studyShuffle()"   data-i18n="drawer_shuffle"    title="シャッフル">🔀 シャッフル</button>
             <button id="mob-unshuffle-btn"   onclick="studyUnshuffle()" data-i18n="btn_unshuffle"     title="元の順番" style="display:none">↩ 元順</button>
             <button id="mob-study-reset-btn" onclick="studyResetAll()"  data-i18n="mob_study_reset"   title="学習記録をリセット">🗑 リセット</button>
-            <button id="mobStudyBarToggleBtn" onclick="toggleLearningDirection()" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:3px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
+            <button type="button" id="mobStudyBarToggleBtn" data-i18n="dir_normal" style="background:var(--surface2); border:1px solid var(--border); color:var(--text-muted); border-radius:3px; padding:6px 14px; font-size:0.76rem; cursor:pointer;">📁 タイトル ➔ 内容</button>
         </div>
         <div id="mob-study-progress-bar-wrap">
             <div id="mob-study-progress-again" class="mob-study-prog-seg"></div>
@@ -9005,6 +9027,23 @@ let isLocked     = false;
 let isEditMode   = false;
 let editCardItem = null;
 let hideTimeout  = null;
+// カードポップアップの開き方：即時／少し待つ／クリックのみ
+var hoverShowTimeout = null;
+var savedPopupMode = localStorage.getItem('kp_popup_mode');
+var popupMode = (savedPopupMode === 'instant' || savedPopupMode === 'click')
+    ? savedPopupMode
+    : 'delay'; // 旧 'hover' もここに吸収し、既定値は「少し待つ」
+function syncPopupModeUI() {
+    var select = document.getElementById('popupModeSelect');
+    if (select) select.value = popupMode;
+}
+function setPopupMode(mode) {
+    popupMode = (mode === 'instant' || mode === 'click') ? mode : 'delay';
+    localStorage.setItem('kp_popup_mode', popupMode);
+    syncPopupModeUI();
+    clearTimeout(hoverShowTimeout);
+}
+syncPopupModeUI();
 let dragSrcEl    = null;
 let toastTimeout = null;
 let saveTimeout  = null;
@@ -10706,6 +10745,8 @@ function onCardRatioCustomChange(value) {
 var isLearningReversed = false;
 
 function toggleLearningDirection() {
+
+    // 1タップ＝1回だけ反転。描画処理は端末／モードに応じて1系統に絞る。
     isLearningReversed = !isLearningReversed;
 
     // シナリオオブジェクトに保存（saveScenarios で localStorage に永続化）
@@ -10715,19 +10756,72 @@ function toggleLearningDirection() {
         if (typeof saveScenarios === 'function') saveScenarios();
     }
 
+    // ボタン状態は先に同期するが、カード本体は下の「1回の再描画」で確定させる。
     updateLearningDirectionBtn();
 
-    // PCグリッドを再描画
-    if (typeof updateGrid === 'function') updateGrid();
+    var isMobile = (typeof isMobileViewport === 'function') && isMobileViewport();
 
-    // モバイルスワイプを再描画
-    if (typeof window.mRenderAll === 'function') window.mRenderAll();
-
-    // 学習モード中はカードを再表示（PC＋モバイル）
-    if (typeof window.studyRefreshCard === 'function') window.studyRefreshCard();
+    if (isMobile) {
+        // モバイルは表示方式ごとに描画経路を分ける。
+        // swipe は mRenderAll()、1列/2列グリッドは renderGrid() を通る updateGrid()。
+        // grid1/grid2 では mRenderAll() は実際の表示DOMを更新しないため、
+        // ここで updateGrid() を呼ばないとタイトル⇄本文の反転が画面に反映されない。
+        if (appMode === 'study' && typeof window.studyRefreshCard === 'function') {
+            window.studyRefreshCard();
+        } else if (document.body.classList.contains('mob-grid1') ||
+                   document.body.classList.contains('mob-grid2')) {
+            if (typeof updateGrid === 'function') updateGrid({ skipMobileSync: true });
+        } else if (typeof window.mRenderAll === 'function') {
+            window.mRenderAll();
+        }
+    } else {
+        // PCも「通常表示」と「学習表示」を1系統だけ通す。
+        if (appMode === 'study' && typeof window.studyRefreshCard === 'function') {
+            window.studyRefreshCard();
+        } else if (typeof updateGrid === 'function') {
+            updateGrid();
+        }
+    }
 }
 
 // 全ての反転ボタンの表示を現在状態に同期する
+// [FIX v3.18.4] モバイル反転ボタンは click だけに依存しない。
+// 実機で最初のタップが「反応しない」ように見える環境を避けるため、
+// タッチ系は pointerup で即時処理し、合成 click は1回だけ抑止する。
+(function bindMobileDirectionButtons() {
+    function bind(id) {
+        var btn = document.getElementById(id);
+        if (!btn || btn.dataset.directionBound === '1') return;
+        btn.dataset.directionBound = '1';
+        var suppressClick = false;
+
+        btn.addEventListener('pointerup', function(e) {
+            // マウスは通常の click に任せる。
+            if (e.pointerType === 'mouse') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (suppressClick) return;
+            suppressClick = true;
+            toggleLearningDirection();
+            // 直後の合成 click だけを捨てる。
+            setTimeout(function() { suppressClick = false; }, 450);
+        });
+
+        btn.addEventListener('click', function(e) {
+            if (suppressClick) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            toggleLearningDirection();
+        });
+    }
+
+    // 上部の反転ボタン＋学習バー内のモバイル反転ボタン
+    bind('mob-flip-btn');
+    bind('mobStudyBarToggleBtn');
+})();
+
 function updateLearningDirectionBtn() {
     var reversed = isLearningReversed;
     var label    = reversed ? t('dir_reversed') : t('dir_normal');
@@ -10753,7 +10847,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function updateGrid() {
+function updateGrid(options) {
+    options = options || {};
     cardRatioMode = localStorage.getItem('kp_card_ratio_mode') || 'fit';
 
     var cols = getActiveCols();
@@ -10793,10 +10888,12 @@ function updateGrid() {
     applyCardRatio(); 
     
     if (typeof itvMarkRecordedCards === 'function') itvMarkRecordedCards();
-    if (typeof window.mSync === 'function') setTimeout(window.mSync, 0);
+    if (!options.skipMobileSync && typeof window.mSync === 'function') setTimeout(window.mSync, 0);
 }
 
+
 function renderGrid(data, total) {
+
     // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
     // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
     if (_mediaLazyObserver) {
@@ -10827,7 +10924,8 @@ function renderGrid(data, total) {
             });
         }
 
-        grid.appendChild(createItem(i, displayData));
+        var item = createItem(i, displayData);
+        grid.appendChild(item);
     }
 
     if ((document.body.classList.contains('mob-grid1') ||
@@ -10921,21 +11019,36 @@ function createItem(index, d) {
     item.addEventListener('mouseenter', (function(t, c) {
         return function() {
             if (isLocked) return;
+            if (popupMode === 'click') return;
             clearTimeout(hideTimeout);
-            // [MOD] 朗読モードでもホバーでプレビュー表示する（本文クリックで朗読開始するため）
-            showOverlay(t.value, c.value, item);
+            clearTimeout(hoverShowTimeout);
+            // [FIX] 前のカードのポップアップが残っていると、通過中の次のカードに
+            // かぶって編集を邪魔するため、別カードへ移った瞬間は待たずに閉じる。
+            if (overlay.style.display !== 'none' && editCardItem && editCardItem !== item) {
+                overlay.style.display = 'none';
+                backdrop.style.display = 'none';
+            }
+            // ポップアップ表示方式に応じて、即時／少し待ってから表示
+            if (popupMode === 'instant') {
+                showOverlay(t.value, c.value, item);
+            } else {
+                hoverShowTimeout = setTimeout(function() {
+                    showOverlay(t.value, c.value, item);
+                }, 300);
+            }
         };
     })(titleInput, contentTextarea));
 
     item.addEventListener('mouseleave', function() {
         if (isLocked) return;
+        clearTimeout(hoverShowTimeout);
+        if (popupMode === 'click') return;
         hideTimeout = setTimeout(hideOverlay, 300);
     });
 
     item.addEventListener('click', (function(t, c) {
         return function(e) {
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.classList.contains('drag-handle')) return;
-            if (appMode === 'reading') return;
             if (appMode === 'study') return; // 学習モード中はカードクリックを無視
 
             // [FIX] モバイル1列・2列グリッドで「非表示（ブランク）カード」をタップした場合は
@@ -10967,7 +11080,12 @@ function createItem(index, d) {
                 }
                 return;
             }
-            if (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media')) {
+            // [MOD] クリックモードでは、朗読モード・空カードでもクリックで確実に開く
+            // （ホバーモードでは通過中の誤展開を防ぐため、これまで通り条件を課す）
+            var canOpenByCondition = (popupMode === 'click') ||
+                (appMode === 'view' || appMode === 'interview' || c.value.trim() || t.value.trim() || item.classList.contains('has-media'));
+            if (appMode === 'reading' && popupMode !== 'click') return;
+            if (canOpenByCondition) {
                 isLocked = true;
                 showOverlay(t.value, c.value, item);
             }
@@ -11359,17 +11477,24 @@ function clearSearchFilterView() {
 }
 
 // ===== OVERLAY =====
-overlay.addEventListener('mouseenter', function(){ clearTimeout(hideTimeout); });
+overlay.addEventListener('mouseenter', function(){
+    clearTimeout(hideTimeout);
+});
 overlay.addEventListener('mouseleave', function(){
-    // [FIX] リサイズ／ヘッダードラッグ中は、素早い操作でカーソルが一瞬カードの外に出ても
-    // ホバー解除とみなして閉じてしまわないようにする（掴み判定が外れてカードが消える不具合の原因）
-    if (!isLocked && overlay.dataset.interacting !== '1') hideOverlay();
+    // [FIX v3.18.2] リサイズ／ヘッダードラッグ中は、カーソルがカード外へ出ても閉じない。
+    // 既にセット済みのhideTimeoutもここで破棄する。
+    if (overlay.dataset.interacting === '1') {
+        clearTimeout(hideTimeout);
+        return;
+    }
+    if (!isLocked) hideOverlay();
 });
 
 function showOverlay(title, text, cardItem) {
-    // タイトル・本文が空でも、画像があるカードはオーバーレイを開く
+    // タイトル・本文が空でも、画像があるカード、またはクリックモードでの明示的な操作なら開く
     if (!title.trim() && !text.trim() &&
-        !(cardItem && cardItem.classList.contains('has-media'))) return;
+        !(cardItem && cardItem.classList.contains('has-media')) &&
+        popupMode !== 'click') return;
     exitEditMode();
     overlay.classList.remove('overlay-collapsed'); // [NEW] カードを開き直すたびに折りたたみ状態はリセットする
     if (cardItem !== undefined) editCardItem = cardItem;
@@ -11876,7 +12001,7 @@ function updateCardClipboardUI() {
 // updateGrid() でグリッドが再構築されるたびに、貼り付けヒントの表示状態も同期する
 var _origUpdateGridForClipboard = window.updateGrid;
 window.updateGrid = function() {
-    _origUpdateGridForClipboard();
+    _origUpdateGridForClipboard.apply(this, arguments);
     if (typeof updateCardClipboardUI === 'function') updateCardClipboardUI();
 };
 
@@ -12582,6 +12707,10 @@ window.rdStartFromOverlaySentence = function(contentSentIdx) {
 };
 
 function hideOverlay() {
+    // [FIX v3.18.2] リサイズ／ドラッグ中に、既に予約されていたhideTimeout等から
+    // hideOverlay()へ到達してもカードを閉じない。ここを最終防衛線にする。
+    if (overlay.dataset.interacting === '1') return;
+
     // [FIX] タグ欄に未確定の入力が残ったままオーバーレイを閉じると消えてしまうため、先に確定保存する
     if (typeof metaTagCommitPending === 'function') metaTagCommitPending();
     exitEditMode();
@@ -15460,45 +15589,85 @@ function fallbackCopy(text, label) {
 (function initOverlayResize() {
     var rHandle = document.getElementById('overlay-resize-handle');
     if (!rHandle) return;
-    var resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+    var resizing = false, pointerId = null;
+    var startX = 0, startY = 0, startW = 0, startH = 0;
 
-    rHandle.addEventListener('mousedown', function(e) {
-        if (overlay.classList.contains('overlay-collapsed')) return; // 折りたたみ中は不可
-        var rect = overlay.getBoundingClientRect();
-        // ドラッグ中に位置がずれないよう、既存のヘッダードラッグと同じ絶対座標化を行う
-        overlay.style.transform = 'none';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top  = rect.top + 'px';
-        overlay.dataset.dragged = '1';
-        overlay.dataset.interacting = '1'; // [FIX] 素早いドラッグでカーソルが枠外に出てもホバー解除扱いにしない
-        startW = rect.width; startH = rect.height;
-        startX = e.clientX; startY = e.clientY;
-        resizing = true;
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    document.addEventListener('mousemove', function(e) {
-        if (!resizing) return;
-        var maxW = window.innerWidth  - overlay.offsetLeft - 8;
-        var maxH = window.innerHeight - overlay.offsetTop  - 8;
-        var newW = Math.max(320, Math.min(maxW, startW + (e.clientX - startX)));
-        var newH = Math.max(220, Math.min(maxH, startH + (e.clientY - startY)));
-        overlay.style.width  = newW + 'px';
-        overlay.style.height = newH + 'px';
-        // [NEW] +/-パネルと単位（%）を揃えて連動させる
-        currentWidth  = Math.round(newW / window.innerWidth  * 100);
-        currentHeight = Math.round(newH / window.innerHeight * 100);
-        syncSizeBar();
-    });
-    document.addEventListener('mouseup', function() {
+    function finishResize() {
         if (!resizing) return;
         resizing = false;
+        pointerId = null;
         delete overlay.dataset.interacting;
         // 以後は%基準（+/-ボタン、リロード時の復元）に統一する
         overlay.style.width  = currentWidth  + '%';
         overlay.style.height = currentHeight + '%';
         localStorage.setItem('kp_width',  currentWidth);
         localStorage.setItem('kp_height', currentHeight);
+    }
+
+    rHandle.addEventListener('pointerdown', function(e) {
+        if (overlay.classList.contains('overlay-collapsed')) return; // 折りたたみ中は不可
+        // 左クリック／主ボタン以外はリサイズ開始しない
+        if (e.button !== 0) return;
+
+        var rect = overlay.getBoundingClientRect();
+        // ドラッグ中に位置がずれないよう、既存のヘッダードラッグと同じ絶対座標化を行う
+        overlay.style.transform = 'none';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top  = rect.top + 'px';
+        overlay.dataset.dragged = '1';
+        overlay.dataset.interacting = '1';
+        // リサイズ開始前にホバー由来の「閉じる予約」を必ず解除する。
+        clearTimeout(hideTimeout);
+        clearTimeout(hoverShowTimeout);
+        startW = rect.width; startH = rect.height;
+        startX = e.clientX; startY = e.clientY;
+        pointerId = e.pointerId;
+        resizing = true;
+
+        // ポインターキャプチャで、カーソルがカード外へ高速移動しても
+        // resize のmousemove相当イベントをこのハンドルが受け続けるようにする。
+        try { rHandle.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    rHandle.addEventListener('pointermove', function(e) {
+        if (!resizing || (pointerId !== null && e.pointerId !== pointerId)) return;
+
+        // ポインタが画面外へ出ても、カード左上を固定したまま右下だけを拡大する。
+        var maxW = Math.max(320, window.innerWidth  - overlay.offsetLeft - 8);
+        var maxH = Math.max(220, window.innerHeight - overlay.offsetTop  - 8);
+        var newW = Math.max(320, Math.min(maxW, startW + (e.clientX - startX)));
+        var newH = Math.max(220, Math.min(maxH, startH + (e.clientY - startY)));
+        overlay.style.width  = newW + 'px';
+        overlay.style.height = newH + 'px';
+        // +/-パネルと単位（%）を揃えて連動させる
+        currentWidth  = Math.round(newW / window.innerWidth  * 100);
+        currentHeight = Math.round(newH / window.innerHeight * 100);
+        syncSizeBar();
+        e.preventDefault();
+    });
+
+    rHandle.addEventListener('pointerup', function(e) {
+        if (pointerId !== null && e.pointerId !== pointerId) return;
+        try { if (rHandle.hasPointerCapture(e.pointerId)) rHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+        finishResize();
+        e.preventDefault();
+    });
+
+    rHandle.addEventListener('pointercancel', function(e) {
+        try { if (rHandle.hasPointerCapture(e.pointerId)) rHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+        finishResize();
+    });
+
+    // ブラウザ／OS側でpointerupがハンドルに届かなかった場合の保険。
+    document.addEventListener('pointerup', function(e) {
+        if (!resizing) return;
+        if (pointerId !== null && e.pointerId !== pointerId) return;
+        finishResize();
+    });
+    document.addEventListener('pointercancel', function() {
+        if (resizing) finishResize();
     });
 })();
 
@@ -20348,6 +20517,242 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
             stopGedaObservationClock();
         }
     });
+})();
+
+/* ══════════════════════════════════════════════════════════════════
+   Stage 21.5 — Secure Share: 暗号化・復号 単体実装 ＋ サイズ実測ハーネス
+   ------------------------------------------------------------------
+   まだ共有ボタン・Supabase送信には一切組み込まない。
+   コンソールから window.qcardSecureShareBench() を呼んで、
+   代表5パターンのPayload生成→暗号化→復号までを単体で検証・実測する。
+   仕様（Stage 21確定版）:
+     - AES-GCM-256 / Web Crypto API
+     - 鍵: 32byte乱数、CryptoKeyはextractable:false
+     - IV: 12byte乱数、鍵ごとに使い捨て
+     - AADは使用しない
+     - Envelope: {version, type, alg, iv, ciphertext}
+     - Payload(card):     {core, media:{front,back}, audio}
+     - Payload(scenario): {core, deckMedia:{back}, cards:[{core,media,audio}]}
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+    var ALG = 'AES-GCM';
+    var VERSION = 1;
+
+    // ---- Base64 / Base64URL ヘルパー ----
+    function bytesToBase64(bytes) {
+        var bin = '';
+        for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+    }
+    function base64ToBytes(b64) {
+        var bin = atob(b64);
+        var out = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+    }
+    function bytesToBase64Url(bytes) {
+        return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function base64UrlToBytes(b64url) {
+        var b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        return base64ToBytes(b64);
+    }
+    function blobToBase64(blob) {
+        return blob.arrayBuffer().then(function (buf) { return bytesToBase64(new Uint8Array(buf)); });
+    }
+    function base64ToBlob(b64, mimeType) {
+        return new Blob([base64ToBytes(b64)], { type: mimeType || 'application/octet-stream' });
+    }
+
+    // ---- 鍵生成 ----
+    // 仕様どおり: 元の32byte鍵素材はURL用にBase64URL化して保持し、
+    // CryptoKey自体はextractable:falseでimportする。
+    function qcardGenerateShareKey() {
+        var keyBytes = crypto.getRandomValues(new Uint8Array(32));
+        return crypto.subtle.importKey('raw', keyBytes, { name: ALG }, false, ['encrypt', 'decrypt'])
+            .then(function (cryptoKey) {
+                return { cryptoKey: cryptoKey, keyBase64Url: bytesToBase64Url(keyBytes) };
+            });
+    }
+    function qcardImportShareKeyFromUrl(keyBase64Url) {
+        var keyBytes = base64UrlToBytes(keyBase64Url);
+        return crypto.subtle.importKey('raw', keyBytes, { name: ALG }, false, ['encrypt', 'decrypt']);
+    }
+
+    // ---- Payload構築（Card） ----
+    // card: 内部のカードデータオブジェクト（active.data の要素）
+    // frontBlob/backBlob: Blob or null、audioBlob: Blob or null
+    async function qcardBuildCardPayload(card, frontBlob, backBlob, audioInfo, audioBlob) {
+        var media = { front: null, back: null };
+        if (frontBlob) media.front = { mimeType: frontBlob.type || 'image/webp', data: await blobToBase64(frontBlob) };
+        if (backBlob)  media.back  = { mimeType: backBlob.type  || 'image/webp', data: await blobToBase64(backBlob) };
+
+        var audio = { source: (audioInfo && audioInfo.source) || 'speech', mimeType: null, data: null };
+        if (audioBlob && audio.source !== 'speech') {
+            audio.mimeType = audioBlob.type || 'audio/webm';
+            audio.data = await blobToBase64(audioBlob);
+        }
+
+        return {
+            core: {
+                id: card.id, uri: card.uri,
+                title: card.title || '', content: card.content || '',
+                tags: card.tags || [],
+                source: card.source || '', sourceUrl: card.sourceUrl || '', note: card.note || '',
+                originCardId: card.originCardId || '',
+                links: Array.isArray(card.links) ? card.links : [],
+                createdAt: card.createdAt || null, updatedAt: card.updatedAt || null
+            },
+            media: media,
+            audio: audio
+        };
+    }
+
+    // ---- Payload構築（Scenario） ----
+    async function qcardBuildScenarioPayload(scenario, deckBackBlob, cardPayloads) {
+        var deckMedia = { back: null };
+        if (deckBackBlob) deckMedia.back = { mimeType: deckBackBlob.type || 'image/webp', data: await blobToBase64(deckBackBlob) };
+        return {
+            core: {
+                title: scenario.title || scenario.name || '', description: scenario.description || '',
+                tags: scenario.tags || [], cols: scenario.cols || 4, rows: scenario.rows || 4,
+                createdAt: scenario.createdAt || null, updatedAt: scenario.updatedAt || null
+            },
+            deckMedia: deckMedia,
+            cards: cardPayloads // [{core, media, audio}, ...]（qcardBuildCardPayloadの戻り値をそのまま並べる）
+        };
+    }
+
+    // ---- 暗号化 / 復号 ----
+    async function qcardEncryptSharePayload(type, payloadObj, cryptoKey) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        var plaintext = new TextEncoder().encode(JSON.stringify(payloadObj));
+        var cipherBuf = await crypto.subtle.encrypt({ name: ALG, iv: iv }, cryptoKey, plaintext);
+        return {
+            version: VERSION, type: type, alg: 'AES-GCM-256', encrypted: true,
+            iv: bytesToBase64(iv),
+            ciphertext: bytesToBase64(new Uint8Array(cipherBuf)),
+            plaintextSize: plaintext.byteLength,
+            ciphertextSize: cipherBuf.byteLength
+        };
+    }
+    async function qcardDecryptSharePayload(envelope, cryptoKey) {
+        try {
+            var iv = base64ToBytes(envelope.iv);
+            var cipherBytes = base64ToBytes(envelope.ciphertext);
+            var plainBuf = await crypto.subtle.decrypt({ name: ALG, iv: iv }, cryptoKey, cipherBytes);
+            var json = new TextDecoder('utf-8').decode(plainBuf);
+            return JSON.parse(json); // 呼び出し側でさらにschema validation / normalizeへ
+        } catch (e) {
+            // [仕様] 失敗理由は区別せず、常に同じ失敗として扱う
+            throw new Error('共有データを復号できませんでした。');
+        }
+    }
+
+    window.qcardSecureShare = {
+        generateKey: qcardGenerateShareKey,
+        importKeyFromUrl: qcardImportShareKeyFromUrl,
+        buildCardPayload: qcardBuildCardPayload,
+        buildScenarioPayload: qcardBuildScenarioPayload,
+        encrypt: qcardEncryptSharePayload,
+        decrypt: qcardDecryptSharePayload,
+        blobToBase64: blobToBase64,
+        base64ToBlob: base64ToBlob,
+        bytesToBase64Url: bytesToBase64Url,
+        base64UrlToBytes: base64UrlToBytes
+    };
+
+    // ── Stage 21.5 実測ハーネス ──────────────────────────────────
+    // 代表5パターンをダミーデータで生成し、Payload生成→暗号化→復号までの
+    // サイズ・所要時間を計測してコンソールへ表を出す。実データではなく
+    // ダミーBlob（指定サイズのランダムバイト列）を使うため、実運用前の
+    // 「机上のオーダー感」を掴む目的の計測にとどまる。
+    function qcardMakeDummyBlob(sizeBytes, mimeType) {
+        var bytes = new Uint8Array(sizeBytes);
+        crypto.getRandomValues(bytes.subarray(0, Math.min(sizeBytes, 65536))); // 先頭だけ乱数、残りは0埋め（生成コスト削減）
+        return new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+    }
+    function qcardMakeDummyCard(i, withImage, withBackImage, withAudio) {
+        return {
+            id: 'card_' + i, uri: 'fig://DUMMY' + i,
+            title: 'サンプルカード ' + i, content: 'これは実測用のダミー本文です。'.repeat(20),
+            tags: ['sample', 'bench'], source: '', sourceUrl: '', note: '',
+            originCardId: '', links: [{ targetUri: 'fig://OTHER' + i, label: '関連' }],
+            createdAt: Date.now(), updatedAt: Date.now(),
+            _frontBlob: withImage ? qcardMakeDummyBlob(30 * 1024, 'image/webp') : null,
+            _backBlob: withBackImage ? qcardMakeDummyBlob(30 * 1024, 'image/webp') : null,
+            _audioInfo: withAudio ? { source: 'recorded' } : { source: 'speech' },
+            _audioBlob: withAudio ? qcardMakeDummyBlob(80 * 1024, 'audio/webm') : null
+        };
+    }
+
+    async function qcardBenchOne(label, type, payloadObj) {
+        var t0 = performance.now();
+        var keyInfo = await qcardGenerateShareKey();
+        var t1 = performance.now();
+        var envelope = await qcardEncryptSharePayload(type, payloadObj, keyInfo.cryptoKey);
+        var t2 = performance.now();
+        var decrypted = await qcardDecryptSharePayload(envelope, keyInfo.cryptoKey);
+        var t3 = performance.now();
+        var ok = JSON.stringify(decrypted) === JSON.stringify(payloadObj);
+
+        var row = {
+            'パターン': label,
+            '平文サイズ(KB)': (envelope.plaintextSize / 1024).toFixed(1),
+            '暗号文サイズ(KB)': (envelope.ciphertextSize / 1024).toFixed(1),
+            '鍵生成(ms)': (t1 - t0).toFixed(1),
+            '暗号化(ms)': (t2 - t1).toFixed(1),
+            '復号(ms)': (t3 - t2).toFixed(1),
+            '往復検証': ok ? 'OK' : 'NG'
+        };
+        return row;
+    }
+
+    window.qcardSecureShareBench = async function () {
+        console.log('[Secure Share Bench] Stage 21.5 実測を開始します…');
+        var results = [];
+
+        // ① テキストのみ（画像・音声なし）
+        var c1 = qcardMakeDummyCard(1, false, false, false);
+        var p1 = await qcardBuildCardPayload(c1, null, null, c1._audioInfo, null);
+        results.push(await qcardBenchOne('①テキストのみ(card)', 'card', p1));
+
+        // ② 画像付きカード（表のみ）
+        var c2 = qcardMakeDummyCard(2, true, false, false);
+        var p2 = await qcardBuildCardPayload(c2, c2._frontBlob, null, c2._audioInfo, null);
+        results.push(await qcardBenchOne('②画像付き(表のみ)', 'card', p2));
+
+        // ③ 画像＋音声付きカード（表裏＋録音）
+        var c3 = qcardMakeDummyCard(3, true, true, true);
+        var p3 = await qcardBuildCardPayload(c3, c3._frontBlob, c3._backBlob, c3._audioInfo, c3._audioBlob);
+        results.push(await qcardBenchOne('③画像(表裏)＋音声', 'card', p3));
+
+        // ④ 複数カードのシナリオ（テキストのみ・50枚）
+        var cards4 = [];
+        for (var i = 0; i < 50; i++) {
+            var c = qcardMakeDummyCard(100 + i, false, false, false);
+            cards4.push(await qcardBuildCardPayload(c, null, null, c._audioInfo, null));
+        }
+        var scenario4 = { title: 'ベンチ用シナリオ(テキストのみ50枚)', description: '', tags: [], cols: 4, rows: 13, createdAt: Date.now(), updatedAt: Date.now() };
+        var p4 = await qcardBuildScenarioPayload(scenario4, null, cards4);
+        results.push(await qcardBenchOne('④シナリオ50枚(テキストのみ)', 'scenario', p4));
+
+        // ⑤ 画像＋音声付き複数カード（10枚、デッキ共通裏面あり）
+        var cards5 = [];
+        for (var j = 0; j < 10; j++) {
+            var c5 = qcardMakeDummyCard(200 + j, true, false, true);
+            cards5.push(await qcardBuildCardPayload(c5, c5._frontBlob, null, c5._audioInfo, c5._audioBlob));
+        }
+        var deckBack5 = qcardMakeDummyBlob(30 * 1024, 'image/webp');
+        var scenario5 = { title: 'ベンチ用シナリオ(画像+音声10枚)', description: '', tags: [], cols: 5, rows: 2, createdAt: Date.now(), updatedAt: Date.now() };
+        var p5 = await qcardBuildScenarioPayload(scenario5, deckBack5, cards5);
+        results.push(await qcardBenchOne('⑤シナリオ10枚(画像+音声+共通裏面)', 'scenario', p5));
+
+        console.table(results);
+        console.log('[Secure Share Bench] 完了。上表のサイズ・所要時間を基に実用上限を検討してください。');
+        return results;
+    };
 })();
 
 </script>
