@@ -1173,6 +1173,18 @@
         body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .field-row.title-row { display: block !important; }
         body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
 
+        /* [FIX v3.18.9] 表示モードごとの責務を分離する。
+           mob-grid1 は mob-title-label を表示するため生の入力欄を隠す。
+           一方 mob-grid2 は mob-title-label 自体を意図的に非表示にし、
+           title-input / content-textarea をカード内に表示する設計。
+           そのため「画像あり＋画像OFF」の grid2 だけは、media-hidden によって
+           消された生の入力欄を元に戻す必要がある。
+           ここを mobile 全体に広げないことが重要。 */
+        body.media-hidden.mob-grid2 .grid-item.has-media .title-input { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .content-textarea { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .field-row.title-row { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
+
         /* [NEW] 閲覧モードでは番号・ショートカット・非表示アイコン等の付帯UIを一切出さない。
            カード（特に画像）をスクリーンショットする用途があるため、内容以外の余計な表示を完全に消す。
            このルールは他の .item-meta 表示ルール（media-hidden等）より後に置き、
