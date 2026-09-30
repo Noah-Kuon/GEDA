@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.18.6  カード表示修正済                          ║
+  ║  Qcard PRO  v3.10.1                                          ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -1146,18 +1146,18 @@
            モバイル各モードの非表示ルール（.mob-grid1 等クラス2つ）より優先されてしまい、
            モバイル専用のタイトルラベル（mob-title-label）と生の入力欄が二重に表示されていた。
            モバイル表示中はこれらを確実に隠す（詳細度をさらに上げて確実に勝たせる）。 */
-        body.mob-swipe .grid-item.has-media .title-input,
-        body.mob-grid1 .grid-item.has-media .title-input,
-        body.mob-grid2 .grid-item.has-media .title-input,
-        body.mob-swipe .grid-item.has-media .content-textarea,
-        body.mob-grid1 .grid-item.has-media .content-textarea,
-        body.mob-grid2 .grid-item.has-media .content-textarea,
-        body.mob-swipe .grid-item.has-media .title-row,
-        body.mob-grid1 .grid-item.has-media .title-row,
-        body.mob-grid2 .grid-item.has-media .title-row,
-        body.mob-swipe .grid-item.has-media .content-row,
-        body.mob-grid1 .grid-item.has-media .content-row,
-        body.mob-grid2 .grid-item.has-media .content-row { display: none !important; }
+        body.mob-swipe:not(.media-hidden) .grid-item.has-media .title-input,
+        body.mob-grid1:not(.media-hidden) .grid-item.has-media .title-input,
+        body.mob-grid2:not(.media-hidden) .grid-item.has-media .title-input,
+        body.mob-swipe:not(.media-hidden) .grid-item.has-media .content-textarea,
+        body.mob-grid1:not(.media-hidden) .grid-item.has-media .content-textarea,
+        body.mob-grid2:not(.media-hidden) .grid-item.has-media .content-textarea,
+        body.mob-swipe:not(.media-hidden) .grid-item.has-media .title-row,
+        body.mob-grid1:not(.media-hidden) .grid-item.has-media .title-row,
+        body.mob-grid2:not(.media-hidden) .grid-item.has-media .title-row,
+        body.mob-swipe:not(.media-hidden) .grid-item.has-media .content-row,
+        body.mob-grid1:not(.media-hidden) .grid-item.has-media .content-row,
+        body.mob-grid2:not(.media-hidden) .grid-item.has-media .content-row { display: none !important; }
         /* [FIX] PC：画像表示OFF（media-hidden）のときは画像自体が見えていないので、
            item-meta の絶対配置（画像の上に浮かせる指定）を解除し、
            画像なしカードと同じ通常フロー配置に戻す。
