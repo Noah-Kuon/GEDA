@@ -6522,6 +6522,29 @@ function mediaSaveImageFile(cardId, item, file, slot) {
     var saveToken = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     item.dataset[tokenField] = saveToken;
 
+    // [FIX v3.18.11] 手動追加画像の「カード ↔ IndexedDBメディア」の紐付けを
+    // 画像Blob保存とは独立して、先にCanonical Cardへ永続化する。
+    // Anki取込では item.card.mediaId を先に設定しているためシナリオ切替後も
+    // 保持されるが、手動追加ではDOMのdatasetだけに留まる経路があり、
+    // 再描画時にmediaIdを失って画像が消えることがあった。
+    // getCardMeta()でURIから対象カードを直接取得するため、検索絞り込み中でも
+    // getCurrentGridData()による部分集合上書きを発生させない。
+    var mediaCardMeta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+    var mediaLinkField = (slot === 'back') ? 'mediaIdBack' : 'mediaId';
+    var previousMediaId = mediaCardMeta ? (mediaCardMeta[mediaLinkField] || '') : '';
+    var linkPersisted = false;
+    if (mediaCardMeta) {
+        mediaCardMeta[mediaLinkField] = cardId;
+        if (slot === 'back') item.dataset.mediaIdBack = cardId;
+        else item.dataset.mediaId = cardId;
+        var activeForMedia = (typeof getActive === 'function') ? getActive() : null;
+        if (activeForMedia) activeForMedia.updatedAt = nowMs();
+        if (typeof saveScenarios === 'function') {
+            saveScenarios();
+            linkPersisted = true;
+        }
+    }
+
     // 原寸Fileをimgへセットしない。最適化完了までは処理中表示のみ。
     if (slot === 'front') {
         item.classList.add('has-media', 'media-processing');
@@ -6598,6 +6621,32 @@ function mediaSaveImageFile(cardId, item, file, slot) {
             }
             if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(item);
 
+            // [FIX v3.18.12] 画像最適化中に比率変更などでグリッドが再描画された場合、
+            // item は既にDOMから外れている。保存直後の表示更新を古いitemだけに行うと、
+            // 新しいカード側は保存前のIndexedDB検索で画像なし判定になったまま残る。
+            // 同じCore card id / URIを持つ現在のDOM要素を探し、保存済みBlobを再読込する。
+            if (slot === 'front' && !item.isConnected && typeof grid !== 'undefined' && grid) {
+                var liveItems = grid.querySelectorAll('.grid-item');
+                var liveItem = null;
+                for (var li = 0; li < liveItems.length; li++) {
+                    var candidate = liveItems[li];
+                    var sameCard = (item.dataset.cardId && candidate.dataset.cardId === item.dataset.cardId) ||
+                                   (item.dataset.uri && candidate.dataset.uri === item.dataset.uri);
+                    if (sameCard && candidate.dataset.mediaId === cardId) {
+                        liveItem = candidate;
+                        break;
+                    }
+                }
+                if (liveItem) {
+                    liveItem.classList.remove('media-processing');
+                    var liveImg = liveItem.querySelector('.card-media-layer img');
+                    if (liveImg && typeof mediaLoadForCard === 'function') {
+                        mediaLoadForCard(cardId, liveItem, liveImg);
+                    }
+                    if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(liveItem);
+                }
+            }
+
             // SHA-256は登録完了後の非クリティカル処理。
             if (typeof crypto === 'undefined' || !crypto.subtle) return;
             setTimeout(function() {
@@ -6625,6 +6674,16 @@ function mediaSaveImageFile(cardId, item, file, slot) {
                 revokeImgObjectUrl(img);
                 img.removeAttribute('src');
             }
+        }
+        // 新規追加で画像最適化／保存に失敗した場合だけ、先行保存した紐付けを戻す。
+        // 既存画像の差し替え失敗では、以前のmediaIdを維持する。
+        if (mediaCardMeta && linkPersisted && !previousMediaId && mediaCardMeta[mediaLinkField] === cardId) {
+            delete mediaCardMeta[mediaLinkField];
+            if (slot === 'back') delete item.dataset.mediaIdBack;
+            else delete item.dataset.mediaId;
+            var activeOnMediaError = (typeof getActive === 'function') ? getActive() : null;
+            if (activeOnMediaError) activeOnMediaError.updatedAt = nowMs();
+            if (typeof saveScenarios === 'function') saveScenarios();
         }
         if (typeof showToast === 'function') {
             showToast('⚠️ 画像を保存できませんでした。画像サイズを小さくして再度お試しください。');
