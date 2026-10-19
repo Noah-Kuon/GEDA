@@ -3674,6 +3674,27 @@ min-height: 0;
         body.mob-grid1 .content-row,
         body.mob-grid1 .drag-handle { display: none !important; }
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
+        /* [NEW] モバイル1列・編集モード：カード順序変更用の専用ハンドル */
+        body.mob-grid1 .mob-reorder-handle {
+            display: none; flex: 0 0 28px; width: 28px; min-height: 36px;
+            margin: 0 8px 0 -4px; padding: 0; border: 1px solid var(--border);
+            border-radius: 3px; background: var(--surface2); color: var(--text-muted);
+            align-items: center; justify-content: center; font-size: 1rem; line-height: 1;
+            cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        body.mob-grid1.edit-mode-active .mob-reorder-handle { display: inline-flex; }
+        body.mob-grid1 .grid-item.mob-reorder-dragging { opacity: .55; border-color: var(--accent) !important; }
+        /* [UX FIX] 挿入位置はカードの上端/下端ではなく、カード間の隙間に破線で明示する */
+        body.mob-grid1 .grid-item.mob-insert-before::before,
+        body.mob-grid1 .grid-item.mob-insert-after::after {
+            content: ''; position: absolute; left: 8px; right: 8px; height: 0;
+            border-top: 3px dashed var(--accent); z-index: 40; pointer-events: none;
+            filter: drop-shadow(0 0 2px var(--accent));
+            animation: insertLinePulse 0.6s ease-in-out infinite;
+        }
+        /* 1列表示のカード間隔(gap: 6px)の中央に破線を置く */
+        body.mob-grid1 .grid-item.mob-insert-before::before { top: -4px; }
+        body.mob-grid1 .grid-item.mob-insert-after::after { bottom: -4px; }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
         /* [FIX] 画像追加バッジ（右上の丸ボタン）と長いタイトルの末尾が重ならないよう、
            バッジが出ている（＝画像未登録の）カードだけ少し右余白を確保する */
@@ -18342,6 +18363,65 @@ window.itvDeleteRec = function(id, cardId, e) {
 // ===== MOBILE VIEW MODE =====
 var mobView = localStorage.getItem('mob_view') || 'swipe';
 
+/* [NEW] スマホ1列・編集モード専用の並び替え。
+   専用ハンドルをドラッグし、カード上端/下端で挿入、中央部で入れ替えを行う。
+   ネイティブHTML Drag & Dropに依存しないため、タッチ端末でも操作できる。 */
+var mobReorderState = null;
+function mobClearReorderIndicators() {
+    grid.querySelectorAll('.mob-insert-before, .mob-insert-after, .mob-reorder-dragging, .drop-swap-target').forEach(function(el) {
+        el.classList.remove('mob-insert-before', 'mob-insert-after', 'mob-reorder-dragging');
+    });
+}
+function mobReorderZoneAtPoint(x, y, target) {
+    var rect = target.getBoundingClientRect();
+    var relY = rect.height ? (y - rect.top) / rect.height : 0.5;
+    if (relY < 0.28) return 'insert-before';
+    if (relY > 0.72) return 'insert-after';
+    return 'swap';
+}
+function mobFinishReorder(e) {
+    if (!mobReorderState) return;
+    var state = mobReorderState;
+    mobReorderState = null;
+    mobClearReorderIndicators();
+    if (e && e.pointerId !== undefined && state.pointerId !== e.pointerId) return;
+    if (!state.target || state.target === state.source || appMode !== 'edit' || !document.body.classList.contains('mob-grid1')) return;
+    var data = getCurrentGridData();
+    var from = parseInt(state.source.dataset.index, 10);
+    var to = parseInt(state.target.dataset.index, 10);
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= data.length || to >= data.length || from === to) return;
+    if (state.zone === 'swap') {
+        var tmp = data[from]; data[from] = data[to]; data[to] = tmp;
+    } else {
+        var moved = data.splice(from, 1)[0];
+        var insertAt = state.zone === 'insert-before' ? to : to + 1;
+        if (from < insertAt) insertAt--;
+        insertAt = Math.max(0, Math.min(insertAt, data.length));
+        data.splice(insertAt, 0, moved);
+    }
+    renderGrid(data);
+    saveCurrentGridDataWithIndicator();
+    showToast(state.zone === 'swap' ? 'カードを入れ替えました' : 'カードを挿入しました');
+}
+document.addEventListener('pointermove', function(e) {
+    if (!mobReorderState || e.pointerId !== mobReorderState.pointerId) return;
+    e.preventDefault();
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var target = under && under.closest ? under.closest('.grid-item') : null;
+    mobClearReorderIndicators();
+    mobReorderState.source.classList.add('mob-reorder-dragging');
+    if (!target || !grid.contains(target) || target === mobReorderState.source) {
+        mobReorderState.target = null;
+        return;
+    }
+    mobReorderState.target = target;
+    mobReorderState.zone = mobReorderZoneAtPoint(e.clientX, e.clientY, target);
+    target.classList.add(mobReorderState.zone === 'insert-before' ? 'mob-insert-before' :
+                         mobReorderState.zone === 'insert-after' ? 'mob-insert-after' : 'drop-swap-target');
+}, {passive: false});
+document.addEventListener('pointerup', mobFinishReorder);
+document.addEventListener('pointercancel', mobFinishReorder);
+
 function mobSyncTitleLabels() {
     grid.querySelectorAll('.grid-item').forEach(function(item, i) {
         var input = item.querySelector('.title-input');
@@ -18351,6 +18431,27 @@ function mobSyncTitleLabels() {
             label = document.createElement('div');
             label.className = 'mob-title-label';
             item.appendChild(label);
+        }
+        // [NEW] モバイル1列の編集モードでは専用ハンドルで並び替えを開始する。
+        var reorderHandle = label.querySelector('.mob-reorder-handle');
+        if (!reorderHandle) {
+            reorderHandle = document.createElement('button');
+            reorderHandle.type = 'button';
+            reorderHandle.className = 'mob-reorder-handle';
+            reorderHandle.textContent = '⠿';
+            reorderHandle.title = '長押しせずドラッグしてカードを移動';
+            reorderHandle.setAttribute('aria-label', 'カードの並び替え');
+            label.insertBefore(reorderHandle, label.firstChild);
+            reorderHandle.addEventListener('pointerdown', function(e) {
+                if (appMode !== 'edit' || !document.body.classList.contains('mob-grid1')) return;
+                if (e.button !== undefined && e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                mobClearReorderIndicators();
+                mobReorderState = { source: item, target: null, zone: null, pointerId: e.pointerId };
+                item.classList.add('mob-reorder-dragging');
+            });
+            reorderHandle.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
         }
         // 番号span
         var numSpan = label.querySelector('.mob-num-label');
