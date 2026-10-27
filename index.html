@@ -768,6 +768,13 @@
         }
         .grid-item.drop-insert-before::before { left: -5px; }
         .grid-item.drop-insert-after::after    { right: -5px; }
+        /* [NEW] 縦に積まれた1列レイアウト（スマホ1列など）では、挿入予告を行の上下の横線にする */
+        .grid-item.drop-axis-y.drop-insert-before::before,
+        .grid-item.drop-axis-y.drop-insert-after::after {
+            left: 8px; right: 8px; width: auto; height: 4px;
+        }
+        .grid-item.drop-axis-y.drop-insert-before::before { top: -2px; bottom: auto; }
+        .grid-item.drop-axis-y.drop-insert-after::after   { top: auto; bottom: -2px; }
         @keyframes insertLinePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
         .grid-item.search-match { border-color: rgba(217,162,75,0.6); box-shadow: 0 0 0 1px rgba(217,162,75,0.2); }
         .grid-item.search-hide { opacity: 0.18; pointer-events: none; }
@@ -3674,32 +3681,6 @@ min-height: 0;
         body.mob-grid1 .content-row,
         body.mob-grid1 .drag-handle { display: none !important; }
         body.mob-grid1 .mob-title-label { display: flex !important; align-items: center; gap: 8px; width: 100%; font-size: 0.82rem; color: var(--text); }
-        /* [NEW] モバイル1列・編集モード：カード順序変更用の専用ハンドル */
-        body.mob-grid1 .mob-reorder-handle {
-            display: none; flex: 0 0 28px; width: 28px; min-height: 36px;
-            margin: 0 8px 0 -4px; padding: 0; border: 1px solid var(--border);
-            border-radius: 3px; background: var(--surface2); color: var(--text-muted);
-            align-items: center; justify-content: center; font-size: 1rem; line-height: 1;
-            cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
-        }
-        body.mob-grid1.edit-mode-active .mob-reorder-handle { display: inline-flex; }
-        body.mob-grid1 .grid-item.mob-reorder-dragging { opacity: .55; border-color: var(--accent) !important; }
-        /* [UX FIX] スマホ1列・編集中の挿入位置をカード間の隙間に破線で表示。
-           grid-item本体は通常 overflow:hidden のため、インジケーター表示中だけ visible にする。 */
-        body.mob-grid1 .grid-item.mob-insert-before,
-        body.mob-grid1 .grid-item.mob-insert-after {
-            overflow: visible !important; z-index: 45;
-        }
-        body.mob-grid1 .grid-item.mob-insert-before::before,
-        body.mob-grid1 .grid-item.mob-insert-after::after {
-            content: ''; position: absolute; left: 8px; right: 8px; height: 0;
-            border-top: 3px dashed var(--accent); z-index: 50; pointer-events: none;
-            filter: drop-shadow(0 0 2px var(--accent));
-            animation: insertLinePulse 0.6s ease-in-out infinite;
-        }
-        /* 1列表示のカード間隔(gap: 6px)のほぼ中央に破線を置く */
-        body.mob-grid1 .grid-item.mob-insert-before::before { top: -4px; }
-        body.mob-grid1 .grid-item.mob-insert-after::after { bottom: -4px; }
         body.mob-grid1 .mob-num-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-dim); min-width: 28px; }
         /* [FIX] 画像追加バッジ（右上の丸ボタン）と長いタイトルの末尾が重ならないよう、
            バッジが出ている（＝画像未登録の）カードだけ少し右余白を確保する */
@@ -13065,8 +13046,30 @@ function handleDragStart(e) {
 
 // [NEW] ドラッグ中のマウス位置から「スワップ」か「挿入（前/後）」かを判定する
 // カード幅を左20%/中央60%/右20%に分け、端に寄せるほど挿入予告に切り替わる
+// [NEW] カードが縦に積まれた1列レイアウト（スマホ1列／PCで列数1）かどうか。
+// 1列だと各カードが行いっぱいに広がるため、左右20%を「挿入」とする判定では
+// 指で狙いにくく、挿入予告の縦線も行の左右端に出て不自然になる。
+// そこで「カード幅が親コンテナの内側幅のほぼ全部」なら縦積みレイアウトとみなし、
+// 判定軸を横(X)から縦(Y)へ切り替える。
+function dragIsStackedLayout(targetEl) {
+    var container = targetEl.parentElement;
+    if (!container) return false;
+    var cs = window.getComputedStyle(container);
+    var inner = container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if (inner <= 0) return false;
+    return targetEl.getBoundingClientRect().width >= inner * 0.9;
+}
+
 function dragGetZone(e, targetEl) {
     var rect = targetEl.getBoundingClientRect();
+    if (dragIsStackedLayout(targetEl)) {
+        // 縦積み：上35%＝直前に挿入／下35%＝直後に挿入／中央30%＝入れ替え
+        var relY = (e.clientY - rect.top) / rect.height;
+        if (relY < 0.35) return 'insert-before';
+        if (relY > 0.65) return 'insert-after';
+        return 'swap';
+    }
+    // 複数列：従来通り 左20%＝直前／右20%＝直後／中央60%＝入れ替え
     var relX = (e.clientX - rect.left) / rect.width;
     if (relX < 0.2)  return 'insert-before';
     if (relX > 0.8)  return 'insert-after';
@@ -13074,9 +13077,9 @@ function dragGetZone(e, targetEl) {
 }
 
 function dragClearIndicators() {
-    document.querySelectorAll('.grid-item.drop-swap-target, .grid-item.drop-insert-before, .grid-item.drop-insert-after')
+    document.querySelectorAll('.grid-item.drop-swap-target, .grid-item.drop-insert-before, .grid-item.drop-insert-after, .grid-item.drop-axis-y')
         .forEach(function(el) {
-            el.classList.remove('drop-swap-target', 'drop-insert-before', 'drop-insert-after');
+            el.classList.remove('drop-swap-target', 'drop-insert-before', 'drop-insert-after', 'drop-axis-y');
         });
 }
 
@@ -13089,6 +13092,7 @@ function handleDragOver(e) {
     if (dragSrcEl && dragSrcEl !== this) {
         var zone = dragGetZone(e, this);
         dragClearIndicators();
+        if (dragIsStackedLayout(this)) this.classList.add('drop-axis-y');
         if (zone === 'swap') {
             this.classList.add('drop-swap-target');
         } else if (zone === 'insert-before') {
@@ -18368,65 +18372,6 @@ window.itvDeleteRec = function(id, cardId, e) {
 // ===== MOBILE VIEW MODE =====
 var mobView = localStorage.getItem('mob_view') || 'swipe';
 
-/* [NEW] スマホ1列・編集モード専用の並び替え。
-   専用ハンドルをドラッグし、カード上端/下端で挿入、中央部で入れ替えを行う。
-   ネイティブHTML Drag & Dropに依存しないため、タッチ端末でも操作できる。 */
-var mobReorderState = null;
-function mobClearReorderIndicators() {
-    grid.querySelectorAll('.mob-insert-before, .mob-insert-after, .mob-reorder-dragging, .drop-swap-target').forEach(function(el) {
-        el.classList.remove('mob-insert-before', 'mob-insert-after', 'mob-reorder-dragging');
-    });
-}
-function mobReorderZoneAtPoint(x, y, target) {
-    var rect = target.getBoundingClientRect();
-    var relY = rect.height ? (y - rect.top) / rect.height : 0.5;
-    if (relY < 0.28) return 'insert-before';
-    if (relY > 0.72) return 'insert-after';
-    return 'swap';
-}
-function mobFinishReorder(e) {
-    if (!mobReorderState) return;
-    var state = mobReorderState;
-    mobReorderState = null;
-    mobClearReorderIndicators();
-    if (e && e.pointerId !== undefined && state.pointerId !== e.pointerId) return;
-    if (!state.target || state.target === state.source || appMode !== 'edit' || !document.body.classList.contains('mob-grid1')) return;
-    var data = getCurrentGridData();
-    var from = parseInt(state.source.dataset.index, 10);
-    var to = parseInt(state.target.dataset.index, 10);
-    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= data.length || to >= data.length || from === to) return;
-    if (state.zone === 'swap') {
-        var tmp = data[from]; data[from] = data[to]; data[to] = tmp;
-    } else {
-        var moved = data.splice(from, 1)[0];
-        var insertAt = state.zone === 'insert-before' ? to : to + 1;
-        if (from < insertAt) insertAt--;
-        insertAt = Math.max(0, Math.min(insertAt, data.length));
-        data.splice(insertAt, 0, moved);
-    }
-    renderGrid(data);
-    saveCurrentGridDataWithIndicator();
-    showToast(state.zone === 'swap' ? 'カードを入れ替えました' : 'カードを挿入しました');
-}
-document.addEventListener('pointermove', function(e) {
-    if (!mobReorderState || e.pointerId !== mobReorderState.pointerId) return;
-    e.preventDefault();
-    var under = document.elementFromPoint(e.clientX, e.clientY);
-    var target = under && under.closest ? under.closest('.grid-item') : null;
-    mobClearReorderIndicators();
-    mobReorderState.source.classList.add('mob-reorder-dragging');
-    if (!target || !grid.contains(target) || target === mobReorderState.source) {
-        mobReorderState.target = null;
-        return;
-    }
-    mobReorderState.target = target;
-    mobReorderState.zone = mobReorderZoneAtPoint(e.clientX, e.clientY, target);
-    target.classList.add(mobReorderState.zone === 'insert-before' ? 'mob-insert-before' :
-                         mobReorderState.zone === 'insert-after' ? 'mob-insert-after' : 'drop-swap-target');
-}, {passive: false});
-document.addEventListener('pointerup', mobFinishReorder);
-document.addEventListener('pointercancel', mobFinishReorder);
-
 function mobSyncTitleLabels() {
     grid.querySelectorAll('.grid-item').forEach(function(item, i) {
         var input = item.querySelector('.title-input');
@@ -18436,27 +18381,6 @@ function mobSyncTitleLabels() {
             label = document.createElement('div');
             label.className = 'mob-title-label';
             item.appendChild(label);
-        }
-        // [NEW] モバイル1列の編集モードでは専用ハンドルで並び替えを開始する。
-        var reorderHandle = label.querySelector('.mob-reorder-handle');
-        if (!reorderHandle) {
-            reorderHandle = document.createElement('button');
-            reorderHandle.type = 'button';
-            reorderHandle.className = 'mob-reorder-handle';
-            reorderHandle.textContent = '⠿';
-            reorderHandle.title = '長押しせずドラッグしてカードを移動';
-            reorderHandle.setAttribute('aria-label', 'カードの並び替え');
-            label.insertBefore(reorderHandle, label.firstChild);
-            reorderHandle.addEventListener('pointerdown', function(e) {
-                if (appMode !== 'edit' || !document.body.classList.contains('mob-grid1')) return;
-                if (e.button !== undefined && e.button !== 0) return;
-                e.preventDefault();
-                e.stopPropagation();
-                mobClearReorderIndicators();
-                mobReorderState = { source: item, target: null, zone: null, pointerId: e.pointerId };
-                item.classList.add('mob-reorder-dragging');
-            });
-            reorderHandle.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
         }
         // 番号span
         var numSpan = label.querySelector('.mob-num-label');
