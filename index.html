@@ -768,6 +768,13 @@
         }
         .grid-item.drop-insert-before::before { left: -5px; }
         .grid-item.drop-insert-after::after    { right: -5px; }
+        /* [NEW] 縦に積まれた1列レイアウト（スマホ1列など）では、挿入予告を行の上下の横線にする */
+        .grid-item.drop-axis-y.drop-insert-before::before,
+        .grid-item.drop-axis-y.drop-insert-after::after {
+            left: 8px; right: 8px; width: auto; height: 4px;
+        }
+        .grid-item.drop-axis-y.drop-insert-before::before { top: -2px; bottom: auto; }
+        .grid-item.drop-axis-y.drop-insert-after::after   { top: auto; bottom: -2px; }
         @keyframes insertLinePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
         .grid-item.search-match { border-color: rgba(217,162,75,0.6); box-shadow: 0 0 0 1px rgba(217,162,75,0.2); }
         .grid-item.search-hide { opacity: 0.18; pointer-events: none; }
@@ -1132,20 +1139,21 @@
            以前は共通の .field-row に display:flex しか指定しておらず、
            content-row に必要な flex:1（残りスペースを埋める指定）が欠けていたため
            画像なしカードと高さの見え方が異なっていた。 */
-        body.media-hidden .grid-item.has-media .title-input { display: block !important; }
-        body.media-hidden .grid-item.has-media .content-textarea { display: block !important; }
-        body.media-hidden .grid-item.has-media .item-meta { display: flex !important; }
+        /* [FIX v3.18.8] 画像OFF時の「生の入力欄を戻す」処理はPC表示だけに限定する。
+           モバイル（swipe/grid1/grid2）は mob-title-label を正規の表示UIとして使うため、
+           media-hidden でも title-input/content-textarea を表示すると二重表示になり、
+           1列表示では行のレイアウトまで崩れる。 */
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .title-input { display: block !important; }
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .content-textarea { display: block !important; }
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .item-meta { display: flex !important; }
         /* [FIX] モバイル各表示モード（swipe/grid1/grid2）は item-meta ではなく
            専用のモバイルUI（mob-title-label 等）で番号・タイトルを表示する。
            has-media時のitem-meta強制表示ルールより詳細度を上げて確実に隠す。 */
         body.mob-swipe .grid-item.has-media .item-meta,
         body.mob-grid1 .grid-item.has-media .item-meta,
         body.mob-grid2 .grid-item.has-media .item-meta { display: none !important; }
-        /* [FIX] 根本原因：media-hidden時の title-input/content-textarea/title-row/content-row
-           強制表示ルール（.grid-item.has-media が3クラス連結で詳細度が高い）が、
-           モバイル各モードの非表示ルール（.mob-grid1 等クラス2つ）より優先されてしまい、
-           モバイル専用のタイトルラベル（mob-title-label）と生の入力欄が二重に表示されていた。
-           モバイル表示中はこれらを確実に隠す（詳細度をさらに上げて確実に勝たせる）。 */
+        /* [FIX v3.18.8] モバイルでは画像ON/OFFに関係なく、生の入力欄と行ラッパーを隠す。
+           タイトル表示は mob-title-label に一本化する。 */
         body.mob-swipe .grid-item.has-media .title-input,
         body.mob-grid1 .grid-item.has-media .title-input,
         body.mob-grid2 .grid-item.has-media .title-input,
@@ -1162,15 +1170,39 @@
            item-meta の絶対配置（画像の上に浮かせる指定）を解除し、
            画像なしカードと同じ通常フロー配置に戻す。
            これによりタイトル入力欄と番号が重なって見える問題を解消する。 */
-        body.media-hidden .grid-item.has-media .item-meta {
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .item-meta {
             /* [FIX] position指定自体を持たせず、通常カードの item-meta（position未指定=static）と
                完全に同じボックスモデルに揃える。static のままでも width:100% は適用できるため、
                positioned要素化による再描画コンテキストの違い（罫線の位置ズレの原因）を避ける。 */
             position: static !important;
             width: 100% !important;
         }
-        body.media-hidden .grid-item.has-media .field-row.title-row { display: block !important; }
-        body.media-hidden .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .field-row.title-row { display: block !important; }
+        body.media-hidden:not(.mob-swipe):not(.mob-grid1):not(.mob-grid2) .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
+
+        /* [FIX v3.18.9] 表示モードごとの責務を分離する。
+           mob-grid1 は mob-title-label を表示するため生の入力欄を隠す。
+           一方 mob-grid2 は mob-title-label 自体を意図的に非表示にし、
+           title-input / content-textarea をカード内に表示する設計。
+           そのため「画像あり＋画像OFF」の grid2 だけは、media-hidden によって
+           消された生の入力欄を元に戻す必要がある。
+           ここを mobile 全体に広げないことが重要。 */
+        body.media-hidden.mob-grid2 .grid-item.has-media .title-input { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .content-textarea { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .field-row.title-row { display: block !important; }
+        body.media-hidden.mob-grid2 .grid-item.has-media .field-row.content-row { display: flex !important; flex: 1 !important; }
+
+        /* [FIX v3.18.10] スマホ2列・画像OFFでは、画像なしカードと同じ上部構造に揃える。
+           has-mediaカードだけ item-meta を隠すと、番号領域がなくなりタイトルの開始位置がずれる。
+           画像OFF時だけ item-meta を通常フローに戻し、画像なしカードと同じ
+           「番号 → タイトル → 本文」の縦構造にする。
+           他の表示モード、画像ON、PCには適用しない。 */
+        body.media-hidden.mob-grid2 .grid-item.has-media .item-meta {
+            display: flex !important;
+            position: static !important;
+            width: 100% !important;
+            margin-bottom: 3px !important;
+        }
 
         /* [NEW] 閲覧モードでは番号・ショートカット・非表示アイコン等の付帯UIを一切出さない。
            カード（特に画像）をスクリーンショットする用途があるため、内容以外の余計な表示を完全に消す。
@@ -6497,6 +6529,29 @@ function mediaSaveImageFile(cardId, item, file, slot) {
     var saveToken = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     item.dataset[tokenField] = saveToken;
 
+    // [FIX v3.18.11] 手動追加画像の「カード ↔ IndexedDBメディア」の紐付けを
+    // 画像Blob保存とは独立して、先にCanonical Cardへ永続化する。
+    // Anki取込では item.card.mediaId を先に設定しているためシナリオ切替後も
+    // 保持されるが、手動追加ではDOMのdatasetだけに留まる経路があり、
+    // 再描画時にmediaIdを失って画像が消えることがあった。
+    // getCardMeta()でURIから対象カードを直接取得するため、検索絞り込み中でも
+    // getCurrentGridData()による部分集合上書きを発生させない。
+    var mediaCardMeta = (typeof getCardMeta === 'function') ? getCardMeta(item) : null;
+    var mediaLinkField = (slot === 'back') ? 'mediaIdBack' : 'mediaId';
+    var previousMediaId = mediaCardMeta ? (mediaCardMeta[mediaLinkField] || '') : '';
+    var linkPersisted = false;
+    if (mediaCardMeta) {
+        mediaCardMeta[mediaLinkField] = cardId;
+        if (slot === 'back') item.dataset.mediaIdBack = cardId;
+        else item.dataset.mediaId = cardId;
+        var activeForMedia = (typeof getActive === 'function') ? getActive() : null;
+        if (activeForMedia) activeForMedia.updatedAt = nowMs();
+        if (typeof saveScenarios === 'function') {
+            saveScenarios();
+            linkPersisted = true;
+        }
+    }
+
     // 原寸Fileをimgへセットしない。最適化完了までは処理中表示のみ。
     if (slot === 'front') {
         item.classList.add('has-media', 'media-processing');
@@ -6573,6 +6628,32 @@ function mediaSaveImageFile(cardId, item, file, slot) {
             }
             if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(item);
 
+            // [FIX v3.18.12] 画像最適化中に比率変更などでグリッドが再描画された場合、
+            // item は既にDOMから外れている。保存直後の表示更新を古いitemだけに行うと、
+            // 新しいカード側は保存前のIndexedDB検索で画像なし判定になったまま残る。
+            // 同じCore card id / URIを持つ現在のDOM要素を探し、保存済みBlobを再読込する。
+            if (slot === 'front' && !item.isConnected && typeof grid !== 'undefined' && grid) {
+                var liveItems = grid.querySelectorAll('.grid-item');
+                var liveItem = null;
+                for (var li = 0; li < liveItems.length; li++) {
+                    var candidate = liveItems[li];
+                    var sameCard = (item.dataset.cardId && candidate.dataset.cardId === item.dataset.cardId) ||
+                                   (item.dataset.uri && candidate.dataset.uri === item.dataset.uri);
+                    if (sameCard && candidate.dataset.mediaId === cardId) {
+                        liveItem = candidate;
+                        break;
+                    }
+                }
+                if (liveItem) {
+                    liveItem.classList.remove('media-processing');
+                    var liveImg = liveItem.querySelector('.card-media-layer img');
+                    if (liveImg && typeof mediaLoadForCard === 'function') {
+                        mediaLoadForCard(cardId, liveItem, liveImg);
+                    }
+                    if (typeof updateItemMediaBadges === 'function') updateItemMediaBadges(liveItem);
+                }
+            }
+
             // SHA-256は登録完了後の非クリティカル処理。
             if (typeof crypto === 'undefined' || !crypto.subtle) return;
             setTimeout(function() {
@@ -6600,6 +6681,16 @@ function mediaSaveImageFile(cardId, item, file, slot) {
                 revokeImgObjectUrl(img);
                 img.removeAttribute('src');
             }
+        }
+        // 新規追加で画像最適化／保存に失敗した場合だけ、先行保存した紐付けを戻す。
+        // 既存画像の差し替え失敗では、以前のmediaIdを維持する。
+        if (mediaCardMeta && linkPersisted && !previousMediaId && mediaCardMeta[mediaLinkField] === cardId) {
+            delete mediaCardMeta[mediaLinkField];
+            if (slot === 'back') delete item.dataset.mediaIdBack;
+            else delete item.dataset.mediaId;
+            var activeOnMediaError = (typeof getActive === 'function') ? getActive() : null;
+            if (activeOnMediaError) activeOnMediaError.updatedAt = nowMs();
+            if (typeof saveScenarios === 'function') saveScenarios();
         }
         if (typeof showToast === 'function') {
             showToast('⚠️ 画像を保存できませんでした。画像サイズを小さくして再度お試しください。');
@@ -10744,22 +10835,7 @@ function onCardRatioCustomChange(value) {
 // 状態は各シナリオオブジェクトの .isReversed に保存される。
 var isLearningReversed = false;
 
-// [VERIFY v3.18.5] 反転表示の「状態→描画→DOM」を確認するための追跡フラグ。
-// 動作そのものは変更せず、コンソールへ必要最小限の値だけ出力する。
-window.__QCARD_REVERSE_TRACE__ = true;
-
 function toggleLearningDirection() {
-    if (window.__QCARD_REVERSE_TRACE__) {
-        var _traceActive0 = (typeof getActive === 'function') ? getActive() : null;
-        console.log('[REVERSE_TRACE] toggle ENTER', {
-            reversed: isLearningReversed,
-            activeReversed: !!(_traceActive0 && _traceActive0.isReversed),
-            mobView: typeof mobView !== 'undefined' ? mobView : null,
-            appMode: typeof appMode !== 'undefined' ? appMode : null,
-            bodyGrid1: document.body.classList.contains('mob-grid1'),
-            bodyGrid2: document.body.classList.contains('mob-grid2')
-        });
-    }
 
     // 1タップ＝1回だけ反転。描画処理は端末／モードに応じて1系統に絞る。
     isLearningReversed = !isLearningReversed;
@@ -10796,14 +10872,6 @@ function toggleLearningDirection() {
         } else if (typeof updateGrid === 'function') {
             updateGrid();
         }
-    }
-
-    if (window.__QCARD_REVERSE_TRACE__) {
-        var _traceActive1 = (typeof getActive === 'function') ? getActive() : null;
-        console.log('[REVERSE_TRACE] toggle EXIT', {
-            reversed: isLearningReversed,
-            activeReversed: !!(_traceActive1 && _traceActive1.isReversed)
-        });
     }
 }
 
@@ -10916,16 +10984,6 @@ function updateGrid(options) {
 
 
 function renderGrid(data, total) {
-    if (window.__QCARD_REVERSE_TRACE__) {
-        console.log('[REVERSE_TRACE] renderGrid ENTER', {
-            reversed: isLearningReversed,
-            mobView: typeof mobView !== 'undefined' ? mobView : null,
-            dataLength: data ? data.length : 0,
-            total: total,
-            bodyGrid1: document.body.classList.contains('mob-grid1'),
-            bodyGrid2: document.body.classList.contains('mob-grid2')
-        });
-    }
 
     // [FIX] 画面外カードの遅延読み込み用オブザーバーが、破棄される古いカード要素への
     // 参照を持ち続けてメモリリークしないよう、総入れ替え前に監視をリセットする
@@ -10957,30 +11015,8 @@ function renderGrid(data, total) {
             });
         }
 
-        var _traceItem = createItem(i, displayData);
-        grid.appendChild(_traceItem);
-
-        // 最初の3枚だけ、入力元→反転後データ→実DOMの値を比較する。
-        if (window.__QCARD_REVERSE_TRACE__ && i < 3) {
-            var _traceTitleEl = _traceItem.querySelector('.title-input');
-            var _traceContentEl = _traceItem.querySelector('.content-textarea');
-            console.log('[REVERSE_TRACE] card', i + 1, {
-                sourceTitle: d && d.title,
-                sourceContent: d && d.content,
-                displayTitle: displayData && displayData.title,
-                displayContent: displayData && displayData.content,
-                domTitle: _traceTitleEl ? _traceTitleEl.value : null,
-                domContent: _traceContentEl ? _traceContentEl.value : null,
-                reversed: isLearningReversed
-            });
-        }
-    }
-
-    if (window.__QCARD_REVERSE_TRACE__) {
-        console.log('[REVERSE_TRACE] renderGrid EXIT', {
-            reversed: isLearningReversed,
-            renderedItems: grid.children.length
-        });
+        var item = createItem(i, displayData);
+        grid.appendChild(item);
     }
 
     if ((document.body.classList.contains('mob-grid1') ||
@@ -12056,11 +12092,6 @@ function updateCardClipboardUI() {
 // updateGrid() でグリッドが再構築されるたびに、貼り付けヒントの表示状態も同期する
 var _origUpdateGridForClipboard = window.updateGrid;
 window.updateGrid = function() {
-    // [VERIFY v3.18.5] ラッパーでupdateGridの引数を落とさない。
-    // toggleLearningDirection() の { skipMobileSync:true } をそのまま本体へ渡す。
-    if (window.__QCARD_REVERSE_TRACE__) {
-        console.log('[REVERSE_TRACE] updateGrid wrapper args=', Array.prototype.slice.call(arguments));
-    }
     _origUpdateGridForClipboard.apply(this, arguments);
     if (typeof updateCardClipboardUI === 'function') updateCardClipboardUI();
 };
@@ -13015,8 +13046,30 @@ function handleDragStart(e) {
 
 // [NEW] ドラッグ中のマウス位置から「スワップ」か「挿入（前/後）」かを判定する
 // カード幅を左20%/中央60%/右20%に分け、端に寄せるほど挿入予告に切り替わる
+// [NEW] カードが縦に積まれた1列レイアウト（スマホ1列／PCで列数1）かどうか。
+// 1列だと各カードが行いっぱいに広がるため、左右20%を「挿入」とする判定では
+// 指で狙いにくく、挿入予告の縦線も行の左右端に出て不自然になる。
+// そこで「カード幅が親コンテナの内側幅のほぼ全部」なら縦積みレイアウトとみなし、
+// 判定軸を横(X)から縦(Y)へ切り替える。
+function dragIsStackedLayout(targetEl) {
+    var container = targetEl.parentElement;
+    if (!container) return false;
+    var cs = window.getComputedStyle(container);
+    var inner = container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if (inner <= 0) return false;
+    return targetEl.getBoundingClientRect().width >= inner * 0.9;
+}
+
 function dragGetZone(e, targetEl) {
     var rect = targetEl.getBoundingClientRect();
+    if (dragIsStackedLayout(targetEl)) {
+        // 縦積み：上35%＝直前に挿入／下35%＝直後に挿入／中央30%＝入れ替え
+        var relY = (e.clientY - rect.top) / rect.height;
+        if (relY < 0.35) return 'insert-before';
+        if (relY > 0.65) return 'insert-after';
+        return 'swap';
+    }
+    // 複数列：従来通り 左20%＝直前／右20%＝直後／中央60%＝入れ替え
     var relX = (e.clientX - rect.left) / rect.width;
     if (relX < 0.2)  return 'insert-before';
     if (relX > 0.8)  return 'insert-after';
@@ -13024,9 +13077,9 @@ function dragGetZone(e, targetEl) {
 }
 
 function dragClearIndicators() {
-    document.querySelectorAll('.grid-item.drop-swap-target, .grid-item.drop-insert-before, .grid-item.drop-insert-after')
+    document.querySelectorAll('.grid-item.drop-swap-target, .grid-item.drop-insert-before, .grid-item.drop-insert-after, .grid-item.drop-axis-y')
         .forEach(function(el) {
-            el.classList.remove('drop-swap-target', 'drop-insert-before', 'drop-insert-after');
+            el.classList.remove('drop-swap-target', 'drop-insert-before', 'drop-insert-after', 'drop-axis-y');
         });
 }
 
@@ -13039,6 +13092,7 @@ function handleDragOver(e) {
     if (dragSrcEl && dragSrcEl !== this) {
         var zone = dragGetZone(e, this);
         dragClearIndicators();
+        if (dragIsStackedLayout(this)) this.classList.add('drop-axis-y');
         if (zone === 'swap') {
             this.classList.add('drop-swap-target');
         } else if (zone === 'insert-before') {
