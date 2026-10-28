@@ -8213,7 +8213,7 @@ async function shareCard(card, cardItem) {
         return null;
     }
 
-    var friendlyUrl = 'https://qcard.app/share/' + ulid;
+    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(ulid);
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
 }
 
@@ -8279,20 +8279,42 @@ function qcardBuildCardSharePreview(card, expiresAt) {
     var links = Array.isArray(card.links) ? card.links.length : 0;
     var hasFront = !!card.mediaUrl;
     var hasBack  = !!card.mediaUrlBack;
-    var hasAudio = !!(card.audioUrl || (card.audioUrls && (card.audioUrls.recorded || card.audioUrls.uploaded)));
+    var audioUrls = card.audioUrls || {};
+    var audioUrl = (card.audioSource === 'recorded' && audioUrls.recorded) ||
+                   (card.audioSource === 'uploaded' && audioUrls.uploaded) ||
+                   card.audioUrl || audioUrls.recorded || audioUrls.uploaded || '';
     var meta = [];
     if (hasFront) meta.push('表画像あり');
     if (hasBack) meta.push('裏画像あり');
-    if (hasAudio) meta.push('音声あり');
+    if (audioUrl) meta.push('音声あり');
     if (links) meta.push('リンク ' + links + '件');
-    return '<div class="qcard-share-preview-card">' +
-        (hasFront ? '<div class="qcard-share-preview-image"><img src="' + qcardShareEscapeHtml(card.mediaUrl) + '" alt="カード画像" loading="lazy"></div>' : '') +
+    var faceHtml = (hasFront || hasBack)
+        ? '<div class="qcard-share-preview-image" id="qcard-share-preview-face-image">' +
+            ((hasFront ? '<img data-face="front" src="' + qcardShareEscapeHtml(card.mediaUrl) + '" alt="カード表面の画像" loading="lazy"' + (hasFront ? '' : ' style="display:none"') + '>' : '') +
+             (hasBack ? '<img data-face="back" src="' + qcardShareEscapeHtml(card.mediaUrlBack) + '" alt="カード裏面の画像" loading="lazy"' + (hasFront ? ' style="display:none"' : '') + '>' : '')) +
+          '</div>' + ((hasFront && hasBack) ? '<div class="qcard-share-preview-face-actions"><button type="button" class="qcard-cr-btn" onclick="qcardToggleSharePreviewFace()" id="qcard-share-preview-flip">裏面を見る ↻</button></div>' : '')
+        : '';
+    return '<div class="qcard-share-preview-card">' + faceHtml +
         '<div class="qcard-share-preview-title">' + qcardShareEscapeHtml(title) + '</div>' +
         (content ? '<div class="qcard-share-preview-content">' + qcardShareEscapeHtml(content).replace(/\n/g, '<br>') + '</div>' : '') +
+        (audioUrl ? '<div class="qcard-share-preview-audio"><div style="font-size:.72rem;margin:10px 0 5px;font-weight:600">音声を聴く</div><audio controls preload="none" src="' + qcardShareEscapeHtml(audioUrl) + '" style="width:100%;max-width:100%">お使いのブラウザは音声再生に対応していません。</audio></div>' : '') +
         (meta.length ? '<div class="qcard-share-preview-meta">' + qcardShareEscapeHtml(meta.join(' · ')) + '</div>' : '') +
         '<div class="qcard-share-preview-expiry">共有URL有効期限: ' + qcardShareEscapeHtml(expiresAt ? new Date(expiresAt).toLocaleString() : '不明') + '</div>' +
         '</div>';
 }
+
+window.qcardToggleSharePreviewFace = function() {
+    var box = document.getElementById('qcard-share-preview-face-image');
+    if (!box) return;
+    var front = box.querySelector('img[data-face="front"]');
+    var back = box.querySelector('img[data-face="back"]');
+    if (!back) return;
+    var showBack = back.style.display === 'none';
+    if (front) front.style.display = showBack ? 'none' : '';
+    back.style.display = showBack ? '' : 'none';
+    var btn = document.getElementById('qcard-share-preview-flip');
+    if (btn) btn.textContent = showBack ? '表面を見る ↻' : '裏面を見る ↻';
+};
 
 function qcardEnsureCardShareModal() {
     if (document.getElementById('qcard-card-share-modal')) return;
@@ -8569,10 +8591,12 @@ function qcardCloneReceivedCard(shared, restored) {
 
 function qcardRenderReceiveChoices() {
     var active=getActive();
+    var hasExistingCards=!!(active && Array.isArray(active.data) && active.data.some(function(c){return c && ((c.title||'').trim() || (c.content||'').trim());}));
+    var defaultTarget = hasExistingCards ? 'inbox' : 'new';
     var choices='';
-    if(active) choices += '<label><input type="radio" name="qcard-receive-target" value="current" checked> 現在のシナリオに追加 <span style="margin-left:auto;color:var(--text-muted);font-size:.64rem;">'+qcardShareEscapeHtml(displayScenarioName(active,scenarios.indexOf(active)))+'</span></label>';
-    choices += '<label><input type="radio" name="qcard-receive-target" value="new"'+(active?'':' checked')+'> 新規シナリオを作成</label>';
-    choices += '<label><input type="radio" name="qcard-receive-target" value="inbox"> 受信箱に入れる</label>';
+    if(active) choices += '<label><input type="radio" name="qcard-receive-target" value="current" '+(defaultTarget==='current'?'checked':'')+'> 現在のシナリオに追加 <span style="margin-left:auto;color:var(--text-muted);font-size:.64rem;">'+qcardShareEscapeHtml(displayScenarioName(active,scenarios.indexOf(active)))+'</span></label>';
+    choices += '<label><input type="radio" name="qcard-receive-target" value="new" '+(defaultTarget==='new'?'checked':'')+'> 新規シナリオを作成</label>';
+    choices += '<label><input type="radio" name="qcard-receive-target" value="inbox" '+(defaultTarget==='inbox'?'checked':'')+'> 受信箱に入れる</label>';
     return choices;
 }
 
@@ -8581,11 +8605,15 @@ window.openCardReceivePreview = function(data) {
     qcardPendingSharedCard=data;
     var modal=document.getElementById('qcard-card-receive-modal'), body=document.getElementById('qcard-cr-body');
     if(!modal||!body) return;
+    var primary=modal.querySelector('.qcard-cr-btn.primary');
+    if(primary){primary.style.display='';primary.disabled=false;primary.textContent='登録なしで保存';}
     var card=data.card_json;
-    body.innerHTML=qcardBuildCardSharePreview(card,data.expires_at)+'<div style="font-size:.72rem;margin-top:14px;font-weight:600;">取り込み先</div><div class="qcard-cs-choice">'+qcardRenderReceiveChoices()+'</div><div id="qcard-cr-status" class="qcard-cs-status">画像・音声は「受信する」を押した時点でローカル保存します。</div>';
+    body.innerHTML='<div style="font-size:.78rem;line-height:1.55;margin:8px 0 12px;">共有されたカードを試してみましょう。内容を確認してから、登録なしでこの端末に保存できます。</div>'+qcardBuildCardSharePreview(card,data.expires_at)+
+        '<details class="qcard-share-destination" style="margin-top:14px;"><summary style="cursor:pointer;font-size:.76rem;color:var(--text-muted);">保存先を変更</summary><div class="qcard-cs-choice">'+qcardRenderReceiveChoices()+'</div></details>'+
+        '<div id="qcard-cr-status" class="qcard-cs-status">アカウント登録は不要です。保存すると、画像・音声もこの端末に保存します。</div>';
     modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
 };
-window.closeCardReceivePreview=function(){qcardPendingSharedCard=null;var m=document.getElementById('qcard-card-receive-modal');if(m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}};
+window.closeCardReceivePreview=function(){qcardPendingSharedCard=null;var m=document.getElementById('qcard-card-receive-modal');if(m){m.classList.remove('open');m.setAttribute('aria-hidden','true');var b=m.querySelector('.qcard-cr-btn.primary');if(b){b.style.display='';b.disabled=false;b.textContent='登録なしで保存';}}};
 
 window.confirmCardReceive = async function() {
     var data=qcardPendingSharedCard; if(!data||!data.card_json){return;}
@@ -8917,7 +8945,7 @@ window.shareCurrentScenario = async function(silent) {
         return;
     }
 
-    var friendlyUrl = 'https://qcard.app/share/' + shareUlid;
+    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(shareUlid);
     console.log('[Scenario Share] shared URI:', shareUri);
     console.log('[Scenario Share] expires:', expiresAt);
 
@@ -9050,16 +9078,46 @@ async function importSharedScenario(uri) {
     showToast('✅ 「' + newScenario.name + '」を受け取りました');
 }
 
-// ─── URL判定ヘルパー（shared_scenarios / shared_cards を自動判定）───
-async function resolveShareUri(raw) {
-    // fig://ULID または https://qcard.app/share/ULID に対応
-    var uri = raw.trim();
-    if (uri.startsWith('https://qcard.app/share/')) {
-        uri = 'fig://' + uri.replace('https://qcard.app/share/', '');
-    }
-    if (!uri.startsWith('fig://')) return null;
-    return uri;
+// ─── 共有URL判定（Vercelの /share/{ID} と従来の fig:// に対応）───
+function qcardGetIncomingShareId() {
+    var match = String(window.location.pathname || '').match(/^\/share\/([^/]+)\/?$/i);
+    if (!match) return null;
+    try { return decodeURIComponent(match[1]).trim() || null; } catch (_) { return match[1].trim() || null; }
 }
+async function resolveShareUri(raw) {
+    var uri = String(raw || '').trim();
+    if (!uri) return null;
+    if (/^https?:\/\//i.test(uri)) {
+        try {
+            var url = new URL(uri);
+            var match = url.pathname.match(/^\/share\/([^/]+)\/?$/i);
+            if (match) uri = decodeURIComponent(match[1]);
+        } catch (_) { return null; }
+    }
+    if (/^\/share\//i.test(uri)) {
+        var pathMatch = uri.match(/^\/share\/([^/]+)\/?$/i);
+        if (pathMatch) { try { uri = decodeURIComponent(pathMatch[1]); } catch (_) { uri = pathMatch[1]; } }
+    }
+    if (!uri.startsWith('fig://')) uri = 'fig://' + uri;
+    return /^fig:\/\/[^\s/]+$/.test(uri) ? uri : null;
+}
+
+// 共有URLから直接開いた場合は、通常チュートリアルより先に共有カードを表示する。
+window.qcardOpenIncomingShare = async function() {
+    var id = qcardGetIncomingShareId();
+    if (!id) return false;
+    // カード共有はプレビューへ、従来のシナリオ共有URLは既存の受信処理へ委譲する。
+    // 共有URLを開くために、ユーザーがデータ管理画面へ移動してURLを貼り直す必要はない。
+    try {
+        showToast('共有データを読み込んでいます…');
+        await importShareByUrl(window.location.href);
+        return true;
+    } catch (e) {
+        console.warn('[Share Route]', e);
+        showToast('共有データを開けませんでした');
+        return false;
+    }
+};
 
 // ═══════════════════════════════════════════════════════════════
 // END Supabase
@@ -10112,14 +10170,18 @@ function toggleTheme() {
     // カード非表示モードの初期適用
     applyCardHideState();
 
-    // Show tutorial if first time
+    // 共有URLからの訪問では、カード体験を優先して初回チュートリアルを抑制する。
     var tutorialDone = localStorage.getItem('kp_tutorial_done');
-    if (!tutorialDone) { showTutorial(); }
+    var incomingShareId = qcardGetIncomingShareId();
+    if (!tutorialDone && !incomingShareId) { showTutorial(); }
 
-    // モバイル表示モードの初期適用
+    // モバイル表示モードの初期適用と、共有URLの自動読み込み
     window.addEventListener('load', function() {
         var btn = document.querySelector('.mob-view-btn[data-view="' + mobView + '"]');
         if (btn) mobSetView(mobView);
+        if (incomingShareId && typeof window.qcardOpenIncomingShare === 'function') {
+            window.qcardOpenIncomingShare();
+        }
     });
 })();
 
