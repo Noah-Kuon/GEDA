@@ -28,7 +28,7 @@
            ══════════════════════════════════════════════════════════════
            G.E.D.A. DESIGN TOKENS — QCARD SKIN: "ARCHIVE" (v1)
            ------------------------------------------------------------
-           このトークン層だけを差し替えれば別スキンになるよう設計している。
+           このトークン層だけを差し替えれば別スキンになるよう設計。
            :root         = NIGHT（既定 / documentElement へ何も付与しない状態）
            :root.light   = DAY（documentElement.classList に 'light' を付与）
            将来、別スキンを追加する場合は :root.skin-xxx { ... } を増やし、
@@ -38,7 +38,7 @@
            ══════════════════════════════════════════════════════════════
         */
         :root {
-            /* -- surfaces: 深宇宙のような静かな階層 -- */
+            /* -- surfaces: 深宇宙 -- */
             --bg: #05070b;
             --surface: #0a0e16;
             --surface2: #10151f;
@@ -47,7 +47,7 @@
             --border2: #2a3448;
             --line: rgba(200,215,240,0.06);
 
-            /* -- accent: アーカイブの識別光。彩度を抑えた青 -- */
+            /* -- accent: 彩度を抑えた青 -- */
             --accent: #5b9bf2;
             --accent2: #8b7ff0;
             --accent-glow: rgba(91,155,242,0.16);
@@ -63,7 +63,7 @@
             --danger: #e2657a;
             --save-color: #3ecf9a;
 
-            /* -- structure: 角の少ない・静かな器 -- */
+            /* -- structure: 角マル -- */
             --radius-sm: 2px;
             --radius-md: 4px;
             --radius-lg: 6px;
@@ -75,7 +75,7 @@
             --shadow-lg: 0 20px 60px rgba(0,0,0,0.55);
             --shadow-ring: 0 0 0 1px var(--accent-glow);
 
-            /* -- motion: 沈黙を基本とし、応答にのみ動く -- */
+            /* -- motion: 応答にのみ動く -- */
             --ease: cubic-bezier(0.4, 0, 0.2, 1);
             --dur-fast: 110ms;
             --dur: 180ms;
@@ -88,7 +88,7 @@
             --font-record: 'Noto Serif JP', serif;
         }
         :root.light {
-            /* -- surfaces: 冷たい紙／青焼き図面のような明るさ（暖色クリームは使わない） -- */
+            /* -- surfaces: 冷たい紙 -- */
             --bg: #eef1f6;
             --surface: #ffffff;
             --surface2: #f4f6fa;
@@ -134,7 +134,7 @@
         ::selection { background: var(--accent-glow); color: var(--text); }
         :focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 
-        /* ─── NOISE TEXTURE：常に静かに存在する粒子。装飾ではなく「空間の質感」 ─── */
+        /* ─── NOISE TEXTURE：粒子。装飾ではなく「空間の質感」 ─── */
         body::before {
             content: '';
             position: fixed; inset: 0;
@@ -162,7 +162,7 @@
             background: var(--line);
         }
 
-        /* [REDESIGN] 以前はグラデーション文字のロゴだったが、G.E.D.A.端末らしい
+        /* [REDESIGN] G.E.D.A.端末らしい
            「静かなシステムマーク」に変更。中黒ドット＋レタースペースの文字組で、
            ブランドロゴというより端末に刻印された識別子として見せる。 */
         .app-logo {
