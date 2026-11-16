@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geodesic Fig-Planet Dynamic SVG & GIF Studio</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- gif.js for client-side GIF encoding -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #09090b;
+      color: #f4f4f5;
+    }
+    /* カスタムレンジスライダー */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #27272a;
+      height: 6px;
+      border-radius: 9999px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #a855f7;
+      cursor: pointer;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      background: #c084fc;
+    }
+    .checkerboard {
+      background-image: linear-gradient(45deg, #18181b 25%, transparent 25%),
+                        linear-gradient(-45deg, #18181b 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #18181b 75%),
+                        linear-gradient(-45deg, transparent 75%, #18181b 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    }
+    .checkerboard-light {
+      background-color: #f8fafc;
+      background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+                        linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+                        linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    }
+    .surface-solid-dark {
+      background-color: #09090b;
+      background-image: none;
+    }
+    .surface-solid-light {
+      background-color: #ffffff;
+      background-image: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-purple-500 selection:text-white">
+
+  <!-- ヘッダー -->
+  <header class="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"></polygon>
+            <circle cx="12" cy="12" r="4"></circle>
+            <line x1="12" y1="2" x2="12" y2="8"></line>
+            <line x1="21" y1="17" x2="15.5" y2="14"></line>
+            <line x1="3" y1="17" x2="8.5" y2="14"></line>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">Geodesic Fig-Planet Dynamic SVG Studio</h1>
+          <p class="text-xs text-zinc-400">ジオデシック・イチジク惑星 × 極軸ワームホール 動的ベクターSVG＆GIF生成</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="loopBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          Seamless 360° Vector Ready
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-grow">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+
+      <!-- 左カラム: キャンバスプレビュー & SVG/GIF出力結果（デスクトップではスクロール追従固定） -->
+      <div class="lg:col-span-7 lg:sticky lg:top-20 flex flex-col gap-6 z-10">
+        <!-- リアルタイムプレビューカード -->
+        <div id="mainPreviewCard" class="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-zinc-200">リアルタイム・プレビュー</span>
+              <span id="resTag" class="text-xs px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 font-mono">400×400px</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="togglePlayBtn" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition flex items-center gap-1.5">
+                <span id="playIcon">⏸</span>
+                <span id="playText">一時停止</span>
+              </button>
+              <button id="resetBtn" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-300 transition">
+                初期値に戻す
+              </button>
+            </div>
+          </div>
+
+          <!-- 配置環境（ダーク / ライト / 透過）＆ テーマ適応挙動テストバー -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800/90 text-xs">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] text-zinc-400 mr-1">配置背景:</span>
+              <button data-surface="dark" class="surface-btn active px-2.5 py-1 rounded-lg bg-zinc-800 text-white border border-purple-500/60 font-medium transition">🌙 ダーク</button>
+              <button data-surface="light" class="surface-btn px-2.5 py-1 rounded-lg bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 font-medium transition">☀️ ライト</button>
+              <button data-surface="transparent" class="surface-btn px-2.5 py-1 rounded-lg bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 font-medium transition">🏁 透過</button>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] text-zinc-400">テーマ検証:</span>
+              <select id="previewThemeOverride" class="rounded-lg bg-zinc-900 border border-zinc-700 px-2 py-1 text-[11px] text-zinc-200 focus:outline-none focus:border-purple-500">
+                <option value="auto" selected>背景に自動連動</option>
+                <option value="forceDark">ダークモード配色で検証</option>
+                <option value="forceLight">ライトモード配色で検証</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- キャンバスコンテナ -->
+          <div id="canvasContainer" class="relative w-full aspect-square max-w-[460px] mx-auto rounded-2xl overflow-hidden border border-zinc-800 surface-solid-dark flex items-center justify-center shadow-inner transition-colors duration-300">
+            <canvas id="logoCanvas" class="w-full h-full block"></canvas>
+            <!-- 実寸アイコン比較プレビュー（32px / 48px） -->
+            <div id="miniPreviewBadge" class="absolute top-3 left-3 flex items-center gap-2.5 bg-zinc-950/85 backdrop-blur px-3 py-1.5 rounded-xl border border-zinc-800/90 pointer-events-none transition-colors duration-300" title="アプリUI配置時の実寸イメージ">
+              <div class="flex flex-col items-center">
+                <canvas id="miniCanvas32" width="32" height="32" class="w-8 h-8 rounded"></canvas>
+                <span class="text-[9px] text-zinc-400 font-mono mt-0.5">32px</span>
+              </div>
+              <div class="w-px h-7 bg-zinc-700/60"></div>
+              <div class="flex flex-col items-center">
+                <canvas id="miniCanvas48" width="48" height="48" class="w-12 h-12 rounded"></canvas>
+                <span class="text-[9px] text-zinc-400 font-mono mt-0.5">48px</span>
+              </div>
+            </div>
+            <!-- ループ位相プログレスバー -->
+            <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-zinc-400 bg-zinc-950/80 backdrop-blur px-3 py-1.5 rounded-lg border border-zinc-800/80 pointer-events-none">
+              <span>シームレス360°循環位相 (0% → 100%)</span>
+              <div class="w-28 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div id="loopProgress" class="h-full bg-gradient-to-r from-purple-500 to-cyan-400 w-0"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 事前軽量化・推定ファイルサイズインジケーター -->
+          <div class="mt-4 grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-zinc-950/85 border border-zinc-800/90">
+            <div class="flex flex-col">
+              <span class="text-[10px] text-zinc-400">推定SVGファイル容量</span>
+              <div class="flex items-baseline gap-1.5 mt-0.5">
+                <span id="estSvgSizeVal" class="text-sm font-bold font-mono text-emerald-400">~28 KB</span>
+                <span id="estSvgSizeBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300">超軽量</span>
+              </div>
+            </div>
+            <div class="flex flex-col border-l border-zinc-800 pl-2.5">
+              <span class="text-[10px] text-zinc-400">稼働アニメーション数</span>
+              <div class="flex items-baseline gap-1.5 mt-0.5">
+                <span id="estAnimCountVal" class="text-sm font-bold font-mono text-cyan-400">10 個</span>
+                <span class="text-[9px] text-zinc-500">(目標60以下)</span>
+              </div>
+            </div>
+            <div class="flex flex-col border-l border-zinc-800 pl-2.5">
+              <span class="text-[10px] text-zinc-400">描画ポリゴン総数</span>
+              <div class="flex items-baseline gap-1.5 mt-0.5">
+                <span id="estPolyCountVal" class="text-sm font-bold font-mono text-purple-300">180 面</span>
+                <span id="estModeTag" class="text-[9px] text-zinc-500">3D極軸ベクター</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SVG / GIF 生成アクションバー -->
+          <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button id="generateSvgBtn" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-purple-500/20 transition flex items-center justify-center gap-2">
+              <span>✨ 動的SVGロゴを生成 (.svg)</span>
+            </button>
+            <button id="generateGifBtn" class="py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-2">
+              <span>🎞️ GIF生成 (.gif)</span>
+            </button>
+          </div>
+
+          <!-- 書き出したSVGファイルの読み込み・設定復元ドロップゾーン -->
+          <div id="svgImportDropZone" class="mt-3 p-3.5 rounded-xl border border-dashed border-zinc-700 hover:border-cyan-500/70 bg-zinc-950/60 hover:bg-cyan-950/15 transition cursor-pointer flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="text-lg">📂</span>
+              <div>
+                <p class="text-xs font-semibold text-zinc-200">書き出したSVGから惑星を復元（ドラッグ＆ドロップ / 選択）</p>
+                <p class="text-[10px] text-zinc-400">このアプリで保存した .svg ファイルを投入すると、惑星名・配色・全スライダー設定を再現します</p>
+              </div>
+            </div>
+            <label for="svgImportFileInput" class="shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[11px] font-medium text-cyan-300 cursor-pointer transition">
+              ファイルを選択
+            </label>
+            <input id="svgImportFileInput" type="file" accept=".svg,image/svg+xml" class="hidden">
+          </div>
+
+          <!-- GIFレンダリング進捗バー -->
+          <div id="renderStatusBox" class="hidden mt-3 p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+            <div class="flex justify-between text-xs">
+              <span id="renderStatusText" class="text-zinc-300">準備中...</span>
+              <span id="renderPercent" class="font-mono text-purple-400">0%</span>
+            </div>
+            <div class="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div id="renderProgressBar" class="h-full bg-gradient-to-r from-purple-500 to-cyan-400 w-0 transition-all duration-150"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 生成されたSVGプレビュー＆ダウンロードカード -->
+        <div id="svgResultCard" class="hidden bg-zinc-900/90 border border-cyan-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-sm font-bold text-cyan-400 flex items-center gap-2">
+                <span>✨ 動的ベクターSVGロゴが完成しました</span>
+              </h2>
+              <p id="svgMetaInfo" class="text-xs text-zinc-400 mt-0.5">軽量ベクター / 無限ループ</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="copySvgCodeBtn" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition">
+                SVGコードをコピー
+              </button>
+              <a id="downloadSvgLink" download="geodesic-fig-planet-logo.svg" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-cyan-600/20 transition flex items-center gap-2 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                <span>SVGを保存 (.svg)</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- 生成SVGのダーク・ライト実物切り替え検証バー -->
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-2 rounded-xl bg-zinc-950/90 border border-zinc-800 text-xs">
+            <span class="text-zinc-400">実物SVGテーマ表示テスト:</span>
+            <div class="flex items-center gap-1.5">
+              <button data-svg-test="dark" class="svg-test-btn active px-2.5 py-1 rounded-lg bg-zinc-800 text-white border border-cyan-500/60 font-medium">🌙 ダーク背景</button>
+              <button data-svg-test="light" class="svg-test-btn px-2.5 py-1 rounded-lg bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 font-medium">☀️ ライト背景</button>
+              <button data-svg-test="checker" class="svg-test-btn px-2.5 py-1 rounded-lg bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 font-medium">🏁 透過背景</button>
+            </div>
+          </div>
+
+          <div id="generatedSvgContainer" data-theme="dark" class="flex justify-center items-center surface-solid-dark rounded-xl p-6 border border-zinc-800 min-h-[260px] transition-colors duration-300">
+          </div>
+        </div>
+
+        <!-- 生成されたGIFプレビュー＆ダウンロードカード -->
+        <div id="resultCard" class="hidden bg-zinc-900/90 border border-emerald-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                <span>✨ イチジク惑星ブラックホールGIFが完成しました</span>
+              </h2>
+              <p id="gifMetaInfo" class="text-xs text-zinc-400 mt-0.5">400×400px / 36フレーム / 無限ループ</p>
+            </div>
+            <a id="downloadLink" download="geodesic-fig-planet-logo.gif" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-emerald-600/20 transition flex items-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              <span>GIFを保存 (.gif)</span>
+            </a>
+          </div>
+          <div class="flex justify-center bg-zinc-950 rounded-xl p-4 border border-zinc-800">
+            <img id="generatedGifImg" alt="Generated Geodesic Blackhole GIF" class="max-w-[280px] w-full h-auto rounded-lg shadow-md" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 右カラム: カスタマイズコントロールパネル -->
+      <div class="lg:col-span-5 bg-zinc-900/70 border border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
+        <div class="space-y-3">
+          <div>
+            <h2 class="text-sm font-bold text-zinc-100 uppercase tracking-wider mb-1">ロゴ・デザイン設定</h2>
+            <p class="text-xs text-zinc-400">すべてのパラメータは開始点と終了点が完全一致するシームレスループを維持します。</p>
+          </div>
+
+          <!-- 惑星ネーム入力欄 -->
+          <div class="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="planetNameInput" class="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <span>🪐 惑星ネーム（ロゴタイトル・保存ファイル名）</span>
+              </label>
+              <span class="text-[10px] text-zinc-500">SVGメタデータに保存</span>
+            </div>
+            <input id="planetNameInput" type="text" maxlength="48" placeholder="例: Qcard Fig-01 / Aurora Sphere" value="Fig-Planet Prime" class="w-full rounded-lg bg-zinc-900 border border-zinc-700 focus:border-purple-500 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none transition">
+          </div>
+        </div>
+
+        <!-- プリセットテーマ -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <label class="block text-xs font-semibold text-zinc-300">カラーテーマ＆カラーピッカー</label>
+            <div class="flex items-center gap-1.5">
+              <span id="customColorBadge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">カスタム配色中</span>
+              <button id="randomColorBtn" type="button" class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-fuchsia-600/80 to-indigo-600/80 hover:from-fuchsia-500 hover:to-indigo-500 border border-fuchsia-400/30 text-[11px] font-semibold text-white shadow-sm transition flex items-center gap-1 cursor-pointer" title="外殻・中間・極コアの3色をランダムに生成">
+                <span>🎲</span>
+                <span>ランダム配色</span>
+              </button>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-theme="figPlanet" class="theme-btn active px-2.5 py-2 rounded-xl border border-purple-500 bg-purple-500/15 text-xs font-medium text-white transition text-center">
+              🍇 イチジク惑星
+            </button>
+            <button data-theme="singularity" class="theme-btn px-2.5 py-2 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition text-center">
+              🌌 特異点パープル
+            </button>
+            <button data-theme="eventHorizon" class="theme-btn px-2.5 py-2 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition text-center">
+              🔥 降着円盤アンバー
+            </button>
+          </div>
+          <!-- カスタムカラーピッカー（外殻・中間・中心コア） -->
+          <div class="grid grid-cols-3 gap-2 pt-1">
+            <label class="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition">
+              <span class="text-[11px] text-zinc-400">外殻色</span>
+              <div class="flex items-center gap-1.5">
+                <span id="outerColorHex" class="text-[10px] font-mono text-zinc-300 uppercase">#7e22ce</span>
+                <input id="outerColorPicker" type="color" value="#7e22ce" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0">
+              </div>
+            </label>
+            <label class="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition">
+              <span class="text-[11px] text-zinc-400">中間色</span>
+              <div class="flex items-center gap-1.5">
+                <span id="midColorHex" class="text-[10px] font-mono text-zinc-300 uppercase">#db2777</span>
+                <input id="midColorPicker" type="color" value="#db2777" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0">
+              </div>
+            </label>
+            <label class="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition">
+              <span class="text-[11px] text-zinc-400">極コア</span>
+              <div class="flex items-center gap-1.5">
+                <span id="innerColorHex" class="text-[10px] font-mono text-zinc-300 uppercase">#fb7185</span>
+                <input id="innerColorPicker" type="color" value="#fb7185" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0">
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- イチジク惑星フォルム強調度 (Fig Shape Morph) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="figMorphInput" class="font-medium text-zinc-300">イチジク惑星フォルム度 (Fig Silhouette)</label>
+            <span id="figMorphVal" class="font-mono text-purple-400 font-semibold">100%</span>
+          </div>
+          <input id="figMorphInput" type="range" min="0" max="150" step="5" value="100" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>0% (真球)</span>
+            <span>100% (標準イチジク型)</span>
+            <span>150% (強調しずく型)</span>
+          </div>
+        </div>
+
+        <!-- クリスタル結晶フォルム度 (Crystal Silhouette) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="crystalMorphInput" class="font-medium text-zinc-300">💎 クリスタル結晶フォルム度 (Crystal Silhouette)</label>
+            <span id="crystalMorphVal" class="font-mono text-cyan-400 font-semibold">0%</span>
+          </div>
+          <input id="crystalMorphInput" type="range" min="0" max="140" step="5" value="0" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>0% (なめらか)</span>
+            <span>75% (多面体クリスタル)</span>
+            <span>140% (鋭利な結晶スパイク)</span>
+          </div>
+        </div>
+
+        <!-- ジオデシック分割数 (Frequency) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="subdivisionInput" class="font-medium text-zinc-300">ジオデシック分割精度 (Frequency)</label>
+            <span id="subdivisionVal" class="font-mono text-purple-400 font-semibold">3V (320面)</span>
+          </div>
+          <input id="subdivisionInput" type="range" min="1" max="4" step="1" value="3" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>1V (正二十面体)</span>
+            <span>2V</span>
+            <span>3V</span>
+            <span>4V (高精細ドーム)</span>
+          </div>
+        </div>
+
+        <!-- 極軸ワームホールのねじれ (Vortex Twist) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="twistInput" class="font-medium text-zinc-300">極軸ワームホールのねじれ (Polar Vortex)</label>
+            <span id="twistVal" class="font-mono text-purple-400 font-semibold">2.4 rad</span>
+          </div>
+          <input id="twistInput" type="range" min="0.5" max="4.5" step="0.1" value="2.4" class="w-full">
+        </div>
+
+        <!-- 極軸循環の方向 (Polar Flow Direction) -->
+        <div class="space-y-2">
+          <label class="block text-xs font-medium text-zinc-300">極点吸い込み・放出方向 (Polar Flow)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="flowNorthBtn" data-flow="northToSouth" class="flow-btn active px-2.5 py-2 rounded-xl border border-purple-500 bg-purple-500/15 text-xs font-medium text-white transition text-center">
+              ⬇ 北極から吸い込み → 南極へ放出
+            </button>
+            <button id="flowSouthBtn" data-flow="southToNorth" class="flow-btn px-2.5 py-2 rounded-xl border border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition text-center">
+              ⬆ 南極から吸い込み → 北極へ放出
+            </button>
+          </div>
+        </div>
+
+        <!-- 吸い込み層の数 (Concentric Dome Shells) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="shellsInput" class="font-medium text-zinc-300">多重ドーム層数 (Infinite Layers)</label>
+            <span id="shellsVal" class="font-mono text-purple-400 font-semibold">4層</span>
+          </div>
+          <input id="shellsInput" type="range" min="1" max="6" step="1" value="4" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>1層 (シングル惑星・超軽量)</span>
+            <span>4層 (標準多重)</span>
+            <span>6層</span>
+          </div>
+        </div>
+
+        <!-- チルト角度 (Viewing Tilt) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="tiltInput" class="font-medium text-zinc-300">カメラ俯角・チルト (3D Tilt)</label>
+            <span id="tiltVal" class="font-mono text-purple-400 font-semibold">28°</span>
+          </div>
+          <input id="tiltInput" type="range" min="0" max="65" step="1" value="28" class="w-full">
+        </div>
+
+        <!-- 発光・グロー強度 -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="glowInput" class="font-medium text-zinc-300">中心ネオングローの輝き</label>
+            <span id="glowVal" class="font-mono text-purple-400 font-semibold">75%</span>
+          </div>
+          <input id="glowInput" type="range" min="0" max="100" step="5" value="75" class="w-full">
+        </div>
+
+        <!-- ジオデシック明度 (Brightness) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="brightnessInput" class="font-medium text-zinc-300">ジオデシックの明度 (Brightness)</label>
+            <span id="brightnessVal" class="font-mono text-purple-400 font-semibold">100%</span>
+          </div>
+          <input id="brightnessInput" type="range" min="20" max="180" step="5" value="100" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>20% (控えめ・ダーク)</span>
+            <span>100% (標準)</span>
+            <span>180% (高輝度)</span>
+          </div>
+        </div>
+
+        <!-- ジオデシック線の太さ (Line Width) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="lineWidthInput" class="font-medium text-zinc-300">ジオデシックの線の太さ (Line Width)</label>
+            <span id="lineWidthVal" class="font-mono text-purple-400 font-semibold">1.0x (標準)</span>
+          </div>
+          <input id="lineWidthInput" type="range" min="0.2" max="3.0" step="0.1" value="1.0" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>0.2x (極細ワイヤー)</span>
+            <span>1.0x (標準)</span>
+            <span>3.0x (太め・アイコン強調)</span>
+          </div>
+        </div>
+
+        <!-- ダイヤモンド・ファセット陰影 (3D光源シェーディング) -->
+        <div class="space-y-2">
+          <div class="flex justify-between text-xs">
+            <label for="facetShadeInput" class="font-medium text-zinc-300">ダイヤモンド陰影 (光源ファセット)</label>
+            <span id="facetShadeVal" class="font-mono text-purple-400 font-semibold">85%</span>
+          </div>
+          <input id="facetShadeInput" type="range" min="0" max="100" step="5" value="85" class="w-full">
+          <div class="flex justify-between text-[10px] text-zinc-500">
+            <span>0% (線のみ)</span>
+            <span>50% (半透明クリスタル)</span>
+            <span>100% (ダイヤモンド陰影)</span>
+          </div>
+        </div>
+
+        <hr class="border-zinc-800">
+
+        <!-- 出力設定 -->
+        <div class="space-y-4">
+          <h3 class="text-xs font-bold text-zinc-300 uppercase tracking-wider">SVG / GIF 書き出し設定</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs">
+              <label for="durationInput" class="font-medium text-zinc-300">ループ周期（1周の時間）</label>
+              <span id="durationVal" class="font-mono text-purple-400 font-semibold">24.0秒 (ゆったり)</span>
+            </div>
+            <input id="durationInput" type="range" min="4" max="60" step="1" value="24" class="w-full">
+            <div class="flex justify-between text-[10px] text-zinc-500">
+              <span>4秒 (軽快)</span>
+              <span>24秒 (執筆向け標準)</span>
+              <span>60秒 (地球の自転のように静か)</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="sizeSelect" class="block text-xs text-zinc-400 mb-1.5">基準サイズ (viewBox)</label>
+              <select id="sizeSelect" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-500">
+                <option value="256">256 × 256 (アイコン)</option>
+                <option value="400" selected>400 × 400 (標準ロゴ)</option>
+                <option value="512">512 × 512 (高解像度)</option>
+              </select>
+            </div>
+            <div>
+              <label for="qualitySelect" class="block text-xs text-zinc-400 mb-1.5">SVG軽量化エンジン / アニメ方式</label>
+              <select id="qualitySelect" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-500">
+                <option value="morph18">3D極軸スピン・超軽量 (18ステップ / 立体360°回転)</option>
+                <option value="morph24" selected>3D極軸スピン・標準推奨 (24ステップ / 立体360°回転)</option>
+                <option value="morph36">3D極軸スピン・高精細 (36ステップ / 立体360°回転)</option>
+                <option value="groupLight">グループGPU擬似揺らぎ版 (超軽量・簡易モード)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 4種類のSVG書き出し方式選択 -->
+          <div class="space-y-2">
+            <label for="svgExportModeSelect" class="block text-xs font-medium text-zinc-300">
+              SVG書き出し方式（テーマ適応モード）
+            </label>
+            <select id="svgExportModeSelect" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-500">
+              <option value="auto" selected>A. 自動適応SVG（OS/ブラウザのライト・ダーク自動切替 / 外部img向け）</option>
+              <option value="lightOnly">B-1. ライト専用SVG（明背景用固定配色 / 外部img切替向け）</option>
+              <option value="darkOnly">B-2. ダーク専用SVG（暗背景用固定配色 / 外部img切替向け）</option>
+              <option value="inline">C. インラインSVG（Qcard等のホストアプリ data-theme / CSS変数連動向け）</option>
+            </select>
+            <p id="svgModeDescBox" class="text-[11px] text-cyan-300/90 bg-cyan-950/25 border border-cyan-800/40 rounded-lg px-2.5 py-2 leading-relaxed">
+              OSやブラウザの prefers-color-scheme に応じて配色を自動切替します。&lt;img src="logo.svg"&gt; として単体利用する基本形式です（※ホストアプリ独自のテーマ切替には連動しません）。
+            </p>
+          </div>
+
+          <!-- 背景塗りつぶし設定（SVG / GIF共通） -->
+          <div class="flex items-center justify-between pt-1">
+            <label for="bgCanvasModeSelect" class="text-xs text-zinc-300 cursor-pointer select-none">
+              背景レイヤー出力（SVG / GIF共通）
+            </label>
+            <select id="bgCanvasModeSelect" class="rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-purple-500">
+              <option value="transparent" selected>透過背景（透明）</option>
+              <option value="dark">漆黒スペース背景 (#060609)</option>
+              <option value="pureBlack">完全ブラック背景 (#000000)</option>
+              <option value="pureWhite">純白背景 (#FFFFFF)</option>
+            </select>
+          </div>
+
+          <div class="text-[11px] text-zinc-400 leading-relaxed bg-zinc-950/75 border border-zinc-800/90 rounded-xl p-3 space-y-1">
+            <p class="font-semibold text-zinc-200">💡 組み込み方式の使い分けガイド</p>
+            <ul class="list-disc list-inside space-y-1 text-zinc-400">
+              <li><strong class="text-zinc-200">外部 &lt;img&gt; 読み込み：</strong>「自動適応SVG」または「ライト専用／ダーク専用SVG」を選択してください。</li>
+              <li><strong class="text-zinc-200">HTMLインライン埋め込み：</strong>「インラインSVG」を選択すると、親ページの <code class="text-zinc-300">data-theme="light"</code> / <code class="text-zinc-300">.light</code> やCSS変数（<code class="text-zinc-300">--logo-outer-color</code> 等）にリロードなしで即応します。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- モバイル・タブレット用 スクロール追従フローティング・ミニプレビューHUD -->
+  <div id="floatingMiniHud" class="lg:hidden fixed top-16 right-3 z-40 transition-all duration-300 opacity-0 translate-y-[-12px] pointer-events-none">
+    <div id="floatingHudCard" class="bg-zinc-950/92 backdrop-blur-md border border-purple-500/40 rounded-2xl p-2 shadow-2xl shadow-black/60 flex flex-col items-center gap-1.5 w-[132px]">
+      <div class="w-full flex items-center justify-between px-1">
+        <span class="text-[9px] font-semibold tracking-wider text-purple-300 uppercase">LIVE PREVIEW</span>
+        <div class="flex items-center gap-1">
+          <button id="hudSurfaceToggleBtn" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition" title="背景切替 (ダーク/ライト)">
+            🌙
+          </button>
+          <button id="hudScrollTopBtn" type="button" class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700 transition" title="プレビューへ戻る">
+            ↑
+          </button>
+        </div>
+      </div>
+      <div id="floatingHudCanvasWrap" class="w-[112px] h-[112px] rounded-xl overflow-hidden border border-zinc-800 surface-solid-dark flex items-center justify-center transition-colors duration-300">
+        <canvas id="floatingHudCanvas" width="224" height="224" class="w-full h-full block"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- メッセージトースト（alert()の代替） -->
+  <div id="toastBox" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-zinc-900 border border-zinc-700 text-zinc-100 px-4 py-3 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2.5">
+      <span id="toastIcon">ℹ️</span>
+      <span id="toastMsg">通知メッセージ</span>
+    </div>
+  </div>
+
+  <script>
+    let latestSvgString = '';
+    let geodesicMesh = null;
+
+    const THEMES = {
+      figPlanet: {
+        outerEdge: [126, 34, 206],   // 深いイチジク果皮パープル
+        midEdge: [219, 39, 119],     // 果肉のローズマゼンタ
+        innerEdge: [251, 113, 133],  // 中心の明るい果実ピンク
+        vertex: [253, 224, 71],      // 種子のゴールド
+        diskCore: '#ffffff',
+        diskMid: '#f43f5e',
+        diskOuter: '#7e22ce',
+        horizonGlow: 'rgba(219, 39, 119, 0.72)'
+      },
+      singularity: {
+        outerEdge: [99, 102, 241],   // インディゴ
+        midEdge: [168, 85, 247],     // ネオンパープル
+        innerEdge: [34, 211, 238],   // 量子シアン
+        vertex: [240, 249, 255],
+        diskCore: '#ffffff',
+        diskMid: '#a855f7',
+        diskOuter: '#4f46e5',
+        horizonGlow: 'rgba(168, 85, 247, 0.72)'
+      },
+      eventHorizon: {
+        outerEdge: [180, 83, 9],     // ディープレッドアンバー
+        midEdge: [245, 158, 11],     // 降着円盤ゴールド
+        innerEdge: [254, 240, 138],  // ホワイトゴールド
+        vertex: [255, 251, 235],
+        diskCore: '#ffffff',
+        diskMid: '#f59e0b',
+        diskOuter: '#b45309',
+        horizonGlow: 'rgba(245, 158, 11, 0.72)'
+      }
+    };
+
+    const SVG_MODE_DESCRIPTIONS = {
+      auto: 'OSやブラウザの prefers-color-scheme に応じて配色を自動切替します。<img src="logo.svg"> として単体利用する基本形式です（※ホストアプリ独自のテーマ切替には連動しません）。',
+      lightOnly: '明るい背景向けにコントラスト・輪郭・深い面色へ最適化したライトモード固定SVGを出力します。ホストアプリ側でライト用・ダーク用画像を切り替える用途に最適です。',
+      darkOnly: '暗い背景向けに鮮やかな発色と控えめなネオングローへ最適化したダークモード固定SVGを出力します。ダークUI専用または画像切替用に最適です。',
+      inline: 'HTML内に <svg> を直接埋め込む用途向けです。親要素の data-theme="light" / data-theme="dark" や .light / .dark クラス、外部からのCSS変数上書きにリロードなしで即座に反応します。'
+    };
+
+    const state = {
+      planetName: 'Fig-Planet Prime',
+      theme: 'figPlanet',
+      customColors: {
+        outerEdge: [126, 34, 206],
+        midEdge: [219, 39, 119],
+        innerEdge: [251, 113, 133]
+      },
+      figMorph: 100,             // イチジク惑星フォルム変形率 (%)
+      crystalMorph: 0,           // クリスタル結晶フォルム変形率 (%)
+      subdivision: 3,            // ジオデシック分割精度 (1V〜4V)
+      twist: 2.4,                // 極軸ワームホールのねじれ (rad)
+      flowDir: 'northToSouth',   // 極軸循環方向 ('northToSouth' | 'southToNorth')
+      shells: 4,                 // 多重ドーム層数 (1〜6)
+      tiltDeg: 28,               // カメラ俯角・チルト (°)
+      glow: 75,                  // 中心ネオングロー強度 (%)
+      brightness: 100,           // ジオデシック明度 (%)
+      lineWidthScale: 1.0,       // ジオデシック線の太さ倍率
+      facetShade: 85,            // ダイヤモンド陰影強度 (%)
+      canvasSize: 400,           // 基準出力サイズ (px)
+      loopDuration: 24.0,        // ループ周期 (秒)
+      svgEngine: 'morph24',      // SVG軽量化エンジン ('morph18' | 'morph24' | 'morph36' | 'groupLight')
+      svgExportMode: 'auto',     // SVG書き出し方式 ('auto' | 'lightOnly' | 'darkOnly' | 'inline')
+      bgCanvasMode: 'transparent', // 背景出力 ('transparent' | 'dark' | 'pureBlack' | 'pureWhite')
+      previewSurface: 'dark',    // 配置背景プレビュー ('dark' | 'light' | 'transparent')
+      previewThemeOverride: 'auto', // テーマ検証オーバーライド ('auto' | 'forceDark' | 'forceLight')
+      keyframeSteps: 36,         // GIF書き出しフレーム数
+      phase: 0.0,                // 現在のループ位相 [0.0, 1.0)
+      isPlaying: true,           // 再生状態
+      isRenderingGif: false      // GIFエンコード中フラグ
+    };
+
+    function sanitizeFilename(name) {
+      const cleaned = (name || '')
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      return cleaned || 'geodesic-fig-planet';
+    }
+
+    function escapeXml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    /**
+     * 現在の惑星設定をJSONシリアライズ（SVGメタデータ埋め込み用）
+     */
+    function serializePlanetConfig() {
+      return JSON.stringify({
+        v: 1,
+        planetName: state.planetName,
+        theme: state.theme,
+        customColors: state.customColors,
+        figMorph: state.figMorph,
+        crystalMorph: state.crystalMorph,
+        subdivision: state.subdivision,
+        twist: state.twist,
+        flowDir: state.flowDir,
+        shells: state.shells,
+        tiltDeg: state.tiltDeg,
+        glow: state.glow,
+        brightness: state.brightness,
+        lineWidthScale: state.lineWidthScale,
+        facetShade: state.facetShade,
+        canvasSize: state.canvasSize,
+        loopDuration: state.loopDuration,
+        svgEngine: state.svgEngine,
+        svgExportMode: state.svgExportMode,
+        bgCanvasMode: state.bgCanvasMode
+      });
+    }
+
+    /**
+     * 読み込んだSVGテキストから惑星パラメータを解析してエディタUIへ復元
+     */
+    function importPlanetFromSvgText(svgText) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgText, 'image/svg+xml');
+        const svgEl = doc.querySelector('svg');
+        if (!svgEl) {
+          showToast('⚠️', '有効なSVGファイルではありません');
+          return;
+        }
+
+        let rawJson = svgEl.getAttribute('data-gfp-config');
+        if (!rawJson) {
+          const metaEl = doc.querySelector('metadata');
+          if (metaEl && metaEl.textContent) {
+            rawJson = metaEl.textContent.trim();
+          }
+        }
+
+        if (!rawJson) {
+          showToast('⚠️', 'このSVGには惑星の設定メタデータが含まれていません');
+          return;
+        }
+
+        const cfg = JSON.parse(rawJson);
+        if (typeof cfg !== 'object' || cfg === null) {
+          throw new Error('Invalid config object');
+        }
+
+        if (typeof cfg.planetName === 'string') state.planetName = cfg.planetName;
+        if (typeof cfg.theme === 'string') state.theme = cfg.theme;
+        if (cfg.customColors && Array.isArray(cfg.customColors.outerEdge)) {
+          state.customColors = {
+            outerEdge: cfg.customColors.outerEdge.map(Number),
+            midEdge: cfg.customColors.midEdge.map(Number),
+            innerEdge: cfg.customColors.innerEdge.map(Number)
+          };
+        }
+        if (typeof cfg.figMorph === 'number') state.figMorph = cfg.figMorph;
+        if (typeof cfg.crystalMorph === 'number') state.crystalMorph = cfg.crystalMorph;
+        if (typeof cfg.subdivision === 'number') state.subdivision = cfg.subdivision;
+        if (typeof cfg.twist === 'number') state.twist = cfg.twist;
+        if (typeof cfg.flowDir === 'string') state.flowDir = cfg.flowDir;
+        if (typeof cfg.shells === 'number') state.shells = cfg.shells;
+        if (typeof cfg.tiltDeg === 'number') state.tiltDeg = cfg.tiltDeg;
+        if (typeof cfg.glow === 'number') state.glow = cfg.glow;
+        if (typeof cfg.brightness === 'number') state.brightness = cfg.brightness;
+        if (typeof cfg.lineWidthScale === 'number') state.lineWidthScale = cfg.lineWidthScale;
+        if (typeof cfg.facetShade === 'number') state.facetShade = cfg.facetShade;
+        if (typeof cfg.canvasSize === 'number') state.canvasSize = cfg.canvasSize;
+        if (typeof cfg.loopDuration === 'number') state.loopDuration = cfg.loopDuration;
+        if (typeof cfg.svgEngine === 'string') state.svgEngine = cfg.svgEngine;
+        if (typeof cfg.svgExportMode === 'string') state.svgExportMode = cfg.svgExportMode;
+        if (typeof cfg.bgCanvasMode === 'string') state.bgCanvasMode = cfg.bgCanvasMode;
+
+        syncAllControlsFromState();
+        rebuildMesh();
+        updateSvgEstimateUI();
+        renderAllPreviews();
+
+        const displayName = state.planetName.trim() || '名称未設定の惑星';
+        showToast('🪐', `SVGから惑星「${displayName}」の設定を復元しました！`);
+      } catch (err) {
+        console.error(err);
+        showToast('⚠️', 'SVG設定の読み込みに失敗しました');
+      }
+    }
+
+    /**
+     * state の現在値をすべてのUIコントロール・ラベルへ同期
+     */
+    function syncAllControlsFromState() {
+      const nameInput = document.getElementById('planetNameInput');
+      if (nameInput) nameInput.value = state.planetName;
+
+      if (state.theme === 'custom' || !THEMES[state.theme]) {
+        document.getElementById('customColorBadge').classList.remove('hidden');
+        syncColorPickersFromTheme(state.customColors);
+      } else {
+        document.getElementById('customColorBadge').classList.add('hidden');
+        syncColorPickersFromTheme(THEMES[state.theme]);
+      }
+
+      document.querySelectorAll('.theme-btn').forEach(b => {
+        const active = b.dataset.theme === state.theme;
+        b.classList.toggle('active', active);
+        b.classList.toggle('border-purple-500', active);
+        b.classList.toggle('bg-purple-500/15', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('border-zinc-800', !active);
+        b.classList.toggle('bg-zinc-950/60', !active);
+        b.classList.toggle('text-zinc-300', !active);
+      });
+
+      document.querySelectorAll('.flow-btn').forEach(b => {
+        const active = b.dataset.flow === state.flowDir;
+        b.classList.toggle('active', active);
+        b.classList.toggle('border-purple-500', active);
+        b.classList.toggle('bg-purple-500/15', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('border-zinc-800', !active);
+        b.classList.toggle('bg-zinc-950/60', !active);
+        b.classList.toggle('text-zinc-300', !active);
+      });
+
+      document.getElementById('figMorphInput').value = state.figMorph;
+      document.getElementById('figMorphVal').textContent = `${state.figMorph}%`;
+
+      document.getElementById('crystalMorphInput').value = state.crystalMorph;
+      document.getElementById('crystalMorphVal').textContent = `${state.crystalMorph}%`;
+
+      document.getElementById('subdivisionInput').value = state.subdivision;
+
+      document.getElementById('twistInput').value = state.twist;
+      document.getElementById('twistVal').textContent = `${state.twist.toFixed(1)} rad`;
+
+      document.getElementById('shellsInput').value = state.shells;
+      document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル)' : `${state.shells}層`;
+
+      document.getElementById('tiltInput').value = state.tiltDeg;
+      document.getElementById('tiltVal').textContent = `${state.tiltDeg}°`;
+
+      document.getElementById('glowInput').value = state.glow;
+      document.getElementById('glowVal').textContent = `${state.glow}%`;
+
+      document.getElementById('brightnessInput').value = state.brightness;
+      document.getElementById('brightnessVal').textContent = `${state.brightness}%`;
+
+      document.getElementById('lineWidthInput').value = state.lineWidthScale;
+      document.getElementById('lineWidthVal').textContent = state.lineWidthScale === 1.0 ? '1.0x (標準)' : `${state.lineWidthScale.toFixed(1)}x`;
+
+      document.getElementById('facetShadeInput').value = state.facetShade;
+      document.getElementById('facetShadeVal').textContent = `${state.facetShade}%`;
+
+      document.getElementById('durationInput').value = state.loopDuration;
+      const desc = state.loopDuration >= 36 ? '超スロー' : (state.loopDuration >= 16 ? 'ゆったり' : '標準');
+      document.getElementById('durationVal').textContent = `${state.loopDuration.toFixed(1)}秒 (${desc})`;
+
+      document.getElementById('sizeSelect').value = String(state.canvasSize);
+      document.getElementById('resTag').textContent = `${state.canvasSize}×${state.canvasSize}px`;
+      document.getElementById('qualitySelect').value = state.svgEngine;
+      document.getElementById('svgExportModeSelect').value = state.svgExportMode;
+      document.getElementById('svgModeDescBox').textContent = SVG_MODE_DESCRIPTIONS[state.svgExportMode] || '';
+      document.getElementById('bgCanvasModeSelect').value = state.bgCanvasMode;
+    }
+
+    function showToast(icon, msg) {
+      const box = document.getElementById('toastBox');
+      const iconEl = document.getElementById('toastIcon');
+      const msgEl = document.getElementById('toastMsg');
+      if (!box || !iconEl || !msgEl) return;
+      iconEl.textContent = icon;
+      msgEl.textContent = msg;
+      box.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        box.classList.add('translate-y-20', 'opacity-0');
+      }, 3200);
+    }
+
+    function lerpColor(c1, c2, t) {
+      const k = Math.max(0, Math.min(1, t));
+      return [
+        Math.round(c1[0] + (c2[0] - c1[0]) * k),
+        Math.round(c1[1] + (c2[1] - c1[1]) * k),
+        Math.round(c1[2] + (c2[2] - c1[2]) * k)
+      ];
+    }
+
+    function adjustBrightness(rgb, brightnessPct) {
+      const factor = brightnessPct / 100;
+      return [
+        Math.max(0, Math.min(255, Math.round(rgb[0] * factor))),
+        Math.max(0, Math.min(255, Math.round(rgb[1] * factor))),
+        Math.max(0, Math.min(255, Math.round(rgb[2] * factor)))
+      ];
+    }
+
+    function hexToRgb(hex) {
+      const clean = hex.replace('#', '');
+      return [
+        parseInt(clean.substring(0, 2), 16),
+        parseInt(clean.substring(2, 4), 16),
+        parseInt(clean.substring(4, 6), 16)
+      ];
+    }
+
+    function rgbToHex(rgb) {
+      return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+    }
+
+    function hslToRgb(h, s, l) {
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = l - c / 2;
+      let r1 = 0, g1 = 0, b1 = 0;
+      if (h < 60) { r1 = c; g1 = x; b1 = 0; }
+      else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
+      else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
+      else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
+      else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
+      else { r1 = c; g1 = 0; b1 = x; }
+      return [
+        Math.round((r1 + m) * 255),
+        Math.round((g1 + m) * 255),
+        Math.round((b1 + m) * 255)
+      ];
+    }
+
+    function applyRandomColors() {
+      const baseHue = Math.floor(Math.random() * 360);
+      const hueShift1 = (Math.random() * 90 + 25) * (Math.random() < 0.5 ? 1 : -1);
+      const hueShift2 = hueShift1 + (Math.random() * 70 + 20) * (Math.random() < 0.5 ? 1 : -1);
+
+      const outerHue = (baseHue + 360) % 360;
+      const midHue = (baseHue + hueShift1 + 720) % 360;
+      const innerHue = (baseHue + hueShift2 + 720) % 360;
+
+      // 外殻は深みのある色、中間は鮮やかな彩度、極コアは明るく発光感のあるトーンで立体感を維持
+      const outerRgb = hslToRgb(outerHue, 0.55 + Math.random() * 0.35, 0.28 + Math.random() * 0.18);
+      const midRgb = hslToRgb(midHue, 0.65 + Math.random() * 0.30, 0.48 + Math.random() * 0.16);
+      const innerRgb = hslToRgb(innerHue, 0.70 + Math.random() * 0.28, 0.68 + Math.random() * 0.16);
+
+      state.customColors.outerEdge = outerRgb;
+      state.customColors.midEdge = midRgb;
+      state.customColors.innerEdge = innerRgb;
+      state.theme = 'custom';
+
+      syncColorPickersFromTheme({
+        outerEdge: outerRgb,
+        midEdge: midRgb,
+        innerEdge: innerRgb
+      });
+
+      document.getElementById('customColorBadge').classList.remove('hidden');
+      document.querySelectorAll('.theme-btn').forEach(b => {
+        b.classList.remove('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+        b.classList.add('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+      });
+
+      if (!state.isPlaying) renderAllPreviews();
+      showToast('🎲', `ランダム配色を適用しました (${rgbToHex(outerRgb)} / ${rgbToHex(midRgb)} / ${rgbToHex(innerRgb)})`);
+    }
+
+    function getActiveTheme() {
+      if (state.theme === 'custom') {
+        const [mr, mg, mb] = state.customColors.midEdge;
+        return {
+          outerEdge: state.customColors.outerEdge,
+          midEdge: state.customColors.midEdge,
+          innerEdge: state.customColors.innerEdge,
+          vertex: lerpColor(state.customColors.innerEdge, [255, 255, 255], 0.55),
+          diskCore: '#ffffff',
+          diskMid: rgbToHex(state.customColors.midEdge),
+          diskOuter: rgbToHex(state.customColors.outerEdge),
+          horizonGlow: `rgba(${mr}, ${mg}, ${mb}, 0.72)`
+        };
+      }
+      return THEMES[state.theme];
+    }
+
+    /**
+     * ダークモード・ライトモードそれぞれの個別カラーパレットを生成
+     * 面（鏡面ハイライト・順光面・中間面・影面）・ワイヤーフレーム・グラデーション・グローをすべてテーマ変数化
+     */
+    function buildThemePalettes(baseTheme, brightnessPct) {
+      // ダークモード用：鮮やかな発色と適度な立体明暗差、控えめなネオングロー
+      const darkOuter = adjustBrightness(baseTheme.outerEdge, brightnessPct);
+      const darkMid = adjustBrightness(baseTheme.midEdge, brightnessPct);
+      const darkInner = adjustBrightness(baseTheme.innerEdge, brightnessPct);
+      const darkWire = adjustBrightness(lerpColor(baseTheme.midEdge, baseTheme.innerEdge, 0.52), brightnessPct);
+
+      const darkFacetSpec = lerpColor(darkInner, [255, 255, 255], 0.72);
+      const darkFacetLit = lerpColor(darkMid, darkInner, 0.55);
+      const darkFacetMid = darkMid;
+      const darkFacetShadow = [
+        Math.round(darkOuter[0] * 0.28),
+        Math.round(darkOuter[1] * 0.22),
+        Math.round(darkOuter[2] * 0.36)
+      ];
+
+      // ライトモード用：明背景でも面の境界と輪郭が際立つよう深みのある彩度・明度へ調整し、グローは抑える
+      const lightScale = Math.max(0.45, Math.min(1.15, (brightnessPct / 100) * 0.76));
+      const lightOuter = adjustBrightness(lerpColor(baseTheme.outerEdge, [18, 12, 34], 0.34), lightScale * 100);
+      const lightMid = adjustBrightness(lerpColor(baseTheme.midEdge, [24, 14, 38], 0.28), lightScale * 100);
+      const lightInner = adjustBrightness(lerpColor(baseTheme.innerEdge, [40, 18, 52], 0.36), lightScale * 100);
+      const lightWire = adjustBrightness(lerpColor(baseTheme.outerEdge, [12, 8, 24], 0.52), lightScale * 100);
+
+      const lightFacetSpec = lerpColor(lightInner, [255, 255, 255], 0.32);
+      const lightFacetLit = lerpColor(lightMid, lightInner, 0.45);
+      const lightFacetMid = lightMid;
+      const lightFacetShadow = [
+        Math.round(lightOuter[0] * 0.55),
+        Math.round(lightOuter[1] * 0.48),
+        Math.round(lightOuter[2] * 0.65)
+      ];
+
+      return {
+        dark: {
+          outerHex: rgbToHex(darkOuter),
+          midHex: rgbToHex(darkMid),
+          innerHex: rgbToHex(darkInner),
+          wireHex: rgbToHex(darkWire),
+          facetSpecHex: rgbToHex(darkFacetSpec),
+          facetLitHex: rgbToHex(darkFacetLit),
+          facetMidHex: rgbToHex(darkFacetMid),
+          facetShadowHex: rgbToHex(darkFacetShadow),
+          outerRgb: darkOuter,
+          midRgb: darkMid,
+          innerRgb: darkInner,
+          wireRgb: darkWire,
+          glowOpacity: (0.68 * (state.glow / 100)).toFixed(3),
+          facetOpacity: '0.88',
+          wireOpacity: '0.88'
+        },
+        light: {
+          outerHex: rgbToHex(lightOuter),
+          midHex: rgbToHex(lightMid),
+          innerHex: rgbToHex(lightInner),
+          wireHex: rgbToHex(lightWire),
+          facetSpecHex: rgbToHex(lightFacetSpec),
+          facetLitHex: rgbToHex(lightFacetLit),
+          facetMidHex: rgbToHex(lightFacetMid),
+          facetShadowHex: rgbToHex(lightFacetShadow),
+          outerRgb: lightOuter,
+          midRgb: lightMid,
+          innerRgb: lightInner,
+          wireRgb: lightWire,
+          glowOpacity: (0.18 * (state.glow / 100)).toFixed(3),
+          facetOpacity: '0.92',
+          wireOpacity: '0.94'
+        }
+      };
+    }
+
+    function syncColorPickersFromTheme(themeObj) {
+      const outerHex = rgbToHex(themeObj.outerEdge);
+      const midHex = rgbToHex(themeObj.midEdge);
+      const innerHex = rgbToHex(themeObj.innerEdge);
+      state.customColors.outerEdge = [...themeObj.outerEdge];
+      state.customColors.midEdge = [...themeObj.midEdge];
+      state.customColors.innerEdge = [...themeObj.innerEdge];
+
+      const outerPicker = document.getElementById('outerColorPicker');
+      const midPicker = document.getElementById('midColorPicker');
+      const innerPicker = document.getElementById('innerColorPicker');
+      if (outerPicker) { outerPicker.value = outerHex; document.getElementById('outerColorHex').textContent = outerHex; }
+      if (midPicker) { midPicker.value = midHex; document.getElementById('midColorHex').textContent = midHex; }
+      if (innerPicker) { innerPicker.value = innerHex; document.getElementById('innerColorHex').textContent = innerHex; }
+    }
+
+    // ==========================================
+    // 1. ジオデシック球体生成 ＆ イチジク惑星変形
+    // ==========================================
+    function buildGeodesicSphere(frequency) {
+      const t = (1 + Math.sqrt(5)) / 2;
+      const baseVerts = [
+        [-1,  t,  0], [ 1,  t,  0], [-1, -t,  0], [ 1, -t,  0],
+        [ 0, -1,  t], [ 0,  1,  t], [ 0, -1, -t], [ 0,  1, -t],
+        [ t,  0, -1], [ t,  0,  1], [-t,  0, -1], [-t,  0,  1]
+      ].map(v => {
+        const len = Math.hypot(v[0], v[1], v[2]);
+        return [v[0] / len, v[1] / len, v[2] / len];
+      });
+
+      const baseFaces = [
+        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
+        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
+        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]
+      ];
+
+      const verts = [];
+      const vertMap = new Map();
+
+      function getOrAddVertex(x, y, z) {
+        const len = Math.hypot(x, y, z) || 1;
+        const nx = x / len, ny = y / len, nz = z / len;
+        const key = `${Math.round(nx * 10000)},${Math.round(ny * 10000)},${Math.round(nz * 10000)}`;
+        if (vertMap.has(key)) return vertMap.get(key);
+        const idx = verts.length;
+        verts.push([nx, ny, nz]);
+        vertMap.set(key, idx);
+        return idx;
+      }
+
+      const triangles = [];
+      const edgeSet = new Set();
+      const edges = [];
+
+      function addEdge(a, b) {
+        const k = a < b ? `${a}_${b}` : `${b}_${a}`;
+        if (!edgeSet.has(k)) {
+          edgeSet.add(k);
+          edges.push([a, b]);
+        }
+      }
+
+      for (const [ia, ib, ic] of baseFaces) {
+        const A = baseVerts[ia];
+        const B = baseVerts[ib];
+        const C = baseVerts[ic];
+        const grid = [];
+
+        for (let i = 0; i <= frequency; i++) {
+          grid[i] = [];
+          for (let j = 0; j <= frequency - i; j++) {
+            const k = frequency - i - j;
+            const x = (A[0] * k + B[0] * i + C[0] * j) / frequency;
+            const y = (A[1] * k + B[1] * i + C[1] * j) / frequency;
+            const z = (A[2] * k + B[2] * i + C[2] * j) / frequency;
+            grid[i][j] = getOrAddVertex(x, y, z);
+          }
+        }
+
+        for (let i = 0; i < frequency; i++) {
+          for (let j = 0; j < frequency - i; j++) {
+            const v0 = grid[i][j];
+            const v1 = grid[i + 1][j];
+            const v2 = grid[i][j + 1];
+            triangles.push([v0, v1, v2]);
+            addEdge(v0, v1);
+            addEdge(v1, v2);
+            addEdge(v2, v0);
+
+            if (i + j + 1 < frequency) {
+              const v3 = grid[i + 1][j + 1];
+              triangles.push([v1, v3, v2]);
+              addEdge(v1, v3);
+              addEdge(v3, v2);
+            }
+          }
+        }
+      }
+
+      return { verts, edges, triangles };
+    }
+
+    /**
+     * 単位球の頂点をイチジク（無花果）状の有機的な惑星フォルムへモーフィング
+     */
+    function deformToFigPlanet(vx, vy, vz, morphPct) {
+      const m = morphPct / 100;
+      if (m <= 0.001) return [vx, vy, vz];
+
+      const h = -vy;
+      const lat = Math.asin(Math.max(-1, Math.min(1, h)));
+      const lon = Math.atan2(vz, vx);
+
+      const belly = Math.exp(-Math.pow((h + 0.35) / 0.62, 2)) * 0.24;
+      const neckPinch = Math.max(0, h - 0.15);
+      const taper = -Math.pow(neckPinch, 1.45) * 0.44;
+      const rib = Math.cos(lon * 8) * 0.025 * Math.cos(lat);
+
+      const radialScale = 1 + m * (belly + taper + rib);
+      const yStretch = 1 + m * 0.14;
+      const yShift = m * (h > 0 ? Math.pow(h, 1.5) * 0.12 : 0);
+
+      return [
+        vx * radialScale,
+        (vy * yStretch) - yShift,
+        vz * radialScale
+      ];
+    }
+
+    /**
+     * 頂点を神秘的な多面体クリスタル結晶（上下に鋭く尖る八面体・六角柱結晶シルエット）へ変形
+     */
+    function deformToCrystal(vx, vy, vz, crystalPct) {
+      const c = crystalPct / 100;
+      if (c <= 0.001) return [vx, vy, vz];
+
+      const absY = Math.min(1, Math.abs(vy));
+      const rHoriz = Math.hypot(vx, vz) || 1e-6;
+      const lon = Math.atan2(vz, vx);
+
+      // 六角柱〜八面体クリスタルのようなシャープな稜線（角張った多角形ファセット）
+      const sides = 6;
+      const sector = (Math.PI * 2) / sides;
+      const localAngle = ((lon % sector) + sector) % sector - sector / 2;
+      const polyPrism = 1 / Math.max(0.76, Math.cos(localAngle * 0.92));
+
+      // 赤道から上下の極へ向かって直線的・鋭角的にすぼまる結晶プロファイル（ピラミッド錐体）
+      const diamondTaper = Math.pow(Math.max(0, 1 - absY), 0.78);
+      const targetHoriz = diamondTaper * polyPrism * 0.94;
+      const currentHorizScale = rHoriz > 1e-4 ? (targetHoriz / rHoriz) : 1;
+
+      // 100%を超えると結晶頂点や稜線にシャープな結晶スパイクのアクセントを付与
+      const spikeBoost = c > 0.85
+        ? 1 + (c - 0.85) * 0.42 * Math.pow(Math.abs(Math.cos(lon * 3)) * (1 - absY * 0.5), 2)
+        : 1;
+
+      const blend = Math.min(1.25, c);
+      const horizFactor = (1 * (1 - Math.min(1, blend)) + currentHorizScale * Math.min(1, blend)) * spikeBoost;
+
+      // 上下の極点をシャープに引き伸ばす縦方向プロファイル
+      const tipStretch = 1 + blend * 0.28 + Math.max(0, blend - 0.8) * 0.22 * Math.pow(absY, 2);
+
+      return [
+        vx * horizFactor,
+        vy * tipStretch,
+        vz * horizFactor
+      ];
+    }
+
+    function rebuildMesh() {
+      const raw = buildGeodesicSphere(state.subdivision);
+      const morphedVerts = raw.verts.map(([x, y, z]) => {
+        const figPos = deformToFigPlanet(x, y, z, state.figMorph);
+        return deformToCrystal(figPos[0], figPos[1], figPos[2], state.crystalMorph);
+      });
+      geodesicMesh = {
+        verts: morphedVerts,
+        edges: raw.edges,
+        triangles: raw.triangles
+      };
+      const subLabel = document.getElementById('subdivisionVal');
+      if (subLabel) {
+        subLabel.textContent = `${state.subdivision}V (${geodesicMesh.triangles.length}面)`;
+      }
+    }
+
+    function updateSvgEstimateUI() {
+      if (!geodesicMesh) return;
+      const numShells = state.shells;
+      const visibleFacesPerShell = Math.round(geodesicMesh.triangles.length * 0.56);
+      const totalPolys = state.facetShade > 0 ? visibleFacesPerShell * numShells : 0;
+      const isGroupMode = state.svgEngine === 'groupLight';
+
+      let estBytes = 2200;
+      let animCount = 0;
+
+      if (isGroupMode) {
+        const polyBytes = state.facetShade > 0 ? visibleFacesPerShell * 64 : 0;
+        const edgeBytes = geodesicMesh.edges.length * 11;
+        const cssKeyframeBytes = numShells * 820;
+        estBytes += polyBytes + edgeBytes + cssKeyframeBytes;
+        animCount = numShells + 2;
+      } else {
+        const steps = state.svgEngine === 'morph18' ? 18 : (state.svgEngine === 'morph24' ? 24 : 36);
+        // 3D極軸スピン完全再現モードはファセット面＋ワイヤーフレームの両方を3D投影アニメーション
+        const polyBytes = state.facetShade > 0 ? totalPolys * (110 + steps * 20) : 0;
+        const edgeBytes = numShells * (200 + steps * geodesicMesh.edges.length * 9);
+        estBytes += polyBytes + edgeBytes;
+        animCount = (state.facetShade > 0 ? totalPolys : 0) + numShells * 2 + 1;
+      }
+
+      const estKB = Math.max(4, Math.round(estBytes / 1024));
+      const sizeEl = document.getElementById('estSvgSizeVal');
+      const badgeEl = document.getElementById('estSvgSizeBadge');
+      const animEl = document.getElementById('estAnimCountVal');
+      const polyEl = document.getElementById('estPolyCountVal');
+      const modeEl = document.getElementById('estModeTag');
+
+      if (sizeEl) sizeEl.textContent = `~${estKB} KB`;
+      if (animEl) animEl.textContent = `${animCount} 個`;
+      if (polyEl) polyEl.textContent = `${totalPolys} 面`;
+      if (modeEl) modeEl.textContent = isGroupMode ? 'グループ擬似揺らぎ' : '3D極軸ベクター';
+
+      if (badgeEl && sizeEl) {
+        if (estKB <= 140) {
+          sizeEl.className = 'text-sm font-bold font-mono text-emerald-400';
+          badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300';
+          badgeEl.textContent = '3D回転・軽量最適';
+        } else if (estKB <= 280) {
+          sizeEl.className = 'text-sm font-bold font-mono text-cyan-400';
+          badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300';
+          badgeEl.textContent = '目標範囲内';
+        } else {
+          sizeEl.className = 'text-sm font-bold font-mono text-amber-400';
+          badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300';
+          badgeEl.textContent = 'やや重め';
+        }
+      }
+    }
+
+    // ==========================================
+    // 2. 3D光源＆ダイヤモンドファセット計算
+    // ==========================================
+    const LIGHT_DIR = (() => {
+      const lx = -0.52, ly = -0.68, lz = 0.52;
+      const len = Math.hypot(lx, ly, lz);
+      return [lx / len, ly / len, lz / len];
+    })();
+
+    function computeFacetLighting(p0, p1, p2) {
+      const ux = p1.x3 - p0.x3, uy = p1.y3 - p0.y3, uz = p1.z3 - p0.z3;
+      const vx = p2.x3 - p0.x3, vy = p2.y3 - p0.y3, vz = p2.z3 - p0.z3;
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+
+      const cx = (p0.x3 + p1.x3 + p2.x3) / 3;
+      const cy = (p0.y3 + p1.y3 + p2.y3) / 3;
+      const cz = (p0.z3 + p1.z3 + p2.z3) / 3;
+      if (nx * cx + ny * cy + nz * cz < 0) {
+        nx = -nx; ny = -ny; nz = -nz;
+      }
+
+      const facing = nz;
+      const ndotl = nx * LIGHT_DIR[0] + ny * LIGHT_DIR[1] + nz * LIGHT_DIR[2];
+      const diffuse = Math.max(0, ndotl);
+
+      let hx = LIGHT_DIR[0], hy = LIGHT_DIR[1], hz = LIGHT_DIR[2] + 1;
+      const hLen = Math.hypot(hx, hy, hz) || 1;
+      hx /= hLen; hy /= hLen; hz /= hLen;
+      const ndoth = Math.max(0, nx * hx + ny * hy + nz * hz);
+      const specular = Math.pow(ndoth, 18);
+
+      return { facing, diffuse, specular, ndotl };
+    }
+
+    /**
+     * 指定位相(phase)およびシェルインデックス(s)の3D投影座標・色・透明度を計算
+     * t=0 と t=1 で全状態（360°回転・極軸循環・呼吸スケール・不透明度）が数学的に完全一致
+     */
+    function computeShellProjection(size, phase, s, numShells) {
+      const theme = getActiveTheme();
+      const cx = size / 2;
+      const cy = size / 2;
+      const maxRadius = size * 0.40;
+
+      // s番目のシェルの位相 u ∈ [0, 1]
+      // phase=1 のとき s番目のシェルは u=(s+1)/numShells に到達し、phase=0 の (s+1)番目シェルと完全一致する
+      const u = (s + phase) / numShells;
+      const dirSign = state.flowDir === 'northToSouth' ? 1 : -1;
+      const isSingleLayer = numShells === 1;
+
+      // 1層（シングル表示）時は消えずに常時くっきり表示し、穏やかな極軸波動でシームレスループさせる
+      const cyclePos = isSingleLayer
+        ? Math.sin(phase * Math.PI * 2) * 0.45 * dirSign
+        : (u * 2 - 1) * dirSign;
+      const radialEnv = isSingleLayer
+        ? (0.94 + 0.06 * Math.cos(phase * Math.PI * 2))
+        : Math.sin(Math.PI * u);
+      const shellExpansion = isSingleLayer
+        ? radialEnv
+        : Math.pow(Math.max(0, radialEnv), 0.72);
+      const alpha = isSingleLayer
+        ? 0.96
+        : Math.pow(Math.max(0, Math.sin(Math.PI * u)), 1.25);
+
+      // 全体連続回転は厳密に 360° (2π) 整数周期とし、極軸ねじれは周期連続関数とする
+      const globalSpin = phase * (Math.PI * 2);
+      const vortexTwistTotal = isSingleLayer
+        ? state.twist * 0.42 * Math.sin(phase * Math.PI * 2)
+        : state.twist * (u - 0.5) * 1.4;
+      // 穏やかな正弦波ブリージング（t=0 と t=1 で値も速度も一致）
+      const breatheScale = 1 + 0.015 * Math.sin(phase * Math.PI * 2);
+
+      const tiltRad = (state.tiltDeg * Math.PI) / 180;
+      const cosTilt = Math.cos(tiltRad);
+      const sinTilt = Math.sin(tiltRad);
+
+      const verts = geodesicMesh.verts.map(([vx, vy, vz]) => {
+        const yNorm = vy;
+        const polarProximity = Math.abs(yNorm);
+        const funnelFactor = Math.max(0.08, shellExpansion * (1 - 0.35 * Math.pow(polarProximity, 2) * Math.abs(cyclePos))) * breatheScale;
+
+        const localTwist = globalSpin + vortexTwistTotal * (0.4 + 0.8 * polarProximity);
+        const cosA = Math.cos(localTwist);
+        const sinA = Math.sin(localTwist);
+
+        const rx = (vx * cosA - vz * sinA) * funnelFactor;
+        const rz = (vx * sinA + vz * cosA) * funnelFactor;
+        const ry = (vy * (0.55 + 0.45 * shellExpansion) + cyclePos * 0.28 * (1 - shellExpansion)) * breatheScale;
+
+        const ty = ry * cosTilt - rz * sinTilt;
+        const tz = ry * sinTilt + rz * cosTilt;
+        const tx = rx;
+
+        const fov = 2.8;
+        const persp = fov / (fov - tz * 0.65);
+        const px = cx + tx * maxRadius * persp;
+        const py = cy + ty * maxRadius * persp;
+
+        return { x: px, y: py, z: tz, x3: tx, y3: ty, z3: tz };
+      });
+
+      const colorT = Math.abs(u - 0.5) * 2;
+      const rgb = colorT < 0.5
+        ? lerpColor(theme.outerEdge, theme.midEdge, colorT * 2)
+        : lerpColor(theme.midEdge, theme.innerEdge, (colorT - 0.5) * 2);
+
+      return { u, alpha, shellExpansion, rgb, verts };
+    }
+
+    // ==========================================
+    // 3. 統一SVG生成エンジン（全4モード対応・面テーマ適応・グラデーション＆グロー実描画）
+    // ==========================================
+    function buildUnifiedSvgStyleAndDefs(uid, size, palettes, extraCssLines) {
+      const mode = state.svgExportMode; // 'auto' | 'lightOnly' | 'darkOnly' | 'inline'
+      const initialPalette = mode === 'lightOnly' ? palettes.light : palettes.dark;
+
+      const buildVarLines = (pal) => [
+        `      --logo-outer-color: ${pal.outerHex};`,
+        `      --logo-mid-color: ${pal.midHex};`,
+        `      --logo-core-color: ${pal.innerHex};`,
+        `      --logo-wire-color: ${pal.wireHex};`,
+        `      --logo-facet-spec: ${pal.facetSpecHex};`,
+        `      --logo-facet-lit: ${pal.facetLitHex};`,
+        `      --logo-facet-mid: ${pal.facetMidHex};`,
+        `      --logo-facet-shadow: ${pal.facetShadowHex};`,
+        `      --logo-glow-opacity: ${pal.glowOpacity};`,
+        `      --logo-facet-opacity: ${pal.facetOpacity};`,
+        `      --logo-wire-opacity: ${pal.wireOpacity};`
+      ];
+
+      const css = [];
+      css.push(`    #${uid} {`);
+      css.push(...buildVarLines(initialPalette));
+      css.push(`    }`);
+
+      if (mode === 'auto' || mode === 'inline') {
+        // OS/ブラウザの prefers-color-scheme 自動適応
+        css.push(`    @media (prefers-color-scheme: light) {`);
+        css.push(`      #${uid} {`);
+        css.push(...buildVarLines(palettes.light).map(l => '  ' + l));
+        css.push(`      }`);
+        css.push(`    }`);
+      }
+
+      if (mode === 'inline') {
+        // ホストアプリ（Qcard等）の data-theme / クラス切替にリロードなしで即座に反応
+        css.push(`    :is([data-theme="light"], .light, .theme-light) #${uid}, #${uid}[data-theme="light"], #${uid}.light {`);
+        css.push(...buildVarLines(palettes.light));
+        css.push(`    }`);
+        css.push(`    :is([data-theme="dark"], .dark, .theme-dark) #${uid}, #${uid}[data-theme="dark"], #${uid}.dark {`);
+        css.push(...buildVarLines(palettes.dark));
+        css.push(`    }`);
+      }
+
+      // グラデーション・グロー・面・ワイヤーフレームのテーマ変数バインド
+      css.push(`    #${uid} .${uid}-halo { opacity: var(--logo-glow-opacity, ${initialPalette.glowOpacity}); }`);
+      css.push(`    #${uid} .${uid}-coreGlow { opacity: calc(var(--logo-glow-opacity, ${initialPalette.glowOpacity}) * 0.85); }`);
+      css.push(`    #${uid} .${uid}-facet-group { opacity: var(--logo-facet-opacity, ${initialPalette.facetOpacity}); }`);
+      css.push(`    #${uid} .${uid}-face-spec { fill: var(--logo-facet-spec, ${initialPalette.facetSpecHex}); }`);
+      css.push(`    #${uid} .${uid}-face-lit { fill: var(--logo-facet-lit, ${initialPalette.facetLitHex}); }`);
+      css.push(`    #${uid} .${uid}-face-mid { fill: var(--logo-facet-mid, ${initialPalette.facetMidHex}); }`);
+      css.push(`    #${uid} .${uid}-face-shadow { fill: var(--logo-facet-shadow, ${initialPalette.facetShadowHex}); }`);
+      css.push(`    #${uid} .${uid}-wire { stroke: var(--logo-wire-color, ${initialPalette.wireHex}); stroke-opacity: var(--logo-wire-opacity, ${initialPalette.wireOpacity}); }`);
+
+      if (extraCssLines && extraCssLines.length > 0) {
+        css.push(...extraCssLines);
+      }
+
+      // アクセシビリティ：prefers-reduced-motion 対応
+      css.push(`    @media (prefers-reduced-motion: reduce) {`);
+      css.push(`      #${uid} .${uid}-rotator, #${uid} .${uid}-breathe, #${uid} .${uid}-shell { animation: none !important; }`);
+      css.push(`      #${uid} .${uid}-shell { opacity: 0.88 !important; transform: scale(0.95) !important; }`);
+      css.push(`    }`);
+
+      const defs = [];
+      defs.push(`  <defs>`);
+      // 外側ハローグラデーション（CSS変数連動）
+      defs.push(`    <radialGradient id="${uid}-haloGrad" cx="50%" cy="50%" r="50%">`);
+      defs.push(`      <stop offset="0%" style="stop-color: var(--logo-core-color, ${initialPalette.innerHex}); stop-opacity: 0.92;"/>`);
+      defs.push(`      <stop offset="45%" style="stop-color: var(--logo-mid-color, ${initialPalette.midHex}); stop-opacity: 0.48;"/>`);
+      defs.push(`      <stop offset="82%" style="stop-color: var(--logo-outer-color, ${initialPalette.outerHex}); stop-opacity: 0.14;"/>`);
+      defs.push(`      <stop offset="100%" style="stop-color: var(--logo-outer-color, ${initialPalette.outerHex}); stop-opacity: 0;"/>`);
+      defs.push(`    </radialGradient>`);
+      // 中心コア微光グラデーション
+      defs.push(`    <radialGradient id="${uid}-coreGrad" cx="50%" cy="50%" r="50%">`);
+      defs.push(`      <stop offset="0%" style="stop-color: var(--logo-core-color, ${initialPalette.innerHex}); stop-opacity: 0.85;"/>`);
+      defs.push(`      <stop offset="60%" style="stop-color: var(--logo-mid-color, ${initialPalette.midHex}); stop-opacity: 0.25;"/>`);
+      defs.push(`      <stop offset="100%" style="stop-color: var(--logo-mid-color, ${initialPalette.midHex}); stop-opacity: 0;"/>`);
+      defs.push(`    </radialGradient>`);
+      // グロー用ドロップシャドウ（控えめな光輪）
+      if (state.glow > 0) {
+        const blurStd = Math.max(1.5, (size / 400) * 4.5 * (state.glow / 100)).toFixed(1);
+        defs.push(`    <filter id="${uid}-glowFilter" x="-20%" y="-20%" width="140%" height="140%">`);
+        defs.push(`      <feGaussianBlur in="SourceGraphic" stdDeviation="${blurStd}" result="blur"/>`);
+        defs.push(`      <feMerge>`);
+        defs.push(`        <feMergeNode in="blur"/>`);
+        defs.push(`        <feMergeNode in="SourceGraphic"/>`);
+        defs.push(`      </feMerge>`);
+        defs.push(`    </filter>`);
+      }
+      defs.push(`  </defs>`);
+
+      return { cssBlock: css.join('\n'), defsBlock: defs.join('\n'), initialPalette };
+    }
+
+    function buildSvgBackgroundRect(size) {
+      if (state.bgCanvasMode === 'dark') return `  <rect width="${size}" height="${size}" fill="#060609"/>`;
+      if (state.bgCanvasMode === 'pureBlack') return `  <rect width="${size}" height="${size}" fill="#000000"/>`;
+      if (state.bgCanvasMode === 'pureWhite') return `  <rect width="${size}" height="${size}" fill="#ffffff"/>`;
+      return '';
+    }
+
+    /**
+     * グループGPU軽量版SVG生成（重心を保った擬似3D極軸スピン＋正弦波呼吸＋シームレス極軸シェル循環）
+     * 2D平面の時計回り回転(rotate)を廃止し、上下極軸を軸とした3D空間の自転と奥行きを再現
+     */
+    function buildGroupLightweightSvgString() {
+      const size = state.canvasSize;
+      const theme = getActiveTheme();
+      const palettes = buildThemePalettes(theme, state.brightness);
+      const uid = `gfp-${Math.random().toString(36).slice(2, 7)}`;
+      const numShells = state.shells;
+      const steps = state.svgEngine === 'morph18' ? 18 : (state.svgEngine === 'morph24' ? 24 : 36);
+      const dur = state.loopDuration.toFixed(1);
+      const cx = size / 2;
+      const cy = size / 2;
+      const tiltRad = (state.tiltDeg * Math.PI) / 180;
+      const tiltSkewFactor = Math.sin(tiltRad) * 0.22;
+
+      const extraCss = [];
+      // 1. 擬似3D極軸スピン（上下の重心を保ちつつ、極軸を中心に360°立体自転する水平射影・奥行シアー）
+      extraCss.push(`    @keyframes ${uid}-polarSpin3D {`);
+      const spinSteps = 36;
+      for (let k = 0; k <= spinSteps; k++) {
+        const p = k / spinSteps;
+        const pct = ((k / spinSteps) * 100).toFixed(2).replace(/\.00$/, '');
+        // 5回対称角（72° = 2π/5）の整数周期で奥行き位相が完全一致し、重心が一切ブレない
+        const symAngle = p * Math.PI * 2 * 5;
+        const depthScaleX = (0.94 + 0.06 * Math.cos(symAngle)).toFixed(4);
+        const depthSkewY = (Math.sin(symAngle) * tiltSkewFactor * 8).toFixed(2);
+        const swayX = (Math.sin(symAngle) * size * 0.006).toFixed(2);
+        extraCss.push(`      ${pct}% { transform: translate(${swayX}px, 0px) skewY(${depthSkewY}deg) scale(${depthScaleX}, 1); }`);
+      }
+      extraCss.push(`    }`);
+      extraCss.push(`    #${uid} .${uid}-rotator { transform-origin: ${cx}px ${cy}px; animation: ${uid}-polarSpin3D ${dur}s linear infinite; }`);
+
+      // 2. 正弦波による穏やかな呼吸アニメーション（0%と100%で位置・速度ともに一致）
+      extraCss.push(`    @keyframes ${uid}-breatheWave {`);
+      const bSteps = 24;
+      for (let k = 0; k <= bSteps; k++) {
+        const p = k / bSteps;
+        const pct = ((k / bSteps) * 100).toFixed(2).replace(/\.00$/, '');
+        const bScale = (1 + 0.015 * Math.sin(p * Math.PI * 2)).toFixed(4);
+        extraCss.push(`      ${pct}% { transform: scale(${bScale}); }`);
+      }
+      extraCss.push(`    }`);
+      extraCss.push(`    #${uid} .${uid}-breathe { transform-origin: ${cx}px ${cy}px; animation: ${uid}-breatheWave ${dur}s linear infinite; }`);
+
+      // 3. 各シェル層の極軸循環（位相 u=(s+p)/N で隣接シェルと完全連続、1層時は常時表示の穏やか波動）
+      extraCss.push(`    #${uid} .${uid}-shell { transform-origin: ${cx}px ${cy}px; }`);
+      const dirSign = state.flowDir === 'northToSouth' ? 1 : -1;
+      const isSingleLayer = numShells === 1;
+      for (let s = 0; s < numShells; s++) {
+        const animName = `${uid}-shellFlow-${s}`;
+        const steps = 24;
+        const kfLines = [];
+        for (let k = 0; k <= steps; k++) {
+          const p = k / steps;
+          const u = (s + p) / numShells;
+          const pct = ((k / steps) * 100).toFixed(2).replace(/\.00$/, '');
+          const env = isSingleLayer
+            ? (0.94 + 0.06 * Math.cos(p * Math.PI * 2))
+            : Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.78);
+          const op = isSingleLayer
+            ? '0.940'
+            : (Math.pow(Math.max(0, Math.sin(Math.PI * u)), 1.25) * 0.92).toFixed(3);
+          const cyclePos = isSingleLayer
+            ? Math.sin(p * Math.PI * 2) * 0.45 * dirSign
+            : (u * 2 - 1) * dirSign;
+          // 水平方向の3D回転感（奥行きの縮み）と極軸方向の流れを組み合わせる
+          const spinPhase = u * Math.PI * 2;
+          const sx = ((0.16 + 0.88 * env) * (0.92 + 0.08 * Math.cos(spinPhase))).toFixed(3);
+          const sy = (0.28 + 0.76 * env).toFixed(3);
+          const ty = (cyclePos * size * 0.07 * (1 - env)).toFixed(1);
+          const polarSkew = (Math.sin(spinPhase) * state.twist * 1.4).toFixed(2);
+          kfLines.push(`      ${pct}% { opacity: ${op}; transform: translate(0px, ${ty}px) skewX(${polarSkew}deg) scale(${sx}, ${sy}); }`);
+        }
+        extraCss.push(`    @keyframes ${animName} {`);
+        extraCss.push(kfLines.join('\n'));
+        extraCss.push(`    }`);
+        extraCss.push(`    #${uid} .${uid}-shell-${s} { animation: ${animName} ${dur}s linear infinite; }`);
+      }
+
+      const { cssBlock, defsBlock, initialPalette } = buildUnifiedSvgStyleAndDefs(uid, size, palettes, extraCss);
+      const canonical = computeShellProjection(size, 0.5, Math.floor(numShells / 2), numShells);
+      const safeTitle = escapeXml(state.planetName.trim() || 'Geodesic Fig-Planet Dynamic Logo');
+      const configAttr = escapeXml(serializePlanetConfig());
+
+      const svgParts = [];
+      svgParts.push(`<svg id="${uid}" class="geodesic-fig-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${safeTitle}" data-planet-name="${safeTitle}" data-gfp-config="${configAttr}">`);
+      svgParts.push(`  <title>${safeTitle}</title>`);
+      svgParts.push(`  <metadata>${configAttr}</metadata>`);
+      svgParts.push(`  <style>\n${cssBlock}\n  </style>`);
+      svgParts.push(defsBlock);
+
+      // 基準ジオデシック・イチジク惑星メッシュ（面色はすべてテーマ対応CSS変数クラスを使用）
+      svgParts.push(`  <defs>`);
+      svgParts.push(`    <g id="${uid}-canonicalMesh">`);
+
+      if (state.facetShade > 0) {
+        svgParts.push(`      <g class="${uid}-facet-group">`);
+        const shadeStrength = state.facetShade / 100;
+        const sortedTris = geodesicMesh.triangles.map((tri) => {
+          const p0 = canonical.verts[tri[0]];
+          const p1 = canonical.verts[tri[1]];
+          const p2 = canonical.verts[tri[2]];
+          const avgZ = (p0.z + p1.z + p2.z) / 3;
+          return { tri, p0, p1, p2, avgZ };
+        }).sort((a, b) => a.avgZ - b.avgZ);
+
+        for (const item of sortedTris) {
+          const light = computeFacetLighting(item.p0, item.p1, item.p2);
+          if (light.facing < -0.08) continue;
+
+          // 光源の当たり方に応じて4段階のテーマ連動面クラスを割り当て（固定rgb色を排除）
+          let faceClass = `${uid}-face-mid`;
+          let fallbackFill = initialPalette.facetMidHex;
+          if (light.specular > 0.25) {
+            faceClass = `${uid}-face-spec`;
+            fallbackFill = initialPalette.facetSpecHex;
+          } else if (light.ndotl >= 0.15) {
+            faceClass = `${uid}-face-lit`;
+            fallbackFill = initialPalette.facetLitHex;
+          } else if (light.ndotl < -0.1) {
+            faceClass = `${uid}-face-shadow`;
+            fallbackFill = initialPalette.facetShadowHex;
+          }
+
+          const polyOpacity = (0.34 + 0.50 * shadeStrength * (0.4 + 0.6 * Math.max(0, light.facing))).toFixed(2);
+          const pts = `${Math.round(item.p0.x)},${Math.round(item.p0.y)} ${Math.round(item.p1.x)},${Math.round(item.p1.y)} ${Math.round(item.p2.x)},${Math.round(item.p2.y)}`;
+          svgParts.push(`        <polygon class="${faceClass}" points="${pts}" fill="${fallbackFill}" fill-opacity="${polyOpacity}"/>`);
+        }
+        svgParts.push(`      </g>`);
+      }
+
+      const numEdges = geodesicMesh.edges.length;
+      const segs = new Array(numEdges);
+      for (let e = 0; e < numEdges; e++) {
+        const [i1, i2] = geodesicMesh.edges[e];
+        const v1 = canonical.verts[i1];
+        const v2 = canonical.verts[i2];
+        segs[e] = `M${Math.round(v1.x)} ${Math.round(v1.y)}L${Math.round(v2.x)} ${Math.round(v2.y)}`;
+      }
+      const strokeW = Math.max(0.45, (size / 400) * 1.25 * state.lineWidthScale).toFixed(2);
+      svgParts.push(`      <path class="${uid}-wire" d="${segs.join('')}" fill="none" stroke="${initialPalette.wireHex}" stroke-opacity="${initialPalette.wireOpacity}" stroke-width="${strokeW}" stroke-linecap="round"/>`);
+      svgParts.push(`    </g>`);
+      svgParts.push(`  </defs>`);
+
+      // 描画優先順: 0.背景 -> 1.背景ハローグラデーション -> 2.メッシュ面＆ワイヤーフレーム -> 3.中心コア微光
+      const bgRect = buildSvgBackgroundRect(size);
+      if (bgRect) svgParts.push(bgRect);
+
+      if (state.glow > 0) {
+        svgParts.push(`  <circle class="${uid}-halo" cx="${cx}" cy="${cy}" r="${Math.round(size * 0.36)}" fill="url(#${uid}-haloGrad)"/>`);
+      }
+
+      const filterAttr = state.glow > 0 ? ` filter="url(#${uid}-glowFilter)"` : '';
+      svgParts.push(`  <g class="${uid}-rotator">`);
+      svgParts.push(`    <g class="${uid}-breathe"${filterAttr}>`);
+      for (let s = 0; s < numShells; s++) {
+        svgParts.push(`      <g class="${uid}-shell ${uid}-shell-${s}">`);
+        svgParts.push(`        <use href="#${uid}-canonicalMesh"/>`);
+        svgParts.push(`      </g>`);
+      }
+      svgParts.push(`    </g>`);
+      svgParts.push(`  </g>`);
+
+      if (state.glow > 0) {
+        svgParts.push(`  <circle class="${uid}-coreGlow" cx="${cx}" cy="${cy}" r="${Math.round(size * 0.16)}" fill="url(#${uid}-coreGrad)"/>`);
+      }
+
+      svgParts.push(`</svg>`);
+      return svgParts.join('\n');
+    }
+
+    /**
+     * 3D極軸スピン完全再現SVG生成（リアルタイムプレビューと同一の3D極軸回転＋ファセット陰影＋極軸循環をベクター化）
+     */
+    function buildDynamicSvgString() {
+      if (state.svgEngine === 'groupLight') {
+        return buildGroupLightweightSvgString();
+      }
+
+      const size = state.canvasSize;
+      const theme = getActiveTheme();
+      const palettes = buildThemePalettes(theme, state.brightness);
+      const uid = `gfp-${Math.random().toString(36).slice(2, 7)}`;
+      const numShells = state.shells;
+      const steps = state.svgEngine === 'morph18' ? 18 : (state.svgEngine === 'morph24' ? 24 : 36);
+      const dur = state.loopDuration.toFixed(1);
+      const cx = size / 2;
+      const cy = size / 2;
+
+      const { cssBlock, defsBlock, initialPalette } = buildUnifiedSvgStyleAndDefs(uid, size, palettes, []);
+      const safeTitle = escapeXml(state.planetName.trim() || 'Geodesic Fig-Planet Dynamic Logo');
+      const configAttr = escapeXml(serializePlanetConfig());
+
+      // 全キーフレームの3D投影状態を事前計算（t=0 と t=steps で100%完全一致）
+      const frames = [];
+      for (let k = 0; k <= steps; k++) {
+        const p = k === steps ? 0.0 : k / steps;
+        const shellScenes = [];
+        for (let s = 0; s < numShells; s++) {
+          shellScenes.push(computeShellProjection(size, p, s, numShells));
+        }
+        frames.push({ shellScenes });
+      }
+
+      const svgParts = [];
+      svgParts.push(`<svg id="${uid}" class="geodesic-fig-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${safeTitle}" data-planet-name="${safeTitle}" data-gfp-config="${configAttr}">`);
+      svgParts.push(`  <title>${safeTitle}</title>`);
+      svgParts.push(`  <metadata>${configAttr}</metadata>`);
+      svgParts.push(`  <style>\n${cssBlock}\n  </style>`);
+      svgParts.push(defsBlock);
+
+      const bgRect = buildSvgBackgroundRect(size);
+      if (bgRect) svgParts.push(bgRect);
+
+      if (state.glow > 0) {
+        svgParts.push(`  <circle class="${uid}-halo" cx="${cx}" cy="${cy}" r="${Math.round(size * 0.36)}" fill="url(#${uid}-haloGrad)"/>`);
+      }
+
+      const filterAttr = state.glow > 0 ? ` filter="url(#${uid}-glowFilter)"` : '';
+      svgParts.push(`  <g class="${uid}-layer"${filterAttr}>`);
+
+      const shadeStrength = state.facetShade / 100;
+      const strokeW = Math.max(0.45, (size / 400) * 1.15 * state.lineWidthScale).toFixed(2);
+
+      // 各シェルごとに「クリスタル・ファセット面グループ」と「ワイヤーフレーム」を奥行き順に描画
+      for (let s = 0; s < numShells; s++) {
+        const opacityVals = [];
+        for (let k = 0; k <= steps; k++) {
+          opacityVals.push(Math.min(1, frames[k].shellScenes[s].alpha * 0.92).toFixed(3));
+        }
+
+        // 1. ダイヤモンド・ファセット面（3D極軸回転に伴って裏表・光源ハイライトが変化）
+        if (shadeStrength > 0) {
+          svgParts.push(`    <g class="${uid}-facet-group">`);
+          svgParts.push(`      <animate attributeName="opacity" dur="${dur}s" repeatCount="indefinite" values="${opacityVals.join(';')}"/>`);
+
+          // 各三角形ポリゴンの全フレーム座標＆光源階調を生成
+          const numTris = geodesicMesh.triangles.length;
+          for (let t = 0; t < numTris; t++) {
+            const [i0, i1, i2] = geodesicMesh.triangles[t];
+            const ptsVals = [];
+            const fillOpacityVals = [];
+            let visibleCount = 0;
+            let specScore = 0;
+            let litScore = 0;
+            let shadowScore = 0;
+
+            for (let k = 0; k <= steps; k++) {
+              const sh = frames[k].shellScenes[s];
+              const p0 = sh.verts[i0];
+              const p1 = sh.verts[i1];
+              const p2 = sh.verts[i2];
+              const light = computeFacetLighting(p0, p1, p2);
+
+              ptsVals.push(`${Math.round(p0.x)},${Math.round(p0.y)} ${Math.round(p1.x)},${Math.round(p1.y)} ${Math.round(p2.x)},${Math.round(p2.y)}`);
+
+              if (light.facing < -0.05) {
+                fillOpacityVals.push('0');
+              } else {
+                visibleCount++;
+                const fOp = (0.34 + 0.50 * shadeStrength * (0.35 + 0.65 * Math.max(0, light.facing))).toFixed(2);
+                fillOpacityVals.push(fOp);
+                if (light.specular > 0.25) specScore++;
+                else if (light.ndotl >= 0.12) litScore++;
+                else if (light.ndotl < -0.1) shadowScore++;
+              }
+            }
+
+            if (visibleCount === 0) continue;
+
+            let faceClass = `${uid}-face-mid`;
+            let fallbackFill = initialPalette.facetMidHex;
+            if (specScore > visibleCount * 0.25) {
+              faceClass = `${uid}-face-spec`;
+              fallbackFill = initialPalette.facetSpecHex;
+            } else if (litScore >= shadowScore && litScore > 0) {
+              faceClass = `${uid}-face-lit`;
+              fallbackFill = initialPalette.facetLitHex;
+            } else if (shadowScore > litScore) {
+              faceClass = `${uid}-face-shadow`;
+              fallbackFill = initialPalette.facetShadowHex;
+            }
+
+            svgParts.push(`      <polygon class="${faceClass}" points="${ptsVals[0]}" fill="${fallbackFill}" fill-opacity="${fillOpacityVals[0]}">`);
+            svgParts.push(`        <animate attributeName="points" dur="${dur}s" repeatCount="indefinite" values="${ptsVals.join(';')}"/>`);
+            svgParts.push(`        <animate attributeName="fill-opacity" dur="${dur}s" repeatCount="indefinite" values="${fillOpacityVals.join(';')}"/>`);
+            svgParts.push(`      </polygon>`);
+          }
+          svgParts.push(`    </g>`);
+        }
+
+        // 2. ジオデシック・ワイヤーフレーム（3D極軸回転の立体軌道）
+        const pathVals = [];
+        for (let k = 0; k <= steps; k++) {
+          const sh = frames[k].shellScenes[s];
+          const segs = geodesicMesh.edges.map(([i1, i2]) => {
+            const v1 = sh.verts[i1];
+            const v2 = sh.verts[i2];
+            return `M${Math.round(v1.x)} ${Math.round(v1.y)}L${Math.round(v2.x)} ${Math.round(v2.y)}`;
+          });
+          pathVals.push(segs.join(''));
+        }
+
+        svgParts.push(`    <path class="${uid}-wire" d="${pathVals[0]}" fill="none" stroke="${initialPalette.wireHex}" stroke-width="${strokeW}" stroke-linecap="round">`);
+        svgParts.push(`      <animate attributeName="d" dur="${dur}s" repeatCount="indefinite" values="${pathVals.join(';')}"/>`);
+        svgParts.push(`      <animate attributeName="stroke-opacity" dur="${dur}s" repeatCount="indefinite" values="${opacityVals.join(';')}"/>`);
+        svgParts.push(`    </path>`);
+      }
+      svgParts.push(`  </g>`);
+
+      if (state.glow > 0) {
+        svgParts.push(`  <circle class="${uid}-coreGlow" cx="${cx}" cy="${cy}" r="${Math.round(size * 0.16)}" fill="url(#${uid}-coreGrad)"/>`);
+      }
+
+      svgParts.push(`</svg>`);
+      return svgParts.join('\n');
+    }
+
+    // ==========================================
+    // 4. フレーム描画エンジン（Canvasプレビュー＆GIF用）
+    // ==========================================
+    function isEffectiveLightMode() {
+      if (state.previewThemeOverride === 'forceLight') return true;
+      if (state.previewThemeOverride === 'forceDark') return false;
+      if (state.svgExportMode === 'lightOnly') return true;
+      if (state.svgExportMode === 'darkOnly') return false;
+      return state.previewSurface === 'light';
+    }
+
+    function renderFrame(ctx, size, phase, forceLightOverride = null) {
+      const theme = getActiveTheme();
+      const palettes = buildThemePalettes(theme, state.brightness);
+      const isLightMode = forceLightOverride !== null ? forceLightOverride : isEffectiveLightMode();
+      const activePal = isLightMode ? palettes.light : palettes.dark;
+
+      const cx = size / 2;
+      const cy = size / 2;
+
+      ctx.save();
+
+      // 1. 背景ハローグラデーション（SVGの haloGrad と同一構造）
+      if (state.glow > 0) {
+        const glowRadius = size * 0.36;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+        const gAlpha = parseFloat(activePal.glowOpacity);
+        const [cr, cg, cb] = activePal.innerRgb;
+        const [mr, mg, mb] = activePal.midRgb;
+        const [or, og, ob] = activePal.outerRgb;
+        grad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${(gAlpha * 0.92).toFixed(3)})`);
+        grad.addColorStop(0.45, `rgba(${mr}, ${mg}, ${mb}, ${(gAlpha * 0.48).toFixed(3)})`);
+        grad.addColorStop(0.82, `rgba(${or}, ${og}, ${ob}, ${(gAlpha * 0.14).toFixed(3)})`);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const renderItems = [];
+      const numShells = state.shells;
+      const shadeStrength = state.facetShade / 100;
+
+      for (let s = 0; s < numShells; s++) {
+        const shell = computeShellProjection(size, phase, s, numShells);
+        const { u, alpha, shellExpansion, verts } = shell;
+        if (alpha < 0.02) continue;
+
+        const colorT = Math.abs(u - 0.5) * 2;
+        const baseBrightRgb = colorT < 0.5
+          ? lerpColor(activePal.outerRgb, activePal.midRgb, colorT * 2)
+          : lerpColor(activePal.midRgb, activePal.innerRgb, (colorT - 0.5) * 2);
+
+        // 2. ダイヤモンド・ファセット面
+        if (shadeStrength > 0) {
+          for (let t = 0; t < geodesicMesh.triangles.length; t++) {
+            const [i0, i1, i2] = geodesicMesh.triangles[t];
+            const p0 = verts[i0];
+            const p1 = verts[i1];
+            const p2 = verts[i2];
+            const light = computeFacetLighting(p0, p1, p2);
+            if (light.facing < -0.05) continue;
+
+            let facetRgb;
+            if (light.specular > 0.25) {
+              facetRgb = lerpColor(baseBrightRgb, [255, 255, 255], Math.min(isLightMode ? 0.42 : 0.85, light.specular * 1.1 * shadeStrength));
+            } else if (light.ndotl >= 0) {
+              facetRgb = lerpColor(baseBrightRgb, activePal.innerRgb, light.diffuse * 0.52 * shadeStrength);
+            } else {
+              const shadowTarget = isLightMode
+                ? [Math.round(baseBrightRgb[0] * 0.52), Math.round(baseBrightRgb[1] * 0.45), Math.round(baseBrightRgb[2] * 0.62)]
+                : [Math.round(baseBrightRgb[0] * 0.22), Math.round(baseBrightRgb[1] * 0.16), Math.round(baseBrightRgb[2] * 0.32)];
+              facetRgb = lerpColor(baseBrightRgb, shadowTarget, Math.min(0.86, (-light.ndotl * 0.82 + 0.15) * shadeStrength));
+            }
+
+            const avgZ = (p0.z + p1.z + p2.z) / 3;
+            const faceAlpha = alpha * (0.34 + 0.50 * shadeStrength * (0.35 + 0.65 * Math.max(0, light.facing)));
+            renderItems.push({
+              type: 'facet',
+              p0, p1, p2,
+              z: avgZ - 0.002,
+              rgb: facetRgb,
+              alpha: Math.min(0.95, faceAlpha)
+            });
+          }
+        }
+
+        // 3. ジオデシック稜線ワイヤーフレーム
+        for (let e = 0; e < geodesicMesh.edges.length; e++) {
+          const [i1, i2] = geodesicMesh.edges[e];
+          const p1 = verts[i1];
+          const p2 = verts[i2];
+          const avgZ = (p1.z + p2.z) / 2;
+          const depthFactor = 0.68 + 0.32 * ((avgZ + 1) / 2);
+          const edgeRgb = isLightMode ? lerpColor(baseBrightRgb, activePal.wireRgb, 0.58) : baseBrightRgb;
+          const finalAlpha = Math.min(1, alpha * (isLightMode ? 0.94 : 0.88) * depthFactor);
+
+          renderItems.push({
+            type: 'edge',
+            x1: p1.x, y1: p1.y,
+            x2: p2.x, y2: p2.y,
+            z: avgZ,
+            rgb: edgeRgb,
+            alpha: finalAlpha,
+            width: Math.max(0.35, (size / 400) * (0.82 + 0.58 * shellExpansion) * depthFactor * state.lineWidthScale * (isLightMode ? 1.18 : 1.0))
+          });
+        }
+      }
+
+      renderItems.sort((a, b) => a.z - b.z);
+
+      ctx.globalCompositeOperation = isLightMode ? 'source-over' : 'lighter';
+      ctx.lineCap = 'round';
+
+      for (const item of renderItems) {
+        if (item.type === 'facet') {
+          ctx.fillStyle = `rgba(${item.rgb[0]}, ${item.rgb[1]}, ${item.rgb[2]}, ${item.alpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.moveTo(item.p0.x, item.p0.y);
+          ctx.lineTo(item.p1.x, item.p1.y);
+          ctx.lineTo(item.p2.x, item.p2.y);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = `rgba(${item.rgb[0]}, ${item.rgb[1]}, ${item.rgb[2]}, ${item.alpha.toFixed(3)})`;
+          ctx.lineWidth = item.width;
+          ctx.beginPath();
+          ctx.moveTo(item.x1, item.y1);
+          ctx.lineTo(item.x2, item.y2);
+          ctx.stroke();
+        }
+      }
+
+      // 4. 中心コア微光グラデーション
+      if (state.glow > 0) {
+        ctx.globalCompositeOperation = 'source-over';
+        const coreR = size * 0.16;
+        const cGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        const cAlpha = parseFloat(activePal.glowOpacity) * 0.85;
+        const [cr, cg, cb] = activePal.innerRgb;
+        const [mr, mg, mb] = activePal.midRgb;
+        cGrad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${(cAlpha * 0.85).toFixed(3)})`);
+        cGrad.addColorStop(0.6, `rgba(${mr}, ${mg}, ${mb}, ${(cAlpha * 0.25).toFixed(3)})`);
+        cGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = cGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function renderAllPreviews() {
+      const mainCanvas = document.getElementById('logoCanvas');
+      if (mainCanvas) {
+        const rect = mainCanvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.max(200, Math.round(rect.width * dpr));
+        const targetH = Math.max(200, Math.round(rect.height * dpr));
+        if (mainCanvas.width !== targetW || mainCanvas.height !== targetH) {
+          mainCanvas.width = targetW;
+          mainCanvas.height = targetH;
+        }
+        const ctx = mainCanvas.getContext('2d');
+        ctx.clearRect(0, 0, targetW, targetH);
+        renderFrame(ctx, targetW, state.phase);
+      }
+
+      const mini32 = document.getElementById('miniCanvas32');
+      if (mini32) {
+        const ctx32 = mini32.getContext('2d');
+        ctx32.clearRect(0, 0, 32, 32);
+        renderFrame(ctx32, 32, state.phase);
+      }
+
+      const mini48 = document.getElementById('miniCanvas48');
+      if (mini48) {
+        const ctx48 = mini48.getContext('2d');
+        ctx48.clearRect(0, 0, 48, 48);
+        renderFrame(ctx48, 48, state.phase);
+      }
+
+      // モバイル用フローティングHUDが画面に表示されている場合のみ描画を更新
+      const floatingHud = document.getElementById('floatingMiniHud');
+      const hudCanvas = document.getElementById('floatingHudCanvas');
+      if (floatingHud && hudCanvas && !floatingHud.classList.contains('opacity-0')) {
+        const ctxHud = hudCanvas.getContext('2d');
+        ctxHud.clearRect(0, 0, 224, 224);
+        renderFrame(ctxHud, 224, state.phase);
+      }
+    }
+
+    // ==========================================
+    // 5. コントロールイベント初期化
+    // ==========================================
+    function initControls() {
+      // モバイルスクロール追従ミニプレビューHUDの制御
+      const mainPreviewCard = document.getElementById('mainPreviewCard');
+      const floatingMiniHud = document.getElementById('floatingMiniHud');
+      const hudSurfaceToggleBtn = document.getElementById('hudSurfaceToggleBtn');
+      const hudScrollTopBtn = document.getElementById('hudScrollTopBtn');
+
+      const updateFloatingHudVisibility = () => {
+        if (!mainPreviewCard || !floatingMiniHud) return;
+        const isMobileOrTablet = window.innerWidth < 1024;
+        if (!isMobileOrTablet) {
+          floatingMiniHud.classList.add('opacity-0', 'translate-y-[-12px]', 'pointer-events-none');
+          return;
+        }
+        const rect = mainPreviewCard.getBoundingClientRect();
+        // メインプレビューカードの大部分が画面上部にスクロールアウトしたらHUDを表示
+        const shouldShow = rect.bottom < 150;
+        if (shouldShow) {
+          floatingMiniHud.classList.remove('opacity-0', 'translate-y-[-12px]', 'pointer-events-none');
+          if (!state.isPlaying) renderAllPreviews();
+        } else {
+          floatingMiniHud.classList.add('opacity-0', 'translate-y-[-12px]', 'pointer-events-none');
+        }
+      };
+
+      window.addEventListener('scroll', updateFloatingHudVisibility, { passive: true });
+      window.addEventListener('resize', updateFloatingHudVisibility, { passive: true });
+
+      if (hudSurfaceToggleBtn) {
+        hudSurfaceToggleBtn.addEventListener('click', () => {
+          const nextSurface = state.previewSurface === 'light' ? 'dark' : 'light';
+          const targetBtn = document.querySelector(`.surface-btn[data-surface="${nextSurface}"]`);
+          if (targetBtn) targetBtn.click();
+        });
+      }
+
+      if (hudScrollTopBtn) {
+        hudScrollTopBtn.addEventListener('click', () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+
+      // 惑星ネーム入力欄
+      const planetNameInput = document.getElementById('planetNameInput');
+      if (planetNameInput) {
+        planetNameInput.addEventListener('input', (e) => {
+          state.planetName = e.target.value;
+        });
+      }
+
+      // 書き出し済みSVGファイルのドラッグ＆ドロップ / ファイル選択読み込み
+      const dropZone = document.getElementById('svgImportDropZone');
+      const fileInput = document.getElementById('svgImportFileInput');
+      const handleSvgFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (ev.target && typeof ev.target.result === 'string') {
+            importPlanetFromSvgText(ev.target.result);
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          handleSvgFile(file);
+          fileInput.value = '';
+        });
+      }
+
+      if (dropZone) {
+        dropZone.addEventListener('click', (e) => {
+          if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT' && fileInput) {
+            fileInput.click();
+          }
+        });
+        ['dragenter', 'dragover'].forEach(evtName => {
+          dropZone.addEventListener(evtName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('border-cyan-400', 'bg-cyan-950/30');
+          });
+        });
+        ['dragleave', 'drop'].forEach(evtName => {
+          dropZone.addEventListener(evtName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('border-cyan-400', 'bg-cyan-950/30');
+          });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          handleSvgFile(file);
+        });
+      }
+
+      // カラーテーマ切替ボタン
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.theme-btn').forEach(b => {
+            b.classList.remove('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+            b.classList.add('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+          });
+          btn.classList.add('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+          btn.classList.remove('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+          state.theme = btn.dataset.theme;
+          document.getElementById('customColorBadge').classList.add('hidden');
+          syncColorPickersFromTheme(THEMES[state.theme]);
+          if (!state.isPlaying) renderAllPreviews();
+        });
+      });
+
+      // カスタムカラーピッカー
+      const bindColorPicker = (pickerId, hexLabelId, colorKey) => {
+        const picker = document.getElementById(pickerId);
+        const label = document.getElementById(hexLabelId);
+        if (!picker || !label) return;
+        picker.addEventListener('input', (e) => {
+          const hex = e.target.value;
+          label.textContent = hex;
+          state.customColors[colorKey] = hexToRgb(hex);
+          state.theme = 'custom';
+          document.getElementById('customColorBadge').classList.remove('hidden');
+          document.querySelectorAll('.theme-btn').forEach(b => {
+            b.classList.remove('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+            b.classList.add('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+          });
+          if (!state.isPlaying) renderAllPreviews();
+        });
+      };
+
+      bindColorPicker('outerColorPicker', 'outerColorHex', 'outerEdge');
+      bindColorPicker('midColorPicker', 'midColorHex', 'midEdge');
+      bindColorPicker('innerColorPicker', 'innerColorHex', 'innerEdge');
+
+      // ランダム配色ボタン
+      const randomColorBtn = document.getElementById('randomColorBtn');
+      if (randomColorBtn) {
+        randomColorBtn.addEventListener('click', () => {
+          applyRandomColors();
+        });
+      }
+
+      // 極点吸い込み・放出方向切替ボタン
+      document.querySelectorAll('.flow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.flow-btn').forEach(b => {
+            b.classList.remove('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+            b.classList.add('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+          });
+          btn.classList.add('active', 'border-purple-500', 'bg-purple-500/15', 'text-white');
+          btn.classList.remove('border-zinc-800', 'bg-zinc-950/60', 'text-zinc-300');
+          state.flowDir = btn.dataset.flow;
+          if (!state.isPlaying) renderAllPreviews();
+        });
+      });
+
+      // 配置環境プレビュー切替（ダーク / ライト / 透過）
+      document.querySelectorAll('.surface-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.surface-btn').forEach(b => {
+            b.classList.remove('active', 'bg-zinc-800', 'text-white', 'border-purple-500/60');
+            b.classList.add('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+          });
+          btn.classList.add('active', 'bg-zinc-800', 'text-white', 'border-purple-500/60');
+          btn.classList.remove('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+
+          state.previewSurface = btn.dataset.surface;
+          const container = document.getElementById('canvasContainer');
+          const miniBadge = document.getElementById('miniPreviewBadge');
+          const hudWrap = document.getElementById('floatingHudCanvasWrap');
+          const hudToggleBtn = document.getElementById('hudSurfaceToggleBtn');
+          container.classList.remove('surface-solid-dark', 'surface-solid-light', 'checkerboard', 'checkerboard-light');
+          if (hudWrap) hudWrap.classList.remove('surface-solid-dark', 'surface-solid-light', 'checkerboard');
+
+          if (state.previewSurface === 'light') {
+            container.classList.add('surface-solid-light');
+            if (hudWrap) hudWrap.classList.add('surface-solid-light');
+            if (hudToggleBtn) hudToggleBtn.textContent = '☀️';
+            if (miniBadge) {
+              miniBadge.classList.remove('bg-zinc-950/85', 'border-zinc-800/90');
+              miniBadge.classList.add('bg-white/90', 'border-zinc-300');
+            }
+          } else if (state.previewSurface === 'transparent') {
+            container.classList.add('checkerboard');
+            if (hudWrap) hudWrap.classList.add('checkerboard');
+            if (hudToggleBtn) hudToggleBtn.textContent = '🏁';
+            if (miniBadge) {
+              miniBadge.classList.remove('bg-white/90', 'border-zinc-300');
+              miniBadge.classList.add('bg-zinc-950/85', 'border-zinc-800/90');
+            }
+          } else {
+            container.classList.add('surface-solid-dark');
+            if (hudWrap) hudWrap.classList.add('surface-solid-dark');
+            if (hudToggleBtn) hudToggleBtn.textContent = '🌙';
+            if (miniBadge) {
+              miniBadge.classList.remove('bg-white/90', 'border-zinc-300');
+              miniBadge.classList.add('bg-zinc-950/85', 'border-zinc-800/90');
+            }
+          }
+          if (!state.isPlaying) renderAllPreviews();
+        });
+      });
+
+      // 生成済みSVGプレビューの背景・data-theme検証ボタン
+      document.querySelectorAll('.svg-test-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.svg-test-btn').forEach(b => {
+            b.classList.remove('active', 'bg-zinc-800', 'text-white', 'border-cyan-500/60');
+            b.classList.add('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+          });
+          btn.classList.add('active', 'bg-zinc-800', 'text-white', 'border-cyan-500/60');
+          btn.classList.remove('bg-zinc-900', 'text-zinc-400', 'border-zinc-800');
+
+          const testMode = btn.dataset.svgTest;
+          const svgBox = document.getElementById('generatedSvgContainer');
+          svgBox.classList.remove('surface-solid-dark', 'surface-solid-light', 'checkerboard');
+          if (testMode === 'light') {
+            svgBox.classList.add('surface-solid-light');
+            svgBox.setAttribute('data-theme', 'light');
+          } else if (testMode === 'checker') {
+            svgBox.classList.add('checkerboard');
+            svgBox.setAttribute('data-theme', 'dark');
+          } else {
+            svgBox.classList.add('surface-solid-dark');
+            svgBox.setAttribute('data-theme', 'dark');
+          }
+        });
+      });
+
+      // テーマ検証オーバーライド切替
+      document.getElementById('previewThemeOverride').addEventListener('change', (e) => {
+        state.previewThemeOverride = e.target.value;
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // 再生 / 一時停止ボタン
+      document.getElementById('togglePlayBtn').addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        document.getElementById('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
+        document.getElementById('playText').textContent = state.isPlaying ? '一時停止' : '再生';
+      });
+
+      // イチジク惑星フォルム度
+      const figMorphInput = document.getElementById('figMorphInput');
+      figMorphInput.addEventListener('input', (e) => {
+        state.figMorph = parseInt(e.target.value, 10);
+        document.getElementById('figMorphVal').textContent = `${state.figMorph}%`;
+        rebuildMesh();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // クリスタル結晶フォルム度
+      const crystalMorphInput = document.getElementById('crystalMorphInput');
+      crystalMorphInput.addEventListener('input', (e) => {
+        state.crystalMorph = parseInt(e.target.value, 10);
+        document.getElementById('crystalMorphVal').textContent = `${state.crystalMorph}%`;
+        rebuildMesh();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // 分割精度
+      const subInput = document.getElementById('subdivisionInput');
+      subInput.addEventListener('input', (e) => {
+        state.subdivision = parseInt(e.target.value, 10);
+        rebuildMesh();
+        updateSvgEstimateUI();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // 極軸ワームホールのねじれ
+      const twistInput = document.getElementById('twistInput');
+      twistInput.addEventListener('input', (e) => {
+        state.twist = parseFloat(e.target.value);
+        document.getElementById('twistVal').textContent = `${state.twist.toFixed(1)} rad`;
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // 多重ドーム層数
+      const shellsInput = document.getElementById('shellsInput');
+      shellsInput.addEventListener('input', (e) => {
+        state.shells = parseInt(e.target.value, 10);
+        document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル)' : `${state.shells}層`;
+        updateSvgEstimateUI();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // カメラ俯角・チルト
+      const tiltInput = document.getElementById('tiltInput');
+      tiltInput.addEventListener('input', (e) => {
+        state.tiltDeg = parseInt(e.target.value, 10);
+        document.getElementById('tiltVal').textContent = `${state.tiltDeg}°`;
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // 中心ネオングロー
+      const glowInput = document.getElementById('glowInput');
+      glowInput.addEventListener('input', (e) => {
+        state.glow = parseInt(e.target.value, 10);
+        document.getElementById('glowVal').textContent = `${state.glow}%`;
+        updateSvgEstimateUI();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // ジオデシック明度
+      const brightnessInput = document.getElementById('brightnessInput');
+      brightnessInput.addEventListener('input', (e) => {
+        state.brightness = parseInt(e.target.value, 10);
+        document.getElementById('brightnessVal').textContent = `${state.brightness}%`;
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // ジオデシックの線の太さ
+      const lineWidthInput = document.getElementById('lineWidthInput');
+      lineWidthInput.addEventListener('input', (e) => {
+        state.lineWidthScale = parseFloat(e.target.value);
+        const label = state.lineWidthScale === 1.0 ? '1.0x (標準)' : `${state.lineWidthScale.toFixed(1)}x`;
+        document.getElementById('lineWidthVal').textContent = label;
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // ダイヤモンド陰影（光源ファセット）
+      const facetShadeInput = document.getElementById('facetShadeInput');
+      facetShadeInput.addEventListener('input', (e) => {
+        state.facetShade = parseInt(e.target.value, 10);
+        document.getElementById('facetShadeVal').textContent = `${state.facetShade}%`;
+        updateSvgEstimateUI();
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      // ループ周期（1周の時間）
+      const durationInput = document.getElementById('durationInput');
+      durationInput.addEventListener('input', (e) => {
+        state.loopDuration = parseFloat(e.target.value);
+        const desc = state.loopDuration >= 36 ? '超スロー' : (state.loopDuration >= 16 ? 'ゆったり' : '標準');
+        document.getElementById('durationVal').textContent = `${state.loopDuration.toFixed(1)}秒 (${desc})`;
+      });
+
+      // 出力サイズ / SVGエンジン / 4種類の書き出し方式 / 背景
+      document.getElementById('sizeSelect').addEventListener('change', (e) => {
+        state.canvasSize = parseInt(e.target.value, 10);
+        document.getElementById('resTag').textContent = `${state.canvasSize}×${state.canvasSize}px`;
+      });
+
+      document.getElementById('qualitySelect').addEventListener('change', (e) => {
+        state.svgEngine = e.target.value;
+        updateSvgEstimateUI();
+      });
+
+      document.getElementById('svgExportModeSelect').addEventListener('change', (e) => {
+        state.svgExportMode = e.target.value;
+        const descEl = document.getElementById('svgModeDescBox');
+        if (descEl) descEl.textContent = SVG_MODE_DESCRIPTIONS[state.svgExportMode] || '';
+        if (!state.isPlaying) renderAllPreviews();
+      });
+
+      document.getElementById('bgCanvasModeSelect').addEventListener('change', (e) => {
+        state.bgCanvasMode = e.target.value;
+      });
+
+      // リセットボタン
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        state.planetName = 'Fig-Planet Prime';
+        state.theme = 'figPlanet';
+        state.figMorph = 100;
+        state.crystalMorph = 0;
+        state.subdivision = 3;
+        state.twist = 2.4;
+        state.flowDir = 'northToSouth';
+        state.shells = 4;
+        state.tiltDeg = 28;
+        state.glow = 75;
+        state.brightness = 100;
+        state.lineWidthScale = 1.0;
+        state.facetShade = 85;
+        state.loopDuration = 24.0;
+        state.svgEngine = 'morph24';
+        state.svgExportMode = 'auto';
+        state.bgCanvasMode = 'transparent';
+
+        syncAllControlsFromState();
+        rebuildMesh();
+        updateSvgEstimateUI();
+        renderAllPreviews();
+        showToast('🔄', '設定を初期状態にリセットしました');
+      });
+
+      // SVG生成ボタン
+      document.getElementById('generateSvgBtn').addEventListener('click', () => {
+        try {
+          latestSvgString = buildDynamicSvgString();
+          const blob = new Blob([latestSvgString], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const kb = (blob.size / 1024).toFixed(1);
+
+          const modeNames = {
+            auto: '自動適応SVG',
+            lightOnly: 'ライト専用SVG',
+            darkOnly: 'ダーク専用SVG',
+            inline: 'インラインSVG'
+          };
+
+          const baseFileName = sanitizeFilename(state.planetName);
+          const displayPlanetName = state.planetName.trim() || '名称未設定の惑星';
+          const downloadLink = document.getElementById('downloadSvgLink');
+          downloadLink.href = url;
+          downloadLink.download = `${baseFileName}-${state.svgExportMode}.svg`;
+
+          const container = document.getElementById('generatedSvgContainer');
+          container.innerHTML = latestSvgString;
+          const svgEl = container.querySelector('svg');
+          if (svgEl) {
+            svgEl.style.width = '240px';
+            svgEl.style.height = '240px';
+          }
+
+          document.getElementById('svgMetaInfo').textContent = `🪐 ${displayPlanetName} / ${modeNames[state.svgExportMode]} / ${state.canvasSize}×${state.canvasSize} / 約${kb} KB / 周期 ${state.loopDuration.toFixed(1)}秒`;
+          document.getElementById('svgResultCard').classList.remove('hidden');
+          document.getElementById('svgResultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          showToast('✨', `「${displayPlanetName}」の${modeNames[state.svgExportMode]}を生成しました（約 ${kb} KB）`);
+        } catch (err) {
+          console.error(err);
+          showToast('⚠️', 'SVG生成中にエラーが発生しました');
+        }
+      });
+
+      // SVGコードコピーボタン
+      document.getElementById('copySvgCodeBtn').addEventListener('click', () => {
+        if (!latestSvgString) return;
+        const textarea = document.createElement('textarea');
+        textarea.value = latestSvgString;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          showToast('📋', 'SVGコードをクリップボードにコピーしました');
+        } catch (e) {
+          showToast('⚠️', 'コピーに失敗しました');
+        }
+        document.body.removeChild(textarea);
+      });
+
+      // GIF生成ボタン
+      document.getElementById('generateGifBtn').addEventListener('click', () => {
+        if (state.isRenderingGif) return;
+        renderGifExport();
+      });
+    }
+
+    // GIF書き出し処理（選択中のテーマ配色・背景設定を確定反映）
+    async function renderGifExport() {
+      state.isRenderingGif = true;
+      const statusBox = document.getElementById('renderStatusBox');
+      const statusText = document.getElementById('renderStatusText');
+      const percentText = document.getElementById('renderPercent');
+      const progressBar = document.getElementById('renderProgressBar');
+
+      statusBox.classList.remove('hidden');
+      statusText.textContent = 'GIFエンコーダを初期化中...';
+      percentText.textContent = '0%';
+      progressBar.style.width = '0%';
+
+      try {
+        const size = state.canvasSize;
+        const framesCount = state.keyframeSteps;
+        const delayMs = Math.max(20, Math.round((state.loopDuration * 1000) / framesCount));
+        const isTransparent = state.bgCanvasMode === 'transparent';
+        const useLightPalette = isEffectiveLightMode();
+
+        const workerBlob = new Blob([
+          `importScripts('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');`
+        ], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(workerBlob);
+
+        const gif = new GIF({
+          workers: 2,
+          quality: 10,
+          width: size,
+          height: size,
+          workerScript: workerUrl,
+          transparent: isTransparent ? 0x000000 : null
+        });
+
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = size;
+        offCanvas.height = size;
+        const offCtx = offCanvas.getContext('2d');
+
+        for (let i = 0; i < framesCount; i++) {
+          const p = i / framesCount;
+          offCtx.clearRect(0, 0, size, size);
+          if (state.bgCanvasMode === 'dark') {
+            offCtx.fillStyle = '#060609';
+            offCtx.fillRect(0, 0, size, size);
+          } else if (state.bgCanvasMode === 'pureBlack') {
+            offCtx.fillStyle = '#000000';
+            offCtx.fillRect(0, 0, size, size);
+          } else if (state.bgCanvasMode === 'pureWhite') {
+            offCtx.fillStyle = '#ffffff';
+            offCtx.fillRect(0, 0, size, size);
+          }
+          renderFrame(offCtx, size, p, useLightPalette);
+          gif.addFrame(offCtx, { copy: true, delay: delayMs });
+
+          const pct = Math.round(((i + 1) / framesCount) * 50);
+          statusText.textContent = `フレーム描画中 (${i + 1}/${framesCount})...`;
+          percentText.textContent = `${pct}%`;
+          progressBar.style.width = `${pct}%`;
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        gif.on('progress', (prog) => {
+          const pct = 50 + Math.round(prog * 50);
+          statusText.textContent = 'GIF圧縮・エンコード中...';
+          percentText.textContent = `${pct}%`;
+          progressBar.style.width = `${pct}%`;
+        });
+
+        gif.on('finished', (blob) => {
+          const url = URL.createObjectURL(blob);
+          const kb = (blob.size / 1024).toFixed(1);
+          const baseFileName = sanitizeFilename(state.planetName);
+          const displayPlanetName = state.planetName.trim() || '名称未設定の惑星';
+          const dlLink = document.getElementById('downloadLink');
+          dlLink.href = url;
+          dlLink.download = `${baseFileName}.gif`;
+          document.getElementById('generatedGifImg').src = url;
+          const modeTag = useLightPalette ? 'ライト配色' : 'ダーク配色';
+          document.getElementById('gifMetaInfo').textContent = `🪐 ${displayPlanetName} / ${size}×${size}px / ${modeTag} / ${framesCount}フレーム / 約${kb} KB / 無限ループ`;
+          document.getElementById('resultCard').classList.remove('hidden');
+          statusBox.classList.add('hidden');
+          state.isRenderingGif = false;
+          showToast('🎞️', `「${displayPlanetName}」のGIFアニメーションを生成しました（約 ${kb} KB）`);
+        });
+
+        gif.render();
+      } catch (err) {
+        console.error(err);
+        statusBox.classList.add('hidden');
+        state.isRenderingGif = false;
+        showToast('⚠️', 'GIF生成中にエラーが発生しました');
+      }
+    }
+
+    // メインアニメーションループ
+    let lastTimestamp = 0;
+    function animate(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      if (state.isPlaying) {
+        state.phase = (state.phase + dt / state.loopDuration) % 1.0;
+        const loopProg = document.getElementById('loopProgress');
+        if (loopProg) {
+          loopProg.style.width = `${(state.phase * 100).toFixed(1)}%`;
+        }
+        renderAllPreviews();
+      }
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      rebuildMesh();
+      initControls();
+      syncColorPickersFromTheme(THEMES.figPlanet);
+      updateSvgEstimateUI();
+      renderAllPreviews();
+      requestAnimationFrame(animate);
+    });
+  </script>
+</body>
+</html>
