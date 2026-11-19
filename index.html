@@ -3168,8 +3168,16 @@
             flex: 1; min-width: 0;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             padding: 4px 2px;
-            cursor: text;
+            cursor: pointer;
         }
+        .mss-row-edit {
+            flex-shrink: 0;
+            min-width: 40px; height: 36px; margin: -6px -4px -6px 0;
+            border: none; border-radius: 4px; background: transparent;
+            color: var(--accent); font-size: 1rem; line-height: 1;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .mss-row-edit:active { background: rgba(91,155,242,0.15); }
         .mss-row-name-input {
             flex: 1; min-width: 0;
             overflow: hidden; text-overflow: ellipsis;
@@ -8213,7 +8221,7 @@ async function shareCard(card, cardItem) {
         return null;
     }
 
-    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(ulid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(ulid);
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
 }
 
@@ -8299,7 +8307,7 @@ function qcardBuildCardSharePreview(card, expiresAt) {
         (content ? '<div class="qcard-share-preview-content">' + qcardShareEscapeHtml(content).replace(/\n/g, '<br>') + '</div>' : '') +
         (audioUrl ? '<div class="qcard-share-preview-audio"><div style="font-size:.72rem;margin:10px 0 5px;font-weight:600">音声を聴く</div><audio controls preload="none" src="' + qcardShareEscapeHtml(audioUrl) + '" style="width:100%;max-width:100%">お使いのブラウザは音声再生に対応していません。</audio></div>' : '') +
         (meta.length ? '<div class="qcard-share-preview-meta">' + qcardShareEscapeHtml(meta.join(' · ')) + '</div>' : '') +
-        '<div class="qcard-share-preview-expiry">共有URL有効期限: ' + qcardShareEscapeHtml(expiresAt ? new Date(expiresAt).toLocaleString() : '不明') + '</div>' +
+        '<div class="qcard-share-preview-expiry">' + (card._embedded ? 'QR直接受信 · サーバー不使用（有効期限なし）' : '共有URL有効期限: ' + qcardShareEscapeHtml(expiresAt ? new Date(expiresAt).toLocaleString() : '不明')) + '</div>' +
         '</div>';
 }
 
@@ -8493,13 +8501,304 @@ window.createCardShareUrl = async function() {
 };
 window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl; if(!u)return; try{await navigator.clipboard.writeText(u);showToast('✅ URLをコピーしました');}catch(e){showToast('URLのコピーに失敗しました');} };
 
+// ═══════════════════════════════════════════════════════════════
+// Embedded QR Share（サーバー不使用）
+// 文字のみ・小サイズのカードは、内容を圧縮して URL の # 以降に載せ、
+// そのURLをQR化する。# 以降はHTTPリクエストに含まれずサーバーへ送信されない。
+//   形式: https://{origin}/#q={mode}.{base64url}
+//     mode 0 = UTF-8 JSON そのまま / mode 1 = deflate-raw 圧縮
+//   JSON: [title, content, tags, source, sourceUrl, note, (予約:links), uriId, hidden]
+// 条件を満たさない場合は、従来のサーバー共有（Supabase）へ自動フォールバック。
+// ═══════════════════════════════════════════════════════════════
+// 共有URL・QRに載せる公開オリジン。
+// *.vercel.app（プレビュー/デプロイ固有URL）は Vercel の Deployment Protection で
+// ログインを要求されることがあるため、受信者が開けるよう公開ドメインへ置き換える。
+// localhost や独自ドメインで動作中の場合は、そのオリジンをそのまま使う。
+var QCARD_PUBLIC_ORIGIN = 'https://qcard.app';
+function qcardPublicOrigin() {
+    var h = String(window.location.hostname || '');
+    return /\.vercel\.app$/i.test(h) ? QCARD_PUBLIC_ORIGIN : window.location.origin;
+}
+var QCARD_EMBED_MAX_URL_BYTES   = 600;        // QR化するURL全体の上限（QR Version 19 / 誤り訂正M 以内）
+var QCARD_EMBED_MAX_BODY_CHARS  = 4000;       // 受信側：base64url本文の上限
+var QCARD_EMBED_MAX_DECODED     = 32 * 1024;  // 受信側：展開後の上限（展開爆弾対策）
+
+function qcardEmbedB64uEncode(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function qcardEmbedB64uDecode(s) {
+    var b64 = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+}
+async function qcardEmbedDeflate(bytes) {
+    var cs = new CompressionStream('deflate-raw');
+    var w = cs.writable.getWriter();
+    w.write(bytes).catch(function(){}); w.close().catch(function(){});
+    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function qcardEmbedInflate(bytes, maxOut) {
+    var ds = new DecompressionStream('deflate-raw');
+    var w = ds.writable.getWriter();
+    w.write(bytes).catch(function(){}); w.close().catch(function(){});
+    var reader = ds.readable.getReader(), chunks = [], total = 0;
+    for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        total += r.value.length;
+        if (total > maxOut) { try { reader.cancel(); } catch (_) {} throw new Error('展開サイズが上限を超えています'); }
+        chunks.push(r.value);
+    }
+    var out = new Uint8Array(total), pos = 0;
+    chunks.forEach(function(c){ out.set(c, pos); pos += c.length; });
+    return out;
+}
+
+function qcardEmbedPackCard(card) {
+    var tags = Array.isArray(card.tags) ? card.tags.map(String) : [];
+    var uriId = card.uri ? String(card.uri).replace(/^fig:\/\//, '') : '';
+    var a = [card.title || '', card.content || '', tags, card.source || '', card.sourceUrl || '', card.note || '', [], uriId, card.hidden ? 1 : 0];
+    while (a.length > 2) {                       // 末尾の空要素は削ってサイズを節約
+        var l = a[a.length - 1];
+        if (l === '' || l === 0 || (Array.isArray(l) && !l.length)) a.pop(); else break;
+    }
+    return a;
+}
+// 受信データは信頼しない：型・長さ・URLスキームを検証して正規化する
+function qcardEmbedUnpackCard(a) {
+    if (!Array.isArray(a) || a.length < 2 || a.length > 9) throw new Error('形式が正しくありません');
+    function str(v, max) { return (typeof v === 'string') ? v.slice(0, max) : ''; }
+    var tags = Array.isArray(a[2]) ? a[2].filter(function(t){ return typeof t === 'string'; }).slice(0, 50).map(function(t){ return t.slice(0, 100); }) : [];
+    var srcUrl = str(a[4], 2000);
+    if (srcUrl && !/^https?:\/\//i.test(srcUrl)) srcUrl = '';
+    var id = (typeof a[7] === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(a[7])) ? a[7] : '';
+    return {
+        title: str(a[0], 2000), content: str(a[1], 30000), tags: tags,
+        source: str(a[3], 2000), sourceUrl: srcUrl, note: str(a[5], 30000),
+        links: [], uri: id ? ('fig://' + id) : '', hidden: a[8] === 1,
+        mediaUrl: null, mediaUrlBack: null, audioUrl: null, audioSource: 'speech', audioUrls: {},
+        _embedded: true
+    };
+}
+
+// 共有対象カードの解決（qcardCreateCardShare と同じ優先順位）
+function qcardEmbedResolveCard() {
+    var item = qcardResolveShareCardItem();
+    var card = item ? getCardMeta(item) : null;
+    if (!card || !card.uri) {
+        var uri = window._qcardCardShareUri || null;
+        var sid = window._qcardCardShareScenarioId || activeScenarioId || null;
+        var sc = Array.isArray(scenarios) ? scenarios.find(function(s){ return s && s.id === sid; }) : null;
+        if (!sc && typeof getActive === 'function') sc = getActive();
+        if (sc && Array.isArray(sc.data) && uri) card = sc.data.find(function(c){ return c && c.uri === uri; }) || null;
+    }
+    return { card: card, item: item };
+}
+// 画像・音声（バイナリ）の有無。
+// mediaId 等の「参照」が残っていても、IndexedDB に実体が無ければ（削除済み・孤立参照）バイナリ無しとして扱う。
+// 実体の確認自体が失敗した場合だけ、安全側（サーバー方式）に倒す。
+async function qcardEmbedMediaExists(id) {
+    if (!id) return false;
+    if (typeof mediaDB === 'undefined') return true;
+    try { var r = await mediaDB.get(id); return !!(r && r.blob); } catch (_) { return true; }
+}
+async function qcardEmbedAudioExists(cid) {
+    if (!cid) return false;
+    try {
+        if (typeof uploadDB !== 'undefined') { var u = await uploadDB.get(cid); if (u && u.blob) return true; }
+        if (typeof itvDB !== 'undefined')    { var r = await itvDB.getByCardId(cid); if (r && r.length) return true; }
+        return false;
+    } catch (_) { return true; }
+}
+async function qcardEmbedHasBinary(card, item) {
+    var ds = (item && item.dataset) || {};
+    if (await qcardEmbedMediaExists(card.mediaId || ds.mediaId)) return true;
+    if (await qcardEmbedMediaExists(card.mediaIdBack || ds.mediaIdBack)) return true;
+    var cids = [card.itvId, ds.itvId];
+    try { if (item && typeof itvGetCardId === 'function') cids.push(itvGetCardId(item)); } catch (_) {}
+    for (var i = 0; i < cids.length; i++) { if (await qcardEmbedAudioExists(cids[i])) return true; }
+    return false;
+}
+// 戻り値: {ok:true,url,bytes} | {ok:false,reason:'scope'|'env'|'media'|'links'|'size'|'nocard'}
+async function qcardEmbedTryBuild() {
+    if (qcardGetShareScope() === 'scenario') return await qcardEmbedTryBuildScenario();
+    if (!/^https?:$/.test(location.protocol)) return { ok: false, reason: 'env' };
+    var t = qcardEmbedResolveCard(), card = t.card;
+    if (!card || !card.uri) return { ok: false, reason: 'nocard' };
+    if (Array.isArray(card.links) && card.links.length) return { ok: false, reason: 'links' };
+    if (await qcardEmbedHasBinary(card, t.item)) return { ok: false, reason: 'media' };
+
+    return await qcardEmbedFinish('q', qcardEmbedPackCard(card));
+}
+// kind: 'q' = カード1枚 / 's' = シナリオ全体
+async function qcardEmbedFinish(kind, arr, label) {
+    var raw = new TextEncoder().encode(JSON.stringify(arr));
+    var body = '0.' + qcardEmbedB64uEncode(raw);
+    if (typeof CompressionStream === 'function') {
+        try {
+            var c = '1.' + qcardEmbedB64uEncode(await qcardEmbedDeflate(raw));
+            if (c.length < body.length) body = c;   // 短い方を採用
+        } catch (_) {}
+    }
+    var url = qcardPublicOrigin() + '/#' + kind + '=' + body;
+    if (url.length > QCARD_EMBED_MAX_URL_BYTES) return { ok: false, reason: 'size', bytes: url.length };
+    return { ok: true, url: url, bytes: url.length, label: label || '' };
+}
+
+// ── シナリオ全体（文字のみ・小サイズ）──
+// JSON: [name, description, tags, cols, rows, [ [title, content, tags, source, sourceUrl, note, hidden], ... ]]
+// カードURIは載せない（受信側で新規発行）。空きカードは [] で位置を保持。
+function qcardEmbedPackCardLite(card) {
+    var a = [card.title || '', card.content || '', Array.isArray(card.tags) ? card.tags.map(String) : [],
+             card.source || '', card.sourceUrl || '', card.note || '', card.hidden ? 1 : 0];
+    while (a.length) {
+        var l = a[a.length - 1];
+        if (l === '' || l === 0 || (Array.isArray(l) && !l.length)) a.pop(); else break;
+    }
+    return a;
+}
+async function qcardEmbedTryBuildScenario() {
+    if (!/^https?:$/.test(location.protocol)) return { ok: false, reason: 'env' };
+    try { saveCurrentGridData(); } catch (_) {}
+    var sc = getActive();
+    if (!sc || !Array.isArray(sc.data)) return { ok: false, reason: 'nocard' };
+    if (await qcardEmbedMediaExists(sc.deckBackMediaId)) return { ok: false, reason: 'media' };
+    var cards = [], filled = 0;
+    for (var i = 0; i < sc.data.length; i++) {
+        var c = sc.data[i];
+        if (!c) { cards.push([]); continue; }
+        if (await qcardEmbedMediaExists(c.mediaId) || await qcardEmbedMediaExists(c.mediaIdBack) || await qcardEmbedAudioExists(c.itvId)) return { ok: false, reason: 'media' };
+        if (Array.isArray(c.links) && c.links.length) return { ok: false, reason: 'links' };
+        var lite = qcardEmbedPackCardLite(c);
+        if ((c.title || '').trim() || (c.content || '').trim()) filled++;
+        cards.push(lite);
+    }
+    while (cards.length && !cards[cards.length - 1].length) cards.pop();   // 末尾の空きカードは省略
+    if (!filled) return { ok: false, reason: 'nocard' };
+    var arr = [sc.name || sc.title || '', sc.description || '', Array.isArray(sc.tags) ? sc.tags.map(String) : [],
+               parseInt(sc.cols, 10) || 3, parseInt(sc.rows, 10) || 3, cards];
+    return await qcardEmbedFinish('s', arr, 'シナリオ（' + filled + '枚）');
+}
+function qcardEmbedUnpackScenario(a) {
+    if (!Array.isArray(a) || a.length < 6 || !Array.isArray(a[5]) || a[5].length > 200) throw new Error('形式が正しくありません');
+    function str(v, max) { return (typeof v === 'string') ? v.slice(0, max) : ''; }
+    var cards = a[5].map(function(x) {
+        if (!Array.isArray(x)) return {};
+        var u = qcardEmbedUnpackCard([x[0], x[1], x[2], x[3], x[4], x[5], null, '', x[6]]);
+        return { title: u.title, content: u.content, tags: u.tags, source: u.source, sourceUrl: u.sourceUrl, note: u.note, hidden: u.hidden };
+    });
+    var cols = Math.min(19, Math.max(1, parseInt(a[3], 10) || 3));
+    var rows = Math.min(19, Math.max(1, parseInt(a[4], 10) || 3));
+    rows = Math.min(19, Math.max(rows, Math.ceil(cards.length / cols)));
+    return {
+        _kind: 's', name: str(a[0], 200) || 'シナリオ', description: str(a[1], 5000),
+        tags: Array.isArray(a[2]) ? a[2].filter(function(t){ return typeof t === 'string'; }).slice(0, 50).map(function(t){ return t.slice(0, 100); }) : [],
+        cols: cols, rows: rows, cards: cards
+    };
+}
+// 受信：既存のシナリオ受信（importSharedScenario）と同様、新規シナリオとして追加する
+function qcardEmbedImportScenario(s) {
+    var base = s.name, names = scenarios.map(function(x){ return x.name; }), name = base;
+    if (names.indexOf(name) !== -1) { var n = 2; while (names.indexOf(base + ' (' + n + ')') !== -1) n++; name = base + ' (' + n + ')'; }
+    var sc = newScenarioMeta(name);
+    sc.title = name; sc.description = s.description; sc.tags = s.tags; sc.cols = s.cols; sc.rows = s.rows;
+    sc.data = s.cards.map(function(c) {
+        var card = newCardMeta(c.title || '', c.content || '');
+        card.tags = c.tags || []; card.source = c.source || ''; card.sourceUrl = c.sourceUrl || '';
+        card.note = c.note || ''; card.hidden = !!c.hidden; card.studyStatus = ''; card.studyCount = 0;
+        return card;
+    });
+    scenarios.push(sc);
+    activeScenarioId = sc.id;
+    saveScenarios();
+    renderScenarioTabs();
+    var ci = document.getElementById('colsInput'); if (ci) ci.value = getActiveCols();
+    var ri = document.getElementById('rowsInput'); if (ri) ri.value = getActiveRows ? getActiveRows() : sc.rows;
+    updateGrid();
+    showToast('✅ 「' + sc.name + '」を受け取りました（' + sc.data.length + '枠）');
+}
+
+// QRモーダルの表示モード（embed: 大きめ表示＋注記変更 / server: 既定に戻す）
+window.qcardQrApplyMode = function(mode) {
+    var box = document.getElementById('qcard-qr-code');
+    var note = document.querySelector('#qcard-qr-modal .qcard-qr-note');
+    if (note && note.dataset.defaultHtml == null) note.dataset.defaultHtml = note.innerHTML;
+    if (mode === 'embed') {
+        if (box) { box.style.width = 'min(80vw,360px)'; box.style.height = 'min(80vw,360px)'; }
+        if (note) note.innerHTML = 'このQRにはカードの内容が直接含まれています。<br>サーバーを経由せず、有効期限もありません。';
+    } else {
+        if (box) { box.style.width = ''; box.style.height = ''; }
+        if (note && note.dataset.defaultHtml != null) note.innerHTML = note.dataset.defaultHtml;
+    }
+};
+async function qcardShowEmbedQR(embed) {
+    await window.loadQRCode();
+    var box = document.getElementById('qcard-qr-code'), urlEl = document.getElementById('qcard-qr-url'), modal = document.getElementById('qcard-qr-modal');
+    if (!box || !modal) throw new Error('QR表示UIがありません');
+    window.qcardQrApplyMode('embed');
+    box.innerHTML = '';
+    new window.QRCode(box, { text: embed.url, width: 372, height: 372, colorDark: '#111111', colorLight: '#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
+    if (urlEl) urlEl.textContent = 'サーバー不使用 · ' + (embed.label || 'カード') + '内容をQRに直接格納（' + embed.bytes + 'バイト）';
+    closeCardShareMenu(); modal.classList.add('open'); modal.setAttribute('aria-hidden', 'false');
+}
+
+// ── 受信側 ──
+function qcardEmbedGetHashPayload(raw) {
+    var h = '';
+    if (raw == null) h = String(window.location.hash || '');
+    else { var s = String(raw), i = s.indexOf('#'); h = i >= 0 ? s.slice(i) : ''; }
+    var m = /^#([qs])=([01])\.([A-Za-z0-9_-]+)$/.exec(h);
+    return m ? { kind: m[1], mode: m[2], body: m[3] } : null;
+}
+function qcardEmbedClearHash() {
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+}
+async function qcardEmbedDecode(p) {
+    if (p.body.length > QCARD_EMBED_MAX_BODY_CHARS) throw new Error('データが大きすぎます');
+    var bytes = qcardEmbedB64uDecode(p.body);
+    if (p.mode === '1') {
+        if (typeof DecompressionStream !== 'function') throw new Error('このブラウザは圧縮データの展開に未対応です');
+        bytes = await qcardEmbedInflate(bytes, QCARD_EMBED_MAX_DECODED);
+    } else if (bytes.length > QCARD_EMBED_MAX_DECODED) throw new Error('データが大きすぎます');
+    var json = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    var data = JSON.parse(json);
+    return p.kind === 's' ? qcardEmbedUnpackScenario(data) : qcardEmbedUnpackCard(data);
+}
+// 埋め込みURLなら true（成功・失敗を問わず処理済み）、そうでなければ false
+window.qcardOpenEmbeddedShare = async function(raw) {
+    var p = qcardEmbedGetHashPayload(raw);
+    if (!p) return false;
+    try {
+        var obj = await qcardEmbedDecode(p);
+        if (obj._kind === 's') qcardEmbedImportScenario(obj);
+        else window.openCardReceivePreview({ card_json: obj, expires_at: null });
+    } catch (e) {
+        console.warn('[Embedded Share] decode failed', e);
+        showToast('QR内のカードデータを読み取れませんでした' + (e && e.message ? '（' + e.message + '）' : ''));
+    }
+    return true;
+};
+window.addEventListener('hashchange', function() {
+    if (qcardEmbedGetHashPayload(null)) window.qcardOpenEmbeddedShare(window.location.href).then(qcardEmbedClearHash);
+});
+
 window.createCardShareQR = async function() {
+    // [NEW] 文字のみ・小サイズならサーバーを使わずQRへ直接埋め込む。失敗時は従来のサーバー方式へ。
+    try {
+        var embed = await qcardEmbedTryBuild();
+        if (embed && embed.ok) { await qcardShowEmbedQR(embed); return; }
+        if (embed && embed.reason === 'size') showToast('テキスト量が多いため、サーバー経由のQRを作成します');
+    } catch (e) { console.warn('[Card QR Embed] サーバー方式へフォールバック:', e); }
     try {
         var result = window._qcardLastCardShareUrl ? {friendlyUrl:window._qcardLastCardShareUrl} : await qcardCreateCardShare();
         await window.loadQRCode();
         var box=document.getElementById('qcard-qr-code'), urlEl=document.getElementById('qcard-qr-url'), modal=document.getElementById('qcard-qr-modal');
         if(!box||!modal) throw new Error('QR表示UIがありません');
-        box.innerHTML=''; new window.QRCode(box,{text:result.friendlyUrl,width:240,height:240,colorDark:'#111111',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
+        if(window.qcardQrApplyMode) window.qcardQrApplyMode('server'); box.innerHTML=''; new window.QRCode(box,{text:result.friendlyUrl,width:240,height:240,colorDark:'#111111',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M});
         if(urlEl) urlEl.textContent=result.friendlyUrl;
         closeCardShareMenu(); modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
     } catch(e){ console.error('[Card QR Share]',e); showToast('QRコードの生成に失敗しました: '+(e.message||e)); }
@@ -8715,6 +9014,10 @@ async function importSharedCard(uri) {
  * URL/QR受信：shared_cards を先に確認し、無ければ従来の shared_scenarios へ。
  */
 async function importShareByUrl(raw) {
+    // [NEW] QR直接埋め込み形式（#q=...）はサーバーを使わずローカルで復号する
+    if (typeof window.qcardOpenEmbeddedShare === 'function' && qcardEmbedGetHashPayload(raw)) {
+        closeDataModal(); await window.qcardOpenEmbeddedShare(raw); return;
+    }
     var uri=await resolveShareUri(raw);
     if(!uri){showToast('URLの形式が正しくありません');return;}
     var cardData=await fetchSharedCard(uri);
@@ -8945,7 +9248,7 @@ window.shareCurrentScenario = async function(silent) {
         return;
     }
 
-    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(shareUlid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(shareUlid);
     console.log('[Scenario Share] shared URI:', shareUri);
     console.log('[Scenario Share] expires:', expiresAt);
 
@@ -10173,7 +10476,8 @@ function toggleTheme() {
     // 共有URLからの訪問では、カード体験を優先して初回チュートリアルを抑制する。
     var tutorialDone = localStorage.getItem('kp_tutorial_done');
     var incomingShareId = qcardGetIncomingShareId();
-    if (!tutorialDone && !incomingShareId) { showTutorial(); }
+    var incomingEmbed = !!qcardEmbedGetHashPayload(null);
+    if (!tutorialDone && !incomingShareId && !incomingEmbed) { showTutorial(); }
 
     // モバイル表示モードの初期適用と、共有URLの自動読み込み
     window.addEventListener('load', function() {
@@ -10181,6 +10485,9 @@ function toggleTheme() {
         if (btn) mobSetView(mobView);
         if (incomingShareId && typeof window.qcardOpenIncomingShare === 'function') {
             window.qcardOpenIncomingShare();
+        }
+        if (incomingEmbed && typeof window.qcardOpenEmbeddedShare === 'function') {
+            window.qcardOpenEmbeddedShare(window.location.href).then(qcardEmbedClearHash);
         }
     });
 })();
@@ -18659,6 +18966,26 @@ function mobRenderScenarioSheetList() {
         nameLabel.className = 'mss-row-name-label';
         nameLabel.textContent = displayScenarioName(s, idx);
 
+        // [NEW] 名前編集は、現在表示中（選択中）の行の ✎ ボタンからのみ行う。
+        // 行（名前部分を含む）のタップはすべて「シナリオ切替」に統一し、編集操作との競合をなくす。
+        // pointerdown を行へ伝えないので、行側の長押し並べ替え・スワイプ判定とも干渉しない。
+        var editBtn = null;
+        if (s.id === activeScenarioId) {
+            editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'mss-row-edit';
+            editBtn.textContent = '✎';
+            editBtn.title = '名前を変更';
+            editBtn.setAttribute('aria-label', '名前を変更');
+            ['pointerdown', 'mousedown', 'touchstart'].forEach(function(evt) {
+                editBtn.addEventListener(evt, function(e) { e.stopPropagation(); });
+            });
+            editBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (!row.classList.contains('open')) swapToInput();
+            });
+        }
+
         function swapToInput() {
             var input = document.createElement('input');
             input.type = 'text';
@@ -18679,6 +19006,7 @@ function mobRenderScenarioSheetList() {
                 renderScenarioTabs(); // PCタブ／トリガー表示／このシート自体を含め全UIを即時同期（labelに戻る）
                 triggerSave(saveScenarios);
             });
+            if (editBtn && editBtn.parentNode === row) row.removeChild(editBtn);
             row.replaceChild(input, nameLabel);
             input.focus();
             input.select(); // シングルタップ後そのまま打ち直せるよう全選択
@@ -18690,6 +19018,7 @@ function mobRenderScenarioSheetList() {
 
         row.appendChild(grip);
         row.appendChild(nameLabel);
+        if (editBtn) row.appendChild(editBtn);
         row.appendChild(count);
 
         wrap.dataset.sid = s.id;
@@ -18812,7 +19141,6 @@ function mobRenderScenarioSheetList() {
         row.addEventListener('click', function(e) {
             // スワイプ操作・並べ替え操作の直後の誤タップ切替を防止
             if (row.classList.contains('open') || phase !== 'idle') return;
-            if (e.target === nameLabel) { swapToInput(); return; }
             switchScenario(s.id);
             mobCloseScenarioSheet();
         });
@@ -20484,10 +20812,13 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
     window.closeQRShare = function(){
         var modal = document.getElementById('qcard-qr-modal');
         if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+        if (window.qcardQrApplyMode) window.qcardQrApplyMode('server');
     };
 
     function isShareUrl(text){
-        return /^https:\/\/qcard\.app\/share\/[A-Za-z0-9_-]+(?:[?#].*)?$/.test(String(text || '').trim());
+        var t = String(text || '').trim();
+        return /^https:\/\/qcard\.app\/share\/[A-Za-z0-9_-]+(?:[?#].*)?$/.test(t) ||
+               /^https:\/\/qcard\.app\/#[qs]=[01]\.[A-Za-z0-9_-]+$/.test(t);
     }
 
     async function startQRScanner(){
