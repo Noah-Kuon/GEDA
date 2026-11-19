@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  Qcard PRO  v3.10.1  QR-eco                                  ║
+  ║  Qcard PRO  v3.10.1   QR-ECO　+ 　シナリオ切替                 ║
   ║  © 2025 Qcard Project. All rights reserved.                  ║
   ║  無断複製・改変・再配布を禁じます。                             ║
   ║  Unauthorized copying, modification or redistribution        ║
@@ -3168,8 +3168,16 @@
             flex: 1; min-width: 0;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
             padding: 4px 2px;
-            cursor: text;
+            cursor: pointer;
         }
+        .mss-row-edit {
+            flex-shrink: 0;
+            min-width: 40px; height: 36px; margin: -6px -4px -6px 0;
+            border: none; border-radius: 4px; background: transparent;
+            color: var(--accent); font-size: 1rem; line-height: 1;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+        .mss-row-edit:active { background: rgba(91,155,242,0.15); }
         .mss-row-name-input {
             flex: 1; min-width: 0;
             overflow: hidden; text-overflow: ellipsis;
@@ -8213,7 +8221,7 @@ async function shareCard(card, cardItem) {
         return null;
     }
 
-    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(ulid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(ulid);
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
 }
 
@@ -8502,6 +8510,15 @@ window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl;
 //   JSON: [title, content, tags, source, sourceUrl, note, (予約:links), uriId, hidden]
 // 条件を満たさない場合は、従来のサーバー共有（Supabase）へ自動フォールバック。
 // ═══════════════════════════════════════════════════════════════
+// 共有URL・QRに載せる公開オリジン。
+// *.vercel.app（プレビュー/デプロイ固有URL）は Vercel の Deployment Protection で
+// ログインを要求されることがあるため、受信者が開けるよう公開ドメインへ置き換える。
+// localhost や独自ドメインで動作中の場合は、そのオリジンをそのまま使う。
+var QCARD_PUBLIC_ORIGIN = 'https://qcard.app';
+function qcardPublicOrigin() {
+    var h = String(window.location.hostname || '');
+    return /\.vercel\.app$/i.test(h) ? QCARD_PUBLIC_ORIGIN : window.location.origin;
+}
 var QCARD_EMBED_MAX_URL_BYTES   = 600;        // QR化するURL全体の上限（QR Version 19 / 誤り訂正M 以内）
 var QCARD_EMBED_MAX_BODY_CHARS  = 4000;       // 受信側：base64url本文の上限
 var QCARD_EMBED_MAX_DECODED     = 32 * 1024;  // 受信側：展開後の上限（展開爆弾対策）
@@ -8627,7 +8644,7 @@ async function qcardEmbedFinish(kind, arr, label) {
             if (c.length < body.length) body = c;   // 短い方を採用
         } catch (_) {}
     }
-    var url = location.origin + '/#' + kind + '=' + body;
+    var url = qcardPublicOrigin() + '/#' + kind + '=' + body;
     if (url.length > QCARD_EMBED_MAX_URL_BYTES) return { ok: false, reason: 'size', bytes: url.length };
     return { ok: true, url: url, bytes: url.length, label: label || '' };
 }
@@ -9231,7 +9248,7 @@ window.shareCurrentScenario = async function(silent) {
         return;
     }
 
-    var friendlyUrl = window.location.origin + '/share/' + encodeURIComponent(shareUlid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(shareUlid);
     console.log('[Scenario Share] shared URI:', shareUri);
     console.log('[Scenario Share] expires:', expiresAt);
 
@@ -18949,6 +18966,26 @@ function mobRenderScenarioSheetList() {
         nameLabel.className = 'mss-row-name-label';
         nameLabel.textContent = displayScenarioName(s, idx);
 
+        // [NEW] 名前編集は、現在表示中（選択中）の行の ✎ ボタンからのみ行う。
+        // 行（名前部分を含む）のタップはすべて「シナリオ切替」に統一し、編集操作との競合をなくす。
+        // pointerdown を行へ伝えないので、行側の長押し並べ替え・スワイプ判定とも干渉しない。
+        var editBtn = null;
+        if (s.id === activeScenarioId) {
+            editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'mss-row-edit';
+            editBtn.textContent = '✎';
+            editBtn.title = '名前を変更';
+            editBtn.setAttribute('aria-label', '名前を変更');
+            ['pointerdown', 'mousedown', 'touchstart'].forEach(function(evt) {
+                editBtn.addEventListener(evt, function(e) { e.stopPropagation(); });
+            });
+            editBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (!row.classList.contains('open')) swapToInput();
+            });
+        }
+
         function swapToInput() {
             var input = document.createElement('input');
             input.type = 'text';
@@ -18969,6 +19006,7 @@ function mobRenderScenarioSheetList() {
                 renderScenarioTabs(); // PCタブ／トリガー表示／このシート自体を含め全UIを即時同期（labelに戻る）
                 triggerSave(saveScenarios);
             });
+            if (editBtn && editBtn.parentNode === row) row.removeChild(editBtn);
             row.replaceChild(input, nameLabel);
             input.focus();
             input.select(); // シングルタップ後そのまま打ち直せるよう全選択
@@ -18980,6 +19018,7 @@ function mobRenderScenarioSheetList() {
 
         row.appendChild(grip);
         row.appendChild(nameLabel);
+        if (editBtn) row.appendChild(editBtn);
         row.appendChild(count);
 
         wrap.dataset.sid = s.id;
@@ -19102,7 +19141,6 @@ function mobRenderScenarioSheetList() {
         row.addEventListener('click', function(e) {
             // スワイプ操作・並べ替え操作の直後の誤タップ切替を防止
             if (row.classList.contains('open') || phase !== 'idle') return;
-            if (e.target === nameLabel) { swapToInput(); return; }
             switchScenario(s.id);
             mobCloseScenarioSheet();
         });
