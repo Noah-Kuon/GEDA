@@ -5677,7 +5677,7 @@ min-height: 0;
             <hr class="dm-divider">
             <div class="dm-section-label">シナリオを受け取る</div>
             <input class="dm-url-input" id="dm-share-url-input"
-                   placeholder="https://qcard.app/share/…"
+                   placeholder="https://…/share/…"
                    autocomplete="off" spellcheck="false">
             <div class="dm-action-row">
                 <button class="dm-action" onclick="dmImportScenarioFromUrl()">
@@ -8589,7 +8589,8 @@ window.copyCardShareUrl = async function(){ var u=window._qcardLastCardShareUrl;
 // *.vercel.app（プレビュー/デプロイ固有URL）は Vercel の Deployment Protection で
 // ログインを要求されることがあるため、受信者が開けるよう公開ドメインへ置き換える。
 // localhost や独自ドメインで動作中の場合は、そのオリジンをそのまま使う。
-var QCARD_PUBLIC_ORIGIN = 'https://qcard.app';
+// 本番の公開オリジン。独自ドメインへ移行したら、この1行だけ差し替えればよい。
+var QCARD_PUBLIC_ORIGIN = 'https://qcard-pro.vercel.app';
 function qcardPublicOrigin() {
     var h = String(window.location.hostname || '');
     return /\.vercel\.app$/i.test(h) ? QCARD_PUBLIC_ORIGIN : window.location.origin;
@@ -20947,8 +20948,14 @@ QCARD_SCHEMA.exportRowToCard = function(row) {
 
     function isShareUrl(text){
         var t = String(text || '').trim();
-        return /^https:\/\/qcard\.app\/share\/[A-Za-z0-9_-]+(?:[?#].*)?$/.test(t) ||
-               /^https:\/\/qcard\.app\/#[qs]=[01]\.[A-Za-z0-9_-]+$/.test(t);
+        // 共有元として認めるホスト：現在開いているサイト・本番の公開オリジン・旧 qcard.app
+        var hm = /^https:\/\/([^\/?#]+)(\/.*)$/.exec(t);
+        if (!hm) return false;
+        var host = hm[1].toLowerCase(), rest = hm[2], pubHost = '';
+        try { pubHost = new URL(QCARD_PUBLIC_ORIGIN).host.toLowerCase(); } catch (_) {}
+        if (host !== String(window.location.host).toLowerCase() && host !== pubHost && host !== 'qcard.app') return false;
+        return /^\/share\/[A-Za-z0-9_-]+(?:[?#].*)?$/.test(rest) ||
+               /^\/#[qs]=[01]\.[A-Za-z0-9_-]+$/.test(rest);
     }
 
     async function startQRScanner(){
