@@ -5846,7 +5846,7 @@ min-height: 0;
     <div class="qcard-qr-body">
       <div id="qcard-qr-code" aria-label="共有URLのQRコード"></div>
       <div id="qcard-qr-url" class="qcard-qr-url"></div>
-      <div class="qcard-qr-note">スマートフォンの標準カメラで読み取れます。<br>共有URLは発行から24時間有効です。</div>
+      <div class="qcard-qr-note">スマートフォンの標準カメラで読み取れます。<br>共有URLは発行から24時間有効です。<br>内容は暗号化され、復号キーはURLの中にだけ含まれます。</div>
     </div>
   </div>
 </div>
@@ -7968,7 +7968,7 @@ function getSB() {
  * Supabase Storage（qcard-media バケット）にアップロードする。
  * 成功したら公開URLを返す。
  */
-async function uploadMediaToStorage(cardId, ulid) {
+async function uploadMediaToStorage(cardId, ulid, encKey) {
     if (!cardId || typeof mediaDB === 'undefined') return null;
     try {
         var record = await mediaDB.get(cardId);
@@ -7980,7 +7980,7 @@ async function uploadMediaToStorage(cardId, ulid) {
         if (ext === 'jpeg') ext = 'jpg';
         var path = ulid + '.' + ext;
         console.log('[Media] uploading to path:', path);
-        var res  = await sb.storage.from('qcard-media').upload(path, record.blob, {
+        var res  = await sb.storage.from('qcard-media').upload(path, await qcardShareWrapBlob(record.blob, encKey), {
             contentType: record.mimeType || 'image/jpeg',
             upsert: true
         });
@@ -8063,6 +8063,67 @@ async function uploadAudioToStorage(cardId, ulid) {
 
 // ── Phase A + B + C: 統合共有関数 ──────────────────────────────
 
+// ═══════════════════════════════════════════════════════════════
+// Secure Share（サーバー共有のエンドツーエンド暗号化）
+// - 送信側で AES-GCM-256 により card_json / scenario_json / 画像・音声Blob を暗号化してから送る
+// - 復号キー（32byte乱数）は URL の # 以降（#k=...）にだけ載せる。# 以降はサーバーへ送信されない
+// - サーバー（Supabase）が保持するのは暗号文・URI・有効期限・アクセス数のみ
+// - 暗号化されていない従来の共有（encrypted フラグなし）は、これまでどおり受信できる
+// 暗号処理本体は Stage 21.5 の window.qcardSecureShare を使用
+// ═══════════════════════════════════════════════════════════════
+function qcardShareCryptoAvailable() {
+    return !!(window.crypto && window.crypto.subtle && window.qcardSecureShare);
+}
+function qcardShareNewKey() { return window.qcardSecureShare.generateKey(); }   // {cryptoKey, keyBase64Url}
+// Envelope（サイズ情報は載せない）
+async function qcardShareSeal(type, obj, key) {
+    var env = await window.qcardSecureShare.encrypt(type, obj, key.cryptoKey);
+    return { version: env.version, type: env.type, alg: env.alg, encrypted: true, iv: env.iv, ciphertext: env.ciphertext };
+}
+// Blob → [IV 12byte | 暗号文]（Content-Type は元のまま：Storage のMIME制限に影響しない）
+async function qcardShareWrapBlob(blob, key) {
+    if (!key || !blob) return blob;
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key.cryptoKey, await blob.arrayBuffer());
+    return new Blob([iv, new Uint8Array(ct)], { type: blob.type || 'application/octet-stream' });
+}
+async function getMediaMime(mediaId) {
+    try { var r = await mediaDB.get(mediaId); return (r && r.mimeType) || 'image/jpeg'; } catch (e) { return 'image/jpeg'; }
+}
+// 受信側：URL の #k=... から復号キー（Base64URL 43文字）を取り出す
+function qcardShareKeyFromUrl(raw) {
+    var s = String(raw || '').trim(), i = s.indexOf('#');
+    if (i < 0) return null;
+    var m = /^#(?:.*&)?k=([A-Za-z0-9_-]{43})(?:&.*)?$/.exec(s.slice(i));
+    return m ? m[1] : null;
+}
+// 暗号化されていなければそのまま返す（従来の共有）。復号できなければ null（トースト表示済み）。
+async function qcardShareOpen(json, raw) {
+    if (!json || json.encrypted !== true) return json;
+    var k = qcardShareKeyFromUrl(raw);
+    if (!k) { showToast('このリンクには復号キーが含まれていません。共有されたURLを（#以降も含めて）そのまま開いてください'); return null; }
+    try {
+        var key = await window.qcardSecureShare.importKeyFromUrl(k);
+        var plain = await window.qcardSecureShare.decrypt(json, key);
+        if (!plain || typeof plain !== 'object') throw new Error('invalid');
+        Object.defineProperty(plain, '_enc', { value: { key: key }, enumerable: false });   // 複製・保存に混入させない
+        return plain;
+    } catch (e) {
+        console.warn('[Secure Share] decrypt failed');
+        showToast('共有データを復号できませんでした。URLが途中で切れていないか確認してください');
+        return null;
+    }
+}
+async function qcardDownloadShareBlob(url, encCtx, mime) {
+    if (!encCtx) return qcardDownloadBlob(url);
+    if (!url) return null;
+    var res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('メディア取得に失敗しました（HTTP ' + res.status + '）');
+    var bytes = new Uint8Array(await res.arrayBuffer());
+    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, encCtx.key, bytes.slice(12));
+    return new Blob([plain], { type: mime || 'application/octet-stream' });
+}
+
 // 有効期限: 24時間（秒）
 var SHARE_TTL_SEC = 60 * 60 * 24;
 
@@ -8081,6 +8142,11 @@ async function shareCard(card, cardItem) {
     var ulid = card.uri.replace('fig://', '');
     var sb   = getSB();
 
+    // [NEW] E2EE：共有ごとに使い捨ての鍵を生成。鍵はURLの # 以降にのみ載せる。
+    if (!qcardShareCryptoAvailable()) { showToast('このブラウザは暗号化に未対応のため、サーバー共有を利用できません'); return null; }
+    var encKey = await qcardShareNewKey();
+    var mediaMime = null, mediaMimeBack = null, audioMimes = { recorded: null, uploaded: null };
+
     // 毎回リセット（再アップロードして新しい署名付きURLを発行）
     card.mediaUrl = null;
     card.audioUrl = null;
@@ -8092,7 +8158,8 @@ async function shareCard(card, cardItem) {
         var cid = cardItem.dataset.mediaId || null;
         if (cid) {
             showToast('画像をアップロード中...');
-            var mediaPath = await uploadMediaToStorage(cid, ulid);
+            var mediaPath = await uploadMediaToStorage(cid, ulid, encKey);
+            mediaMime = mediaPath ? await getMediaMime(cid) : null;
             if (mediaPath) {
                 // 署名付きURL（24時間有効）を発行
                 var signedMedia = await sb.storage
@@ -8115,7 +8182,8 @@ async function shareCard(card, cardItem) {
         }
         if (cidBack) {
             var ulidBack = ulid + '_back'; // 表と同じULID配下だと上書きし合うため専用サフィックスにする
-            var mediaPathBack = await uploadMediaToStorage(cidBack, ulidBack);
+            var mediaPathBack = await uploadMediaToStorage(cidBack, ulidBack, encKey);
+            mediaMimeBack = mediaPathBack ? await getMediaMime(cidBack) : null;
             if (mediaPathBack) {
                 var signedMediaBack = await sb.storage
                     .from('qcard-media')
@@ -8142,10 +8210,11 @@ async function shareCard(card, cardItem) {
                     if (upRec2 && upRec2.blob) {
                         var upExt2 = await getUploadExt(cid2);
                         var upPath2 = ulid + '_upload' + upExt2;
-                        var upRes2 = await sb.storage.from('qcard-audio').upload(upPath2, upRec2.blob, {
+                        var upRes2 = await sb.storage.from('qcard-audio').upload(upPath2, await qcardShareWrapBlob(upRec2.blob, encKey), {
                             contentType: upRec2.mimeType || 'audio/mpeg', upsert: true
                         });
                         if (!upRes2.error) {
+                            audioMimes.uploaded = upRec2.mimeType || 'audio/mpeg';
                             var upSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(upPath2, SHARE_TTL_SEC);
                             audioUrls.uploaded = (upSigned2.data && upSigned2.data.signedUrl) ? upSigned2.data.signedUrl : null;
                         }
@@ -8156,10 +8225,11 @@ async function shareCard(card, cardItem) {
                     if (recs2 && recs2.length) {
                         var rec2 = recs2.slice().sort(function(a,b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); })[0];
                         var recPath2 = ulid + '_rec.webm';
-                        var recRes2 = await sb.storage.from('qcard-audio').upload(recPath2, rec2.blob, {
+                        var recRes2 = await sb.storage.from('qcard-audio').upload(recPath2, await qcardShareWrapBlob(rec2.blob, encKey), {
                             contentType: rec2.mimeType || 'audio/webm', upsert: true
                         });
                         if (!recRes2.error) {
+                            audioMimes.recorded = rec2.mimeType || 'audio/webm';
                             var recSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(recPath2, SHARE_TTL_SEC);
                             audioUrls.recorded = (recSigned2.data && recSigned2.data.signedUrl) ? recSigned2.data.signedUrl : null;
                         }
@@ -8183,9 +8253,7 @@ async function shareCard(card, cardItem) {
 
     // shared_cards に upsert（毎回上書き）
     // card_json は JSONB型のためオブジェクトのまま送る（JSON.stringify不要）
-    var row = {
-        uri:        card.uri,
-        card_json:  {
+    var plainCardJson = {
             id:          card.id,
             uri:         card.uri,
             title:       card.title       || '',
@@ -8207,8 +8275,15 @@ async function shareCard(card, cardItem) {
             mediaUrlBack: card.mediaUrlBack || null,
             audioUrl:    audioUrl,
             audioSource: audioSource,
-            audioUrls:   audioUrls
-        },
+            audioUrls:   audioUrls,
+            mediaMime:   mediaMime,
+            mediaMimeBack: mediaMimeBack,
+            audioMimes:  audioMimes
+    };
+    // card_json は暗号文のみを保存（media_url / audio_url は暗号化済みファイルへの署名付きURLで、中身は読めない）
+    var row = {
+        uri:        card.uri,
+        card_json:  await qcardShareSeal('card', plainCardJson, encKey),
         media_url:   mediaUrl,
         audio_url:   audioUrl,
         expires_at:  expiresAt,
@@ -8221,7 +8296,7 @@ async function shareCard(card, cardItem) {
         return null;
     }
 
-    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(ulid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(ulid) + '#k=' + encKey.keyBase64Url;
     return { friendlyUrl: friendlyUrl, ulid: ulid, mediaUrl: mediaUrl, audioUrl: audioUrl, expiresAt: expiresAt };
 }
 
@@ -8838,12 +8913,13 @@ function qcardGetSharedAudioUrls(card) {
     return {recorded:a.recorded||null, uploaded:a.uploaded||null};
 }
 
-async function qcardRestoreSharedCardMedia(sharedCard, localAudioCardId) {
+async function qcardRestoreSharedCardMedia(sharedCard, localAudioCardId, encCtx) {
     var result={mediaId:null,mediaIdBack:null,itvId:null,audioSource:'speech',audioUrls:{recorded:null,uploaded:null},completed:true,errors:[]};
     localAudioCardId = localAudioCardId || ('card_'+crypto.randomUUID());
-    try { if(sharedCard.mediaUrl) result.mediaId=await qcardSaveReceivedImage(await qcardDownloadBlob(sharedCard.mediaUrl)); }
+    encCtx = encCtx || sharedCard._enc || null;   // 暗号化共有のときだけ復号して取得
+    try { if(sharedCard.mediaUrl) result.mediaId=await qcardSaveReceivedImage(await qcardDownloadShareBlob(sharedCard.mediaUrl, encCtx, sharedCard.mediaMime)); }
     catch(e){result.errors.push('表画像');console.warn('[Card Receive] front image',e);}
-    try { if(sharedCard.mediaUrlBack) result.mediaIdBack=await qcardSaveReceivedImage(await qcardDownloadBlob(sharedCard.mediaUrlBack)); }
+    try { if(sharedCard.mediaUrlBack) result.mediaIdBack=await qcardSaveReceivedImage(await qcardDownloadShareBlob(sharedCard.mediaUrlBack, encCtx, sharedCard.mediaMimeBack)); }
     catch(e){result.errors.push('裏画像');console.warn('[Card Receive] back image',e);}
     var urls=qcardGetSharedAudioUrls(sharedCard);
     // 共有元が現在使用していた音声を優先しつつ、もう一方も利用可能なら保存する。
@@ -8851,7 +8927,7 @@ async function qcardRestoreSharedCardMedia(sharedCard, localAudioCardId) {
     for(var key of ['recorded','uploaded']) {
         if(!urls[key]) continue;
         try {
-            var blob=await qcardDownloadBlob(urls[key]);
+            var blob=await qcardDownloadShareBlob(urls[key], encCtx, (sharedCard.audioMimes||{})[key]);
             var id=await qcardSaveReceivedAudio(blob,key,localAudioCardId,'shared_'+key+'_'+Date.now()+'.'+qcardMimeExt(blob.type,key==='recorded'?'webm':'mp3'));
             if(id) result.audioUrls[key]=id;
             if(key===source) result.itvId=id;
@@ -9023,10 +9099,15 @@ async function importShareByUrl(raw) {
     var cardData=await fetchSharedCard(uri);
     if(cardData&&cardData.card_json){
         if(cardData.expires_at&&new Date(cardData.expires_at)<new Date()){showToast('この共有URLは期限切れです');return;}
+        // [NEW] 暗号化共有は、URLの #k=... のキーでここで復号する（従来の平文共有はそのまま）
+        var plainCard=await qcardShareOpen(cardData.card_json, raw);
+        if(!plainCard){closeDataModal();return;}
+        cardData.card_json=plainCard;
+        if(qcardShareKeyFromUrl(raw) && String(raw)===String(window.location.href)) qcardEmbedClearHash();
         closeDataModal(); window.openCardReceivePreview(cardData); return;
     }
     // カードでなければ既存シナリオ共有の受信へ。
-    closeDataModal(); await importSharedScenario(uri);
+    closeDataModal(); await importSharedScenario(uri, raw);
 }
 
 /**
@@ -9080,6 +9161,9 @@ window.shareCurrentScenario = async function(silent) {
     console.log('[Scenario Share] card count:', cards.length);
 
     var sb = getSB();
+    // [NEW] E2EE：共有ごとに使い捨ての鍵を生成。鍵はURLの # 以降にのみ載せる。
+    if (!qcardShareCryptoAvailable()) { showToast('このブラウザは暗号化に未対応のため、サーバー共有を利用できません'); return; }
+    var encKey = await qcardShareNewKey();
     // シナリオ共有URI（カードURIとは別物）
     var shareUlid = window.generateULID();
     var shareUri  = 'fig://' + shareUlid;
@@ -9100,7 +9184,7 @@ window.shareCurrentScenario = async function(silent) {
             if (deckBackRecord && deckBackRecord.blob) {
                 var deckBackExt = await getMediaExt(deckBackMediaId);
                 var deckBackPath = shareUlid + '_deckback' + deckBackExt;
-                var deckBackRes = await sb.storage.from('qcard-media').upload(deckBackPath, deckBackRecord.blob, {
+                var deckBackRes = await sb.storage.from('qcard-media').upload(deckBackPath, await qcardShareWrapBlob(deckBackRecord.blob, encKey), {
                     contentType: deckBackRecord.mimeType || 'image/jpeg',
                     upsert: true
                 });
@@ -9108,7 +9192,7 @@ window.shareCurrentScenario = async function(silent) {
                     var deckBackSigned = await sb.storage.from('qcard-media').createSignedUrl(deckBackPath, SHARE_TTL_SEC);
                     shareData.deckBackMediaUrl = (deckBackSigned.data && deckBackSigned.data.signedUrl)
                         ? deckBackSigned.data.signedUrl : null;
-                    if (shareData.deckBackMediaUrl) mediaCount++;
+                    if (shareData.deckBackMediaUrl) { mediaCount++; shareData.deckBackMime = deckBackRecord.mimeType || 'image/jpeg'; }
                 }
             }
         } catch(e) { console.warn('[Scenario Share] deck back media upload error', e); }
@@ -9132,14 +9216,14 @@ window.shareCurrentScenario = async function(silent) {
                 if (mediaRecord && mediaRecord.blob) {
                     var mExt  = await getMediaExt(mediaId);
                     var mPath = cardUlid + mExt;
-                    var mRes  = await sb.storage.from('qcard-media').upload(mPath, mediaRecord.blob, {
+                    var mRes  = await sb.storage.from('qcard-media').upload(mPath, await qcardShareWrapBlob(mediaRecord.blob, encKey), {
                         contentType: mediaRecord.mimeType || 'image/jpeg',
                         upsert: true
                     });
                     if (!mRes.error) {
                         var mSigned = await sb.storage.from('qcard-media').createSignedUrl(mPath, SHARE_TTL_SEC);
                         card.mediaUrl = (mSigned.data && mSigned.data.signedUrl) ? mSigned.data.signedUrl : null;
-                        if (card.mediaUrl) mediaCount++;
+                        if (card.mediaUrl) { mediaCount++; card.mediaMime = mediaRecord.mimeType || 'image/jpeg'; }
                     }
                 }
             } catch(e) { console.warn('[Scenario Share] media upload error card', i, e); }
@@ -9154,14 +9238,14 @@ window.shareCurrentScenario = async function(silent) {
                 if (mediaRecordBack && mediaRecordBack.blob) {
                     var mExtBack  = await getMediaExt(mediaIdBack);
                     var mPathBack = cardUlid + '_back' + mExtBack;
-                    var mResBack  = await sb.storage.from('qcard-media').upload(mPathBack, mediaRecordBack.blob, {
+                    var mResBack  = await sb.storage.from('qcard-media').upload(mPathBack, await qcardShareWrapBlob(mediaRecordBack.blob, encKey), {
                         contentType: mediaRecordBack.mimeType || 'image/jpeg',
                         upsert: true
                     });
                     if (!mResBack.error) {
                         var mSignedBack = await sb.storage.from('qcard-media').createSignedUrl(mPathBack, SHARE_TTL_SEC);
                         card.mediaUrlBack = (mSignedBack.data && mSignedBack.data.signedUrl) ? mSignedBack.data.signedUrl : null;
-                        if (card.mediaUrlBack) mediaCount++;
+                        if (card.mediaUrlBack) { mediaCount++; card.mediaMimeBack = mediaRecordBack.mimeType || 'image/jpeg'; }
                     }
                 }
             } catch(e) { console.warn('[Scenario Share] back media upload error card', i, e); }
@@ -9174,6 +9258,7 @@ window.shareCurrentScenario = async function(silent) {
         var itvId    = card.itvId    || null;
         var audioSrc = card.audioSource || 'speech';
         var audioUrls = { recorded: null, uploaded: null };
+        var audioMimes = { recorded: null, uploaded: null };
 
         if (itvId) {
             try {
@@ -9183,13 +9268,14 @@ window.shareCurrentScenario = async function(silent) {
                     if (upRec && upRec.blob) {
                         var aExt  = await getUploadExt(itvId);
                         var aPath = cardUlid + '_upload' + aExt;
-                        var aRes  = await sb.storage.from('qcard-audio').upload(aPath, upRec.blob, {
+                        var aRes  = await sb.storage.from('qcard-audio').upload(aPath, await qcardShareWrapBlob(upRec.blob, encKey), {
                             contentType: upRec.mimeType || 'audio/mpeg',
                             upsert: true
                         });
                         if (!aRes.error) {
                             var aSigned = await sb.storage.from('qcard-audio').createSignedUrl(aPath, SHARE_TTL_SEC);
                             audioUrls.uploaded = (aSigned.data && aSigned.data.signedUrl) ? aSigned.data.signedUrl : null;
+                            audioMimes.uploaded = upRec.mimeType || 'audio/mpeg';
                         }
                     }
                 }
@@ -9202,13 +9288,14 @@ window.shareCurrentScenario = async function(silent) {
                             return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
                         })[0];
                         var rPath = cardUlid + '_rec.webm';
-                        var rRes  = await sb.storage.from('qcard-audio').upload(rPath, rec.blob, {
+                        var rRes  = await sb.storage.from('qcard-audio').upload(rPath, await qcardShareWrapBlob(rec.blob, encKey), {
                             contentType: rec.mimeType || 'audio/webm',
                             upsert: true
                         });
                         if (!rRes.error) {
                             var rSigned = await sb.storage.from('qcard-audio').createSignedUrl(rPath, SHARE_TTL_SEC);
                             audioUrls.recorded = (rSigned.data && rSigned.data.signedUrl) ? rSigned.data.signedUrl : null;
+                            audioMimes.recorded = rec.mimeType || 'audio/webm';
                         }
                     }
                 }
@@ -9216,6 +9303,7 @@ window.shareCurrentScenario = async function(silent) {
                 var audioAvailable = !!(audioUrls.recorded || audioUrls.uploaded);
                 if (audioAvailable) {
                     card.audioUrls = audioUrls;
+                    card.audioMimes = audioMimes;
                     card.audioSource = (audioSrc === 'recorded' && audioUrls.recorded) ||
                                        (audioSrc === 'uploaded' && audioUrls.uploaded)
                                        ? audioSrc
@@ -9237,7 +9325,7 @@ window.shareCurrentScenario = async function(silent) {
     // shared_scenarios に保存（shared_cards は使用しない）
     var row = {
         uri:           shareUri,
-        scenario_json: shareData,
+        scenario_json: await qcardShareSeal('scenario', shareData, encKey),
         expires_at:    expiresAt,
         access_count:  0
     };
@@ -9248,7 +9336,7 @@ window.shareCurrentScenario = async function(silent) {
         return;
     }
 
-    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(shareUlid);
+    var friendlyUrl = qcardPublicOrigin() + '/share/' + encodeURIComponent(shareUlid) + '#k=' + encKey.keyBase64Url;
     console.log('[Scenario Share] shared URI:', shareUri);
     console.log('[Scenario Share] expires:', expiresAt);
 
@@ -9300,7 +9388,7 @@ async function fetchSharedScenario(uri) {
  * 共有シナリオを取得し、新しいシナリオとしてローカルに追加する。
  * active.data.push() は使用しない。
  */
-async function importSharedScenario(uri) {
+async function importSharedScenario(uri, raw) {
     showToast('シナリオを取得中...');
     var data = await fetchSharedScenario(uri);
 
@@ -9324,6 +9412,16 @@ async function importSharedScenario(uri) {
     }
     if (!scenarioJson || typeof scenarioJson !== 'object') {
         showToast('シナリオデータが不正です'); return;
+    }
+
+    // [NEW] 暗号化共有は #k=... のキーで復号（従来の平文共有はそのまま）
+    var encCtx = null;
+    if (scenarioJson.encrypted === true) {
+        var plainScenario = await qcardShareOpen(scenarioJson, raw);
+        if (!plainScenario) return;
+        encCtx = plainScenario._enc || null;
+        scenarioJson = plainScenario;
+        if (qcardShareKeyFromUrl(raw) && String(raw) === String(window.location.href)) qcardEmbedClearHash();
     }
 
     console.log('[Scenario Import] received scenario:', scenarioJson.name);
@@ -9360,6 +9458,9 @@ async function importSharedScenario(uri) {
     // シナリオを追加し、新シナリオをアクティブにする
     scenarios.push(newScenario);
     activeScenarioId = newScenario.id;
+    // [NEW] 暗号化共有：画像・音声を復号してこの端末に保存（保存後は共有元のIDではなく受信側のIDを使う）
+    var mediaErrors = 0;
+    if (encCtx) mediaErrors = await qcardRestoreScenarioMedia(newScenario, encCtx);
     saveScenarios();
     renderScenarioTabs();
 
@@ -9378,7 +9479,36 @@ async function importSharedScenario(uri) {
         console.log('[Scenario Import] data count:', (newScenario.data || []).length);
     }, 300);
 
-    showToast('✅ 「' + newScenario.name + '」を受け取りました');
+    showToast(mediaErrors ? ('⚠ 「' + newScenario.name + '」を受け取りましたが、一部メディアを保存できませんでした')
+                          : ('✅ 「' + newScenario.name + '」を受け取りました'));
+}
+
+// 暗号化シナリオ共有の受信：全カードのメディアを復号して IndexedDB へ保存し、ローカルIDに置き換える。戻り値は失敗件数。
+async function qcardRestoreScenarioMedia(sc, encCtx) {
+    var errors = 0;
+    var hasAny = !!sc.deckBackMediaUrl || (sc.data || []).some(function(c){
+        return c && (c.mediaUrl || c.mediaUrlBack || c.audioUrl || (c.audioUrls && (c.audioUrls.recorded || c.audioUrls.uploaded)));
+    });
+    if (hasAny) showToast('メディアを復号して保存中…');
+    sc.deckBackMediaId = undefined;
+    if (sc.deckBackMediaUrl) {
+        try { sc.deckBackMediaId = await qcardSaveReceivedImage(await qcardDownloadShareBlob(sc.deckBackMediaUrl, encCtx, sc.deckBackMime)); }
+        catch (e) { errors++; console.warn('[Scenario Import] deck back', e); }
+    }
+    delete sc.deckBackMediaUrl; delete sc.deckBackMime;
+    for (var i = 0; i < (sc.data || []).length; i++) {
+        var card = sc.data[i];
+        if (!card) continue;
+        var r = await qcardRestoreSharedCardMedia(card, card.id, encCtx);
+        errors += r.errors.length;
+        card.mediaId = r.mediaId || undefined;
+        card.mediaIdBack = r.mediaIdBack || undefined;
+        card.itvId = r.itvId || undefined;
+        card.audioSource = r.audioSource || 'speech';
+        delete card.mediaUrl; delete card.mediaUrlBack; delete card.audioUrl; delete card.audioUrls;
+        delete card.mediaMime; delete card.mediaMimeBack; delete card.audioMimes;
+    }
+    return errors;
 }
 
 // ─── 共有URL判定（Vercelの /share/{ID} と従来の fig:// に対応）───
