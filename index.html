@@ -3170,6 +3170,55 @@
             padding: 4px 2px;
             cursor: pointer;
         }
+        /* ── 受信などの長時間処理：進捗オーバーレイ（操作ブロック） ── */
+        #qcard-progress-overlay {
+            position: fixed; inset: 0; z-index: 10030;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+            opacity: 0; visibility: hidden; pointer-events: none; outline: none;
+            transition: opacity .15s, visibility 0s .15s;
+        }
+        /* 表示は0.25秒遅らせる（一瞬で終わる処理でチラつかせない）。ただし操作ブロックは即時。 */
+        #qcard-progress-overlay.open {
+            opacity: 1; visibility: visible; pointer-events: auto;
+            transition: opacity .2s .25s, visibility 0s 0s;
+        }
+        .qpo-panel {
+            width: min(86vw, 360px); box-sizing: border-box; padding: 20px 20px 16px; text-align: center;
+            background: var(--surface); color: var(--text); border: 1px solid var(--border2);
+            border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+        }
+        .qpo-head { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .qpo-spin {
+            width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
+            border: 2px solid var(--border2); border-top-color: var(--accent);
+            animation: qpoSpin .8s linear infinite;
+        }
+        .qpo-title { font-weight: 700; font-size: 1rem; }
+        .qpo-track { height: 8px; margin: 14px 0 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; }
+        .qpo-fill { height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s; }
+        .qpo-ind .qpo-fill { width: 40%; transition: none; animation: qpoSlide 1.1s ease-in-out infinite; }
+        .qpo-count { min-height: 1.2em; font-family: 'DM Mono', monospace; font-size: .85rem; color: var(--text); }
+        .qpo-label { margin-top: 2px; font-size: .8rem; color: var(--text-muted); }
+        .qpo-note { margin-top: 12px; font-size: .72rem; color: var(--text-dim); line-height: 1.5; }
+        @keyframes qpoSpin  { to { transform: rotate(360deg); } }
+        @keyframes qpoSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+        @media (prefers-reduced-motion: reduce) { .qpo-spin, .qpo-ind .qpo-fill { animation: none; } }
+        /* ── 受信前のダウンロード量の確認ダイアログ ── */
+        .qcard-dlc { position: fixed; inset: 0; z-index: 10040; display: flex; align-items: center; justify-content: center;
+            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+        .qcard-dlc-panel { width: min(90vw, 380px); box-sizing: border-box; padding: 20px; background: var(--surface); color: var(--text);
+            border: 1px solid var(--border2); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); text-align: center; }
+        .qcard-dlc-title { font-weight: 700; font-size: 1rem; }
+        .qcard-dlc-name { margin-top: 6px; font-size: .8rem; color: var(--text-muted); overflow-wrap: anywhere; }
+        .qcard-dlc-size { margin: 12px 0 2px; font-family: 'DM Mono', monospace; font-size: 1.6rem; font-weight: 500; color: var(--accent); }
+        .qcard-dlc-detail { font-size: .8rem; color: var(--text-muted); }
+        .qcard-dlc-note { margin: 12px 0 16px; font-size: .75rem; line-height: 1.55; color: var(--text-muted); }
+        .qcard-dlc-btns { display: flex; flex-direction: column; gap: 8px; }
+        .qcard-dlc-btn { min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: .9rem; cursor: pointer;
+            border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
+        .qcard-dlc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+        .qcard-dlc-btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
         .mss-row-edit {
             flex-shrink: 0;
             min-width: 40px; height: 36px; margin: -6px -4px -6px 0;
@@ -7990,6 +8039,7 @@ async function uploadMediaToStorage(cardId, ulid, encKey) {
             if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードに失敗しました（' + res.error.message + '）');
             return null;
         }
+        qcardShareStat(encKey, 'image', record.blob.size);
         var pub = sb.storage.from('qcard-media').getPublicUrl(path);
         return pub.data.publicUrl || null;
     } catch(e) {
@@ -8064,6 +8114,141 @@ async function uploadAudioToStorage(cardId, ulid) {
 // ── Phase A + B + C: 統合共有関数 ──────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════
+// 進捗オーバーレイ（受信など時間のかかる処理中に、状況を伝えつつ操作を止める）
+//   qcardProgress.show(title, label)        … 表示（total 未指定＝処理中アニメーション）
+//   qcardProgress.set(label, done, total)   … 進捗更新（done/total を渡すとバーと「n / m 枚」を表示）
+//   qcardProgress.hide()                    … 非表示（必ず try/finally で呼ぶ）
+// 表示中は、画面の操作・キー入力・ページ離脱（再読み込み/タブを閉じる）を止める／警告する。
+// ═══════════════════════════════════════════════════════════════
+var qcardProgress = (function() {
+    var el = null, depth = 0;
+    function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ''; return ''; }
+    function onKey(e) {                        // 背面のボタン・ショートカットを動かさない（再読み込み等の修飾キー操作は除く）
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.target && e.target.closest && e.target.closest('.qcard-dlc')) return;   // 確認ダイアログ内の操作は許可
+        e.preventDefault(); e.stopPropagation();
+    }
+    function build() {
+        if (el) return;
+        el = document.createElement('div');
+        el.id = 'qcard-progress-overlay';
+        el.tabIndex = -1;
+        el.setAttribute('role', 'alertdialog');
+        el.setAttribute('aria-modal', 'true');
+        el.setAttribute('aria-live', 'polite');
+        el.innerHTML =
+            '<div class="qpo-panel">' +
+              '<div class="qpo-head"><div class="qpo-spin" aria-hidden="true"></div><div class="qpo-title"></div></div>' +
+              '<div class="qpo-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="qpo-fill"></div></div>' +
+              '<div class="qpo-count"></div>' +
+              '<div class="qpo-label"></div>' +
+              '<div class="qpo-note">処理が終わるまで、この画面を閉じたり操作したりせずにお待ちください。</div>' +
+            '</div>';
+        document.body.appendChild(el);
+    }
+    var api = {
+        show: function(title, label) {
+            build();
+            el.querySelector('.qpo-title').textContent = title || '処理中';
+            api.set(label || '');
+            el.classList.add('open');
+            depth++;
+            if (depth === 1) {
+                window.addEventListener('beforeunload', onBeforeUnload);
+                document.addEventListener('keydown', onKey, true);
+                try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); el.focus(); } catch (_) {}
+            }
+        },
+        set: function(label, done, total, detail) {
+            if (!el) return;
+            var track = el.querySelector('.qpo-track'), fill = el.querySelector('.qpo-fill'), text = '';
+            el.querySelector('.qpo-label').textContent = label || '';
+            if (typeof total === 'number' && total > 0) {
+                var pct = Math.max(0, Math.min(100, Math.round((done || 0) / total * 100)));
+                track.classList.remove('qpo-ind'); fill.style.width = pct + '%';
+                track.setAttribute('aria-valuenow', String(pct));
+                text = (done || 0) + ' / ' + total + ' 枚（' + pct + '%）';
+            } else {
+                track.classList.add('qpo-ind'); fill.style.width = '';
+                track.removeAttribute('aria-valuenow');
+            }
+            if (detail) text += (text ? ' · ' : '') + detail;       // 例：12.4 / 48.3 MB
+            el.querySelector('.qpo-count').textContent = text;
+        },
+        hide: function() {
+            if (depth > 0) depth--;
+            if (depth === 0 && el) {
+                el.classList.remove('open');
+                window.removeEventListener('beforeunload', onBeforeUnload);
+                document.removeEventListener('keydown', onKey, true);
+            }
+        }
+    };
+    return api;
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// 共有データの容量情報
+//  - 送信側：アップロードに成功した暗号化後ファイルのサイズ（元サイズ+28byte[IV12+タグ16]）を集計し、
+//            shareInfo として暗号化JSONの中に入れる（サーバーには見えない）。
+//  - 受信側：復号した直後（＝メディアをダウンロードする前）に容量を確認できる。
+// ═══════════════════════════════════════════════════════════════
+var QCARD_DL_CONFIRM_BYTES = 10 * 1024 * 1024;   // これ以上のメディアを含む共有は、受信前に確認する
+var qcardDlTrack = { active: false, done: 0, total: 0, onUpdate: null };   // 受信中のダウンロード済みバイト
+function qcardFormatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / 1048576).toFixed(1) + ' MB';
+    return (n / 1073741824).toFixed(2) + ' GB';
+}
+function qcardShareStat(key, kind, plainSize) {
+    if (!key || !key.stat) return;
+    key.stat[kind === 'audio' ? 'audioBytes' : 'imageBytes'] += (Number(plainSize) || 0) + 28;
+    key.stat.files++;
+    if (typeof key.onUpdate === 'function') { try { key.onUpdate(); } catch (_) {} }
+}
+function qcardShareInfo(key, plainObj) {
+    var s = (key && key.stat) || { imageBytes: 0, audioBytes: 0, files: 0 };
+    return { v: 1, imageBytes: s.imageBytes, audioBytes: s.audioBytes, files: s.files,
+             textBytes: new TextEncoder().encode(JSON.stringify(plainObj)).length };
+}
+// 戻り値: Promise<'all' | 'textOnly' | 'cancel'>（閾値未満なら確認せず 'all'）
+function qcardConfirmDownload(info, name) {
+    var img = Number(info && info.imageBytes) || 0, aud = Number(info && info.audioBytes) || 0, bytes = img + aud;
+    if (bytes < QCARD_DL_CONFIRM_BYTES) return Promise.resolve('all');
+    return new Promise(function(resolve) {
+        var el = document.createElement('div');
+        el.className = 'qcard-dlc';
+        el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true');
+        el.innerHTML =
+            '<div class="qcard-dlc-panel">' +
+              '<div class="qcard-dlc-title">画像・音声のダウンロード量</div>' +
+              '<div class="qcard-dlc-name"></div>' +
+              '<div class="qcard-dlc-size"></div>' +
+              '<div class="qcard-dlc-detail"></div>' +
+              '<div class="qcard-dlc-note">モバイル回線で受信すると通信量を消費します。Wi-Fi接続での受信をおすすめします。「文字だけ受信」を選ぶと、画像・音声なしで取り込めます。</div>' +
+              '<div class="qcard-dlc-btns">' +
+                '<button type="button" class="qcard-dlc-btn primary" data-act="all"></button>' +
+                '<button type="button" class="qcard-dlc-btn" data-act="textOnly">文字だけ受信（画像・音声なし）</button>' +
+                '<button type="button" class="qcard-dlc-btn ghost" data-act="cancel">キャンセル</button>' +
+              '</div>' +
+            '</div>';
+        el.querySelector('.qcard-dlc-name').textContent = name ? '「' + name + '」' : '';
+        el.querySelector('.qcard-dlc-size').textContent = '約 ' + qcardFormatBytes(bytes);
+        el.querySelector('.qcard-dlc-detail').textContent =
+            '画像 ' + qcardFormatBytes(img) + ' / 音声 ' + qcardFormatBytes(aud) + (info.files ? ' · ' + info.files + 'ファイル' : '');
+        el.querySelector('[data-act="all"]').textContent = 'すべて受信（' + qcardFormatBytes(bytes) + '）';
+        function done(act) { el.removeEventListener('keydown', onKey); if (el.parentNode) el.parentNode.removeChild(el); resolve(act); }
+        function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); done('cancel'); } }
+        el.addEventListener('click', function(e) { var b = e.target.closest && e.target.closest('[data-act]'); if (b) done(b.getAttribute('data-act')); });
+        el.addEventListener('keydown', onKey);
+        document.body.appendChild(el);
+        var first = el.querySelector('[data-act="all"]'); if (first) first.focus();
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Secure Share（サーバー共有のエンドツーエンド暗号化）
 // - 送信側で AES-GCM-256 により card_json / scenario_json / 画像・音声Blob を暗号化してから送る
 // - 復号キー（32byte乱数）は URL の # 以降（#k=...）にだけ載せる。# 以降はサーバーへ送信されない
@@ -8074,7 +8259,11 @@ async function uploadAudioToStorage(cardId, ulid) {
 function qcardShareCryptoAvailable() {
     return !!(window.crypto && window.crypto.subtle && window.qcardSecureShare);
 }
-function qcardShareNewKey() { return window.qcardSecureShare.generateKey(); }   // {cryptoKey, keyBase64Url}
+async function qcardShareNewKey() {   // {cryptoKey, keyBase64Url, stat}
+    var k = await window.qcardSecureShare.generateKey();
+    k.stat = { imageBytes: 0, audioBytes: 0, files: 0 };
+    return k;
+}
 // Envelope（サイズ情報は載せない）
 async function qcardShareSeal(type, obj, key) {
     var env = await window.qcardSecureShare.encrypt(type, obj, key.cryptoKey);
@@ -8120,6 +8309,7 @@ async function qcardDownloadShareBlob(url, encCtx, mime) {
     var res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('メディア取得に失敗しました（HTTP ' + res.status + '）');
     var bytes = new Uint8Array(await res.arrayBuffer());
+    if (qcardDlTrack.active) { qcardDlTrack.done += bytes.length; if (typeof qcardDlTrack.onUpdate === 'function') { try { qcardDlTrack.onUpdate(); } catch (_) {} } }
     var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, encCtx.key, bytes.slice(12));
     return new Blob([plain], { type: mime || 'application/octet-stream' });
 }
@@ -8135,6 +8325,11 @@ var SHARE_TTL_SEC = 60 * 60 * 24;
  * ・期限後はSupabaseが自動でアクセス拒否（削除はEdge Functionで別途対応）
  */
 async function shareCard(card, cardItem) {
+    qcardProgress.show('カードを共有中', 'カードを暗号化してアップロードしています…');
+    try { return await shareCardCore(card, cardItem); }
+    finally { qcardProgress.hide(); }
+}
+async function shareCardCore(card, cardItem) {
     if (!card || !card.uri) {
         showToast('URIがありません。カードを保存し直してください。');
         return null;
@@ -8145,6 +8340,7 @@ async function shareCard(card, cardItem) {
     // [NEW] E2EE：共有ごとに使い捨ての鍵を生成。鍵はURLの # 以降にのみ載せる。
     if (!qcardShareCryptoAvailable()) { showToast('このブラウザは暗号化に未対応のため、サーバー共有を利用できません'); return null; }
     var encKey = await qcardShareNewKey();
+    encKey.onUpdate = function() { qcardProgress.set('カードを暗号化してアップロードしています…', undefined, undefined, '送信済み ' + qcardFormatBytes(encKey.stat.imageBytes + encKey.stat.audioBytes)); };
     var mediaMime = null, mediaMimeBack = null, audioMimes = { recorded: null, uploaded: null };
 
     // 毎回リセット（再アップロードして新しい署名付きURLを発行）
@@ -8215,6 +8411,7 @@ async function shareCard(card, cardItem) {
                         });
                         if (!upRes2.error) {
                             audioMimes.uploaded = upRec2.mimeType || 'audio/mpeg';
+                            qcardShareStat(encKey, 'audio', upRec2.blob.size);
                             var upSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(upPath2, SHARE_TTL_SEC);
                             audioUrls.uploaded = (upSigned2.data && upSigned2.data.signedUrl) ? upSigned2.data.signedUrl : null;
                         }
@@ -8230,6 +8427,7 @@ async function shareCard(card, cardItem) {
                         });
                         if (!recRes2.error) {
                             audioMimes.recorded = rec2.mimeType || 'audio/webm';
+                            qcardShareStat(encKey, 'audio', rec2.blob.size);
                             var recSigned2 = await sb.storage.from('qcard-audio').createSignedUrl(recPath2, SHARE_TTL_SEC);
                             audioUrls.recorded = (recSigned2.data && recSigned2.data.signedUrl) ? recSigned2.data.signedUrl : null;
                         }
@@ -8280,6 +8478,7 @@ async function shareCard(card, cardItem) {
             mediaMimeBack: mediaMimeBack,
             audioMimes:  audioMimes
     };
+    plainCardJson.shareInfo = qcardShareInfo(encKey, plainCardJson);   // 容量情報（暗号化JSONの中なのでサーバーには見えない）
     // card_json は暗号文のみを保存（media_url / audio_url は暗号化済みファイルへの署名付きURLで、中身は読めない）
     var row = {
         uri:        card.uri,
@@ -9013,7 +9212,29 @@ window.confirmCardReceive = async function() {
         }
 
         var localCardId=cardUid();
-        var restored=await qcardRestoreSharedCardMedia(data.card_json,localCardId);
+        var cj0 = data.card_json, restored;
+        var cardHasMedia = !!(cj0.mediaUrl || cj0.mediaUrlBack || cj0.audioUrl || (cj0.audioUrls && (cj0.audioUrls.recorded || cj0.audioUrls.uploaded)));
+        // [NEW] 画像・音声が大きいカードは、ダウンロードの前に確認する
+        var cardMode = 'all';
+        if (cardHasMedia && cj0.shareInfo) {
+            cardMode = await qcardConfirmDownload(cj0.shareInfo, cj0.title);
+            if (cardMode === 'cancel') { if(btn) btn.disabled=false; if(status) status.textContent=''; return; }
+        }
+        if (cardHasMedia && cardMode === 'textOnly') {
+            restored = await qcardRestoreSharedCardMedia(Object.assign({}, cj0, { mediaUrl: null, mediaUrlBack: null, audioUrl: null, audioUrls: { recorded: null, uploaded: null }, audioSource: 'speech' }), localCardId, null);
+        } else {
+            if (cardHasMedia) {
+                var csi = cj0.shareInfo || {};
+                qcardDlTrack.active = true; qcardDlTrack.done = 0; qcardDlTrack.total = (csi.imageBytes || 0) + (csi.audioBytes || 0);
+                qcardDlTrack.onUpdate = function() {
+                    qcardProgress.set('画像・音声を復号して保存しています…', undefined, undefined,
+                        qcardDlTrack.total ? qcardFormatBytes(qcardDlTrack.done) + ' / ' + qcardFormatBytes(qcardDlTrack.total) : '');
+                };
+                qcardProgress.show('カードを受信中', '画像・音声を復号して保存しています…');
+            }
+            try { restored=await qcardRestoreSharedCardMedia(data.card_json,localCardId); }
+            finally { if (cardHasMedia) { qcardProgress.hide(); qcardDlTrack.active = false; qcardDlTrack.onUpdate = null; } }
+        }
         var newCard=qcardCloneReceivedCard(data.card_json,restored);
         newCard.id=localCardId;
 
@@ -9090,7 +9311,14 @@ async function importSharedCard(uri) {
 /**
  * URL/QR受信：shared_cards を先に確認し、無ければ従来の shared_scenarios へ。
  */
+// 共有URL/QRの受信。サーバー経由（取得→復号→メディア保存）は時間がかかるため、進捗オーバーレイで状況を示し操作を止める。
 async function importShareByUrl(raw) {
+    if (qcardEmbedGetHashPayload(raw)) return importShareByUrlCore(raw);   // QR直接埋め込みは通信なし・即時
+    qcardProgress.show('共有データを受信中', 'サーバーから取得しています…');
+    try { return await importShareByUrlCore(raw); }
+    finally { qcardProgress.hide(); }
+}
+async function importShareByUrlCore(raw) {
     // [NEW] QR直接埋め込み形式（#q=...）はサーバーを使わずローカルで復号する
     if (typeof window.qcardOpenEmbeddedShare === 'function' && qcardEmbedGetHashPayload(raw)) {
         closeDataModal(); await window.qcardOpenEmbeddedShare(raw); return;
@@ -9147,7 +9375,7 @@ window.shareCurrentCard = async function() {
  * - 各カードの画像・音声をStorageにアップロードしSigned URLを設定
  * - shared_scenarios テーブルに保存（shared_cards は使用しない）
  */
-window.shareCurrentScenario = async function(silent) {
+async function qcardShareCurrentScenarioCore(silent) {
     // 共有前にDOM上の最新編集内容を保存
     saveCurrentGridData();
 
@@ -9175,6 +9403,16 @@ window.shareCurrentScenario = async function(silent) {
 
     showToast('シナリオを共有中...');
 
+    // 進捗：画像・音声を持つカード数（＋共通裏面）を母数にする
+    var upTotal = cards.filter(function(c){ return !!(c && (c.mediaId || c.mediaIdBack || c.itvId)); }).length + (shareData.deckBackMediaId ? 1 : 0);
+    var upDone = 0;
+    function upTick() {
+        var sent = encKey.stat.imageBytes + encKey.stat.audioBytes;
+        qcardProgress.set('画像・音声を暗号化してアップロードしています…', upDone, upTotal, sent ? '送信済み ' + qcardFormatBytes(sent) : '');
+    }
+    encKey.onUpdate = upTick;
+    if (upTotal) upTick(); else qcardProgress.set('共有データを作成しています…');
+
     // ── デッキ共通裏面画像をアップロード（シナリオで1枚だけ共有） ──
     // deckBackMediaId はローカルIndexedDBの内部IDなので、共有先へはSigned URLだけを渡す。
     // 個別カードの裏面とは別パスにして、カード画像と衝突しないようにする。
@@ -9190,6 +9428,7 @@ window.shareCurrentScenario = async function(silent) {
                     upsert: true
                 });
                 if (!deckBackRes.error) {
+                    qcardShareStat(encKey, 'image', deckBackRecord.blob.size);
                     var deckBackSigned = await sb.storage.from('qcard-media').createSignedUrl(deckBackPath, SHARE_TTL_SEC);
                     shareData.deckBackMediaUrl = (deckBackSigned.data && deckBackSigned.data.signedUrl)
                         ? deckBackSigned.data.signedUrl : null;
@@ -9197,10 +9436,11 @@ window.shareCurrentScenario = async function(silent) {
                 }
             }
         } catch(e) { console.warn('[Scenario Share] deck back media upload error', e); }
+        upDone++; upTick();
     }
 
     // 各カードのメディアをアップロード
-    for (var i = 0; i < cards.length; i++) {
+    async function processCard(i) {
         var card = cards[i];
         // カードURIからULIDを取得（ファイル名に使用）
         var cardUlid = card.uri ? card.uri.replace('fig://', '') : window.generateULID();
@@ -9222,6 +9462,7 @@ window.shareCurrentScenario = async function(silent) {
                         upsert: true
                     });
                     if (!mRes.error) {
+                        qcardShareStat(encKey, 'image', mediaRecord.blob.size);
                         var mSigned = await sb.storage.from('qcard-media').createSignedUrl(mPath, SHARE_TTL_SEC);
                         card.mediaUrl = (mSigned.data && mSigned.data.signedUrl) ? mSigned.data.signedUrl : null;
                         if (card.mediaUrl) { mediaCount++; card.mediaMime = mediaRecord.mimeType || 'image/jpeg'; }
@@ -9244,6 +9485,7 @@ window.shareCurrentScenario = async function(silent) {
                         upsert: true
                     });
                     if (!mResBack.error) {
+                        qcardShareStat(encKey, 'image', mediaRecordBack.blob.size);
                         var mSignedBack = await sb.storage.from('qcard-media').createSignedUrl(mPathBack, SHARE_TTL_SEC);
                         card.mediaUrlBack = (mSignedBack.data && mSignedBack.data.signedUrl) ? mSignedBack.data.signedUrl : null;
                         if (card.mediaUrlBack) { mediaCount++; card.mediaMimeBack = mediaRecordBack.mimeType || 'image/jpeg'; }
@@ -9274,6 +9516,7 @@ window.shareCurrentScenario = async function(silent) {
                             upsert: true
                         });
                         if (!aRes.error) {
+                            qcardShareStat(encKey, 'audio', upRec.blob.size);
                             var aSigned = await sb.storage.from('qcard-audio').createSignedUrl(aPath, SHARE_TTL_SEC);
                             audioUrls.uploaded = (aSigned.data && aSigned.data.signedUrl) ? aSigned.data.signedUrl : null;
                             audioMimes.uploaded = upRec.mimeType || 'audio/mpeg';
@@ -9294,6 +9537,7 @@ window.shareCurrentScenario = async function(silent) {
                             upsert: true
                         });
                         if (!rRes.error) {
+                            qcardShareStat(encKey, 'audio', rec.blob.size);
                             var rSigned = await sb.storage.from('qcard-audio').createSignedUrl(rPath, SHARE_TTL_SEC);
                             audioUrls.recorded = (rSigned.data && rSigned.data.signedUrl) ? rSigned.data.signedUrl : null;
                             audioMimes.recorded = rec.mimeType || 'audio/webm';
@@ -9318,11 +9562,22 @@ window.shareCurrentScenario = async function(silent) {
                 }
             } catch(e) { console.warn('[Scenario Share] audio upload error card', i, e); }
         }
+        if (card.mediaId || card.mediaIdBack || card.itvId) { upDone++; upTick(); }
     }
+    // 同時に4枚ずつアップロード（通信待ちを重ねて、枚数の多いシナリオでも時間を短縮）
+    var upIdx = 0;
+    async function upWorker() {
+        while (upIdx < cards.length) { var ci = upIdx++; await processCard(ci); }
+    }
+    var upWorkers = [];
+    for (var wi = 0; wi < Math.min(4, cards.length); wi++) upWorkers.push(upWorker());
+    await Promise.all(upWorkers);
 
     console.log('[Scenario Share] media uploads:', mediaCount);
     console.log('[Scenario Share] audio uploads:', audioCount);
 
+    shareData.shareInfo = qcardShareInfo(encKey, shareData);   // 容量情報（暗号化JSONの中なのでサーバーには見えない）
+    qcardProgress.set('共有データを保存しています…');
     // shared_scenarios に保存（shared_cards は使用しない）
     var row = {
         uri:           shareUri,
@@ -9357,12 +9612,20 @@ window.shareCurrentScenario = async function(silent) {
         var msg = '✅ シナリオを共有しました';
         if (mediaCount) msg += ' · 画像' + mediaCount + '枚';
         if (audioCount) msg += ' · 音声' + audioCount + '件';
+        if (encKey.stat.files) msg += ' · 約' + qcardFormatBytes(encKey.stat.imageBytes + encKey.stat.audioBytes);
         msg += ' · 24時間有効';
         msg += copied ? '（リンクをコピーしました）' : '（リンクは手動でコピーしてください）';
         showToast(msg);
     }
 
     return { uri: shareUri, friendlyUrl: friendlyUrl, expiresAt: expiresAt };
+}
+
+// 共有URL発行（暗号化→画像・音声アップロード→保存）。カード数が多いと時間がかかるため、進捗を示して操作を止める。
+window.shareCurrentScenario = async function(silent) {
+    qcardProgress.show('シナリオを共有中', '共有の準備をしています…');
+    try { return await qcardShareCurrentScenarioCore(silent); }
+    finally { qcardProgress.hide(); }
 };
 
 /**
@@ -9418,18 +9681,28 @@ async function importSharedScenario(uri, raw) {
     // [NEW] 暗号化共有は #k=... のキーで復号（従来の平文共有はそのまま）
     var encCtx = null;
     if (scenarioJson.encrypted === true) {
+        qcardProgress.set('データを復号しています…');
         var plainScenario = await qcardShareOpen(scenarioJson, raw);
         if (!plainScenario) return;
         encCtx = plainScenario._enc || null;
         scenarioJson = plainScenario;
-        if (qcardShareKeyFromUrl(raw) && String(raw) === String(window.location.href)) qcardEmbedClearHash();
     }
+
+    // [NEW] 画像・音声の容量が大きい共有は、ダウンロードの前に確認する（通信量への配慮）
+    var dlMode = 'all';
+    if (encCtx && scenarioJson.shareInfo) {
+        qcardProgress.set('受信内容を確認しています…');
+        dlMode = await qcardConfirmDownload(scenarioJson.shareInfo, scenarioJson.name);
+        if (dlMode === 'cancel') { showToast('受信をキャンセルしました'); return; }   // URLのキーは残す（もう一度開ける）
+    }
+    if (encCtx && qcardShareKeyFromUrl(raw) && String(raw) === String(window.location.href)) qcardEmbedClearHash();
 
     console.log('[Scenario Import] received scenario:', scenarioJson.name);
     console.log('[Scenario Import] card count:', (scenarioJson.data || []).length);
 
     // 受信したシナリオのIDを新しく生成（送信元IDをそのまま使わない）
     var newScenario = JSON.parse(JSON.stringify(scenarioJson));
+    delete newScenario.shareInfo;   // 共有用の付随情報は保存しない
     newScenario.id        = scnUid();
     newScenario.createdAt = nowMs();
     newScenario.updatedAt = nowMs();
@@ -9461,7 +9734,17 @@ async function importSharedScenario(uri, raw) {
     activeScenarioId = newScenario.id;
     // [NEW] 暗号化共有：画像・音声を復号してこの端末に保存（保存後は共有元のIDではなく受信側のIDを使う）
     var mediaErrors = 0;
-    if (encCtx) mediaErrors = await qcardRestoreScenarioMedia(newScenario, encCtx);
+    if (encCtx) {
+        if (dlMode === 'textOnly') {
+            mediaErrors = qcardStripScenarioMedia(newScenario);
+        } else {
+            var si = scenarioJson.shareInfo || {};
+            qcardDlTrack.active = true; qcardDlTrack.done = 0; qcardDlTrack.total = (si.imageBytes || 0) + (si.audioBytes || 0);
+            try { mediaErrors = await qcardRestoreScenarioMedia(newScenario, encCtx); }
+            finally { qcardDlTrack.active = false; qcardDlTrack.onUpdate = null; }
+        }
+    }
+    qcardProgress.set('保存しています…');
     saveScenarios();
     renderScenarioTabs();
 
@@ -9480,35 +9763,63 @@ async function importSharedScenario(uri, raw) {
         console.log('[Scenario Import] data count:', (newScenario.data || []).length);
     }, 300);
 
-    showToast(mediaErrors ? ('⚠ 「' + newScenario.name + '」を受け取りましたが、一部メディアを保存できませんでした')
+    showToast(dlMode === 'textOnly' ? ('✅ 「' + newScenario.name + '」を受け取りました（画像・音声は受信していません）')
+            : mediaErrors ? ('⚠ 「' + newScenario.name + '」を受け取りましたが、一部メディアを保存できませんでした')
                           : ('✅ 「' + newScenario.name + '」を受け取りました'));
 }
 
+// 「文字だけ受信」：共有元のメディア参照（ローカルID・URL）をすべて取り除く。戻り値は失敗件数(0)。
+function qcardStripScenarioMedia(sc) {
+    sc.deckBackMediaId = undefined; delete sc.deckBackMediaUrl; delete sc.deckBackMime;
+    (sc.data || []).forEach(function(card) {
+        if (!card) return;
+        card.mediaId = undefined; card.mediaIdBack = undefined; card.itvId = undefined; card.audioSource = 'speech';
+        delete card.mediaUrl; delete card.mediaUrlBack; delete card.audioUrl; delete card.audioUrls;
+        delete card.mediaMime; delete card.mediaMimeBack; delete card.audioMimes;
+    });
+    return 0;
+}
 // 暗号化シナリオ共有の受信：全カードのメディアを復号して IndexedDB へ保存し、ローカルIDに置き換える。戻り値は失敗件数。
 async function qcardRestoreScenarioMedia(sc, encCtx) {
     var errors = 0;
-    var hasAny = !!sc.deckBackMediaUrl || (sc.data || []).some(function(c){
-        return c && (c.mediaUrl || c.mediaUrlBack || c.audioUrl || (c.audioUrls && (c.audioUrls.recorded || c.audioUrls.uploaded)));
-    });
-    if (hasAny) showToast('メディアを復号して保存中…');
+    var cards = (sc.data || []).filter(Boolean);
+    function hasMedia(c) { return !!(c.mediaUrl || c.mediaUrlBack || c.audioUrl || (c.audioUrls && (c.audioUrls.recorded || c.audioUrls.uploaded))); }
+    var total = cards.filter(hasMedia).length + (sc.deckBackMediaUrl ? 1 : 0), done = 0;
+    function tick() {
+        qcardProgress.set('画像・音声を復号して保存しています…', done, total,
+            qcardDlTrack.total ? qcardFormatBytes(qcardDlTrack.done) + ' / ' + qcardFormatBytes(qcardDlTrack.total) : '');
+    }
+    qcardDlTrack.onUpdate = tick;
+    if (total) tick();
+
     sc.deckBackMediaId = undefined;
     if (sc.deckBackMediaUrl) {
         try { sc.deckBackMediaId = await qcardSaveReceivedImage(await qcardDownloadShareBlob(sc.deckBackMediaUrl, encCtx, sc.deckBackMime)); }
         catch (e) { errors++; console.warn('[Scenario Import] deck back', e); }
+        done++; tick();
     }
     delete sc.deckBackMediaUrl; delete sc.deckBackMime;
-    for (var i = 0; i < (sc.data || []).length; i++) {
-        var card = sc.data[i];
-        if (!card) continue;
-        var r = await qcardRestoreSharedCardMedia(card, card.id, encCtx);
-        errors += r.errors.length;
-        card.mediaId = r.mediaId || undefined;
-        card.mediaIdBack = r.mediaIdBack || undefined;
-        card.itvId = r.itvId || undefined;
-        card.audioSource = r.audioSource || 'speech';
-        delete card.mediaUrl; delete card.mediaUrlBack; delete card.audioUrl; delete card.audioUrls;
-        delete card.mediaMime; delete card.mediaMimeBack; delete card.audioMimes;
+
+    // 同時に4枚ずつ処理（通信待ちを重ねて、151枚のような大きなシナリオでも時間を短縮）
+    var idx = 0;
+    async function worker() {
+        while (idx < cards.length) {
+            var card = cards[idx++];
+            var media = hasMedia(card);
+            var r = await qcardRestoreSharedCardMedia(card, card.id, encCtx);
+            errors += r.errors.length;
+            card.mediaId = r.mediaId || undefined;
+            card.mediaIdBack = r.mediaIdBack || undefined;
+            card.itvId = r.itvId || undefined;
+            card.audioSource = r.audioSource || 'speech';
+            delete card.mediaUrl; delete card.mediaUrlBack; delete card.audioUrl; delete card.audioUrls;
+            delete card.mediaMime; delete card.mediaMimeBack; delete card.audioMimes;
+            if (media) { done++; tick(); }
+        }
     }
+    var workers = [];
+    for (var w = 0; w < Math.min(4, cards.length); w++) workers.push(worker());
+    await Promise.all(workers);
     return errors;
 }
 
