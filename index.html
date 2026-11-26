@@ -2034,8 +2034,9 @@
             background: var(--surface); border: 1px solid var(--border2);
             border-radius: 3px; padding: 7px 18px;
             font-size: 0.72rem; color: var(--text); font-weight: 500;
-            z-index: 800; opacity: 0; transition: opacity 0.2s, transform 0.2s;
-            pointer-events: none; white-space: nowrap;
+            z-index: 10060; opacity: 0; transition: opacity 0.2s, transform 0.2s;   /* 確認ダイアログ(10040)・進捗パネル(10030)より前面 */
+            pointer-events: none; white-space: normal; text-align: center; line-height: 1.5;
+            max-width: min(92vw, 420px);                                            /* 長い案内文も画面内で折り返す */
             box-shadow: 0 8px 32px rgba(0,0,0,0.28);
         }
         #shortcut-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -3217,6 +3218,7 @@
         .qcard-dlc-btns { display: flex; flex-direction: column; gap: 8px; }
         .qcard-dlc-btn { min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: .9rem; cursor: pointer;
             border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
+        .qcard-dlc-btn small { display: block; margin-top: 2px; font-size: .72rem; font-weight: 400; opacity: .8; }
         .qcard-dlc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
         .qcard-dlc-btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
         .qcard-dlc-warn { margin: 10px 0 0; font-size: .78rem; line-height: 1.55; color: #e0a43c; }
@@ -5592,9 +5594,9 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">表計算用</div></div>
                 </button>
             </div>
-            <button class="dm-action" data-share-file style="display:none" onclick="shareActiveQCF()">
+            <button class="dm-action" data-share-file="qcf" style="display:none" onclick="shareActiveQCF()">
                 <span class="dm-icon">📤</span>
-                <div><div class="dm-label">QCFを送る</div><div class="dm-desc">メール・LINEなどに添付して送信</div></div>
+                <div><div class="dm-label">QCFを送る</div><div class="dm-desc">メール・LINEなど（ファイル／リンク）</div></div>
             </button>
             <button class="dm-action" onclick="copyToClipboard('active')">
                 <span class="dm-icon">📋</span>
@@ -5625,7 +5627,7 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">全シナリオ</div></div>
                 </button>
             </div>
-            <button class="dm-action" data-share-file style="display:none" onclick="shareAllQCP()">
+            <button class="dm-action" data-share-file="qcp" style="display:none" onclick="shareAllQCP()">
                 <span class="dm-icon">📤</span>
                 <div><div class="dm-label">QCP（全シナリオ）を送る</div><div class="dm-desc">メール・LINEなどに添付して送信</div></div>
             </button>
@@ -14042,7 +14044,7 @@ function showToast(msg) {
     clearTimeout(toastTimeout);
     toast.innerText = msg;
     toast.classList.add('show');
-    toastTimeout = setTimeout(function(){ toast.classList.remove('show'); }, 2000);
+    toastTimeout = setTimeout(function(){ toast.classList.remove('show'); }, Math.min(6000, Math.max(2000, String(msg).length * 110)));   // 長い案内は読み切れる時間だけ表示
 }
 
 // ===== DRAG =====
@@ -14914,18 +14916,24 @@ async function qcpBuildAllBlob() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// QCF/QCP を端末の共有メニューで送る（メール添付・LINE・メッセージ等）
-//  - Web Share API（ファイル共有）に対応した端末でのみボタンを表示する
-//  - ファイル生成に時間がかかると、共有メニューを開く操作（ユーザー操作の直後に限られる）が無効になる端末があるため、
-//    「準備 → 準備完了ダイアログ → ボタンを押して共有メニューを開く」の2段階にしている
+// QCF/QCP・共有リンクを、端末の共有メニューで送る（メール添付・LINE・メッセージ等）
+//  系統1「ファイルで送る」：Web Share API（ファイル共有）。ブラウザが許可する形式に依存する（Android版Chromeは .qcf を許可しない場合がある）
+//  系統2「リンクで送る」  ：暗号化した共有URL（サーバー共有）。どの共有対応ブラウザでも送れ、受け取った側はワンタップで取り込める
+//  - 共有メニューは「ユーザーの操作の直後」にしか開けない端末があるため、ファイル/リンクを作ってから
+//    「準備完了ダイアログ → ボタンを押して共有メニューを開く」の2段階にしている
+//  - ファイル共有が失敗した端末は記録し、次回からリンクを先に案内する
 // ═══════════════════════════════════════════════════════════════
+var QCARD_SHARE_FILE_FAIL_KEY = 'qcard_share_file_fail';
+function qcardShareFileFailed() { try { return localStorage.getItem(QCARD_SHARE_FILE_FAIL_KEY) === '1'; } catch (_) { return false; } }
+function qcardSetShareFileFailed(v) { try { if (v) localStorage.setItem(QCARD_SHARE_FILE_FAIL_KEY, '1'); else localStorage.removeItem(QCARD_SHARE_FILE_FAIL_KEY); } catch (_) {} }
 function qcardCanShareFiles() {
     try {
         if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') return false;
         return !!navigator.canShare({ files: [new File([new Uint8Array(1)], 'x.qcf', { type: 'application/octet-stream' })] });
     } catch (_) { return false; }
 }
-// 戻り値: 'shared' | 'cancelled' | 'unsupported'（その他は例外）。共有メニューは呼び出し直後（await より前）に開く。
+function qcardCanShareUrl() { return typeof navigator.share === 'function'; }
+// 戻り値: Promise<'shared' | 'cancelled' | 'unsupported'>（その他は例外）。navigator.share は呼び出し直後（await より前）に実行する。
 function qcardShareBlobAsFile(blob, filename, title, text) {
     var file = new File([blob], filename, { type: 'application/octet-stream' });
     if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || !navigator.canShare({ files: [file] })) return Promise.resolve('unsupported');
@@ -14933,47 +14941,106 @@ function qcardShareBlobAsFile(blob, filename, title, text) {
         function() { return 'shared'; },
         function(e) { if (e && e.name === 'AbortError') return 'cancelled'; throw e; });
 }
-function qcardShareFileDialog(blob, filename, title, text) {
+function qcardShareUrl(url, title, text) {
+    if (!qcardCanShareUrl()) return Promise.resolve('unsupported');
+    return navigator.share({ title: title, text: text, url: url }).then(
+        function() { return 'shared'; },
+        function(e) { if (e && e.name === 'AbortError') return 'cancelled'; throw e; });
+}
+function qcardCopyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(function() { return true; }, function() { return false; });
+    return Promise.resolve(false);
+}
+
+// 選択ダイアログ。options: [{act,label,desc}]。戻り値 Promise<act | 'cancel'>
+function qcardChoiceDialog(title, note, options) {
+    return new Promise(function(resolve) {
+        var el = document.createElement('div');
+        el.className = 'qcard-dlc';
+        el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true');
+        el.innerHTML = '<div class="qcard-dlc-panel"><div class="qcard-dlc-title"></div><div class="qcard-dlc-note"></div><div class="qcard-dlc-btns"></div></div>';
+        el.querySelector('.qcard-dlc-title').textContent = title;
+        el.querySelector('.qcard-dlc-note').textContent = note || '';
+        var box = el.querySelector('.qcard-dlc-btns');
+        options.forEach(function(o, i) {
+            var b = document.createElement('button'); b.type = 'button';
+            b.className = 'qcard-dlc-btn' + (i === 0 ? ' primary' : ''); b.setAttribute('data-act', o.act);
+            b.appendChild(document.createTextNode(o.label));
+            if (o.desc) { var s = document.createElement('small'); s.textContent = o.desc; b.appendChild(s); }
+            box.appendChild(b);
+        });
+        var c = document.createElement('button'); c.type = 'button'; c.className = 'qcard-dlc-btn ghost'; c.setAttribute('data-act', 'cancel'); c.textContent = 'キャンセル'; box.appendChild(c);
+        function done(act) { el.removeEventListener('keydown', onKey); if (el.parentNode) el.parentNode.removeChild(el); resolve(act); }
+        function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); done('cancel'); } }
+        el.addEventListener('click', function(e) { var b = e.target.closest && e.target.closest('[data-act]'); if (b) done(b.getAttribute('data-act')); });
+        el.addEventListener('keydown', onKey);
+        document.body.appendChild(el);
+        var f = el.querySelector('.primary'); if (f) f.focus();
+    });
+}
+
+// 準備完了ダイアログ（ファイル・リンク共通）。
+//  o = { title, name, meta, note, shareLabel, doShare():Promise<'shared'|'cancelled'|'unsupported'>,
+//        onShared(), onFail(), failMessage, secondary:[{act,label,run}], fallbackLink: function|null }
+//  共有に失敗したときは、ダイアログ内に原因を表示する（トーストは背景に隠れるため使わない）。
+function qcardShareReadyDialog(o) {
     var el = document.createElement('div');
     el.className = 'qcard-dlc';
     el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true');
     el.innerHTML =
         '<div class="qcard-dlc-panel">' +
-          '<div class="qcard-dlc-title">送る準備ができました</div>' +
-          '<div class="qcard-dlc-name"></div>' +
-          '<div class="qcard-dlc-size"></div>' +
-          '<div class="qcard-dlc-note">「共有シートを開く」で、メール・LINE・メッセージなどを選ぶと、このファイルが添付されます。受け取った側は、Qcardの「データ管理 → 読み込み」から取り込めます。</div>' +
-          '<div class="qcard-dlc-btns">' +
-            '<button type="button" class="qcard-dlc-btn primary" data-act="share">共有シートを開く</button>' +
-            '<button type="button" class="qcard-dlc-btn" data-act="save">ファイルとして保存</button>' +
-            '<button type="button" class="qcard-dlc-btn ghost" data-act="close">閉じる</button>' +
-          '</div>' +
+          '<div class="qcard-dlc-title"></div><div class="qcard-dlc-name"></div><div class="qcard-dlc-size"></div>' +
+          '<div class="qcard-dlc-warn" role="alert" hidden></div>' +
+          '<div class="qcard-dlc-note"></div>' +
+          '<div class="qcard-dlc-btns"></div>' +
         '</div>';
-    el.querySelector('.qcard-dlc-name').textContent = filename;
-    el.querySelector('.qcard-dlc-size').textContent = qcardFormatBytes(blob.size);
+    el.querySelector('.qcard-dlc-title').textContent = o.title;
+    el.querySelector('.qcard-dlc-name').textContent = o.name || '';
+    el.querySelector('.qcard-dlc-size').textContent = o.meta || '';
+    el.querySelector('.qcard-dlc-note').textContent = o.note || '';
+    var warn = el.querySelector('.qcard-dlc-warn'), box = el.querySelector('.qcard-dlc-btns');
+    function addBtn(act, label, cls, hidden) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'qcard-dlc-btn' + (cls ? ' ' + cls : '');
+        b.setAttribute('data-act', act); b.textContent = label; if (hidden) b.style.display = 'none'; box.appendChild(b); return b;
+    }
+    addBtn('share', o.shareLabel || '共有シートを開く', 'primary');
+    var linkBtn = o.fallbackLink ? addBtn('link', 'リンクで送る（暗号化・24時間有効）', '', true) : null;
+    (o.secondary || []).forEach(function(s) { addBtn(s.act, s.label); });
+    addBtn('close', '閉じる', 'ghost');
     function close() { el.removeEventListener('keydown', onKey); if (el.parentNode) el.parentNode.removeChild(el); }
     function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(); } }
+    function fail(detail) {
+        if (o.onFail) o.onFail();
+        warn.hidden = false;
+        warn.textContent = (o.failMessage || '共有メニューを開けませんでした。') + (detail ? '（' + detail + '）' : '');
+        if (linkBtn) { linkBtn.style.display = ''; linkBtn.classList.add('primary'); var sb = el.querySelector('[data-act="share"]'); if (sb) sb.classList.remove('primary'); }
+    }
     el.addEventListener('click', function(e) {
         var b = e.target.closest && e.target.closest('[data-act]'); if (!b) return;
         var act = b.getAttribute('data-act');
         if (act === 'close') { close(); return; }
-        if (act === 'save') { downloadBlob(blob, filename); showToast('保存しました。メールなどに添付してください'); close(); return; }
-        // share：この click の中で共有メニューを開く（awaitの前）
-        qcardShareBlobAsFile(blob, filename, title, text).then(function(r) {
-            if (r === 'shared') { close(); }
-            else if (r === 'unsupported') { downloadBlob(blob, filename); showToast('この端末では直接送れないため、ファイルとして保存しました。メールなどに添付してください'); close(); }
-            // 'cancelled'：共有メニューを閉じただけ。ダイアログは残して、もう一度選べるようにする
-        }).catch(function(err) {
-            console.warn('[Share File]', err);
-            showToast('共有メニューを開けませんでした。「ファイルとして保存」をご利用ください');
-        });
+        if (act === 'link') { close(); o.fallbackLink(); return; }
+        if (act === 'share') {
+            warn.hidden = true;
+            // この click の中で共有メニューを開く（await の前）
+            var pr; try { pr = o.doShare(); } catch (err) { fail(err && err.name); return; }
+            pr.then(function(r) {
+                if (r === 'shared') { if (o.onShared) o.onShared(); close(); }
+                else if (r === 'unsupported') fail('unsupported');
+                // 'cancelled'：共有メニューを閉じただけ。ダイアログは残して、もう一度選べるようにする
+            }).catch(function(err) { console.warn('[Share]', err); fail(err && err.name); });
+            return;
+        }
+        var s = (o.secondary || []).filter(function(x) { return x.act === act; })[0];
+        if (s) { Promise.resolve(s.run()).then(function(keep) { if (keep !== false) close(); }); }
     });
     el.addEventListener('keydown', onKey);
     document.body.appendChild(el);
     var first = el.querySelector('[data-act="share"]'); if (first) first.focus();
 }
-async function qcardShareExport(kind) {   // kind: 'qcf'（このシナリオ）| 'qcp'（全シナリオ）
-    try { closeDataModal(); } catch (_) {}
+
+// ── 系統1：ファイルで送る ──
+async function qcardShareFileFlow(kind) {   // kind: 'qcf'（このシナリオ）| 'qcp'（全シナリオ）
     try { saveCurrentGridData(); } catch (_) {}
     var active = getActive();
     if (kind === 'qcf' && !active) return;
@@ -14987,15 +15054,72 @@ async function qcardShareExport(kind) {   // kind: 'qcf'（このシナリオ）
         showToast('⚠️ ファイルの準備に失敗しました');
         return;
     } finally { qcardProgress.hide(); }
-    qcardShareFileDialog(blob, filename, filename, 'Qcardのデータです。Qcardの「データ管理 → 読み込み」で開けます。');
+    qcardShareReadyDialog({
+        title: '送る準備ができました', name: filename, meta: qcardFormatBytes(blob.size),
+        note: '「共有シートを開く」で、メール・LINE・メッセージなどを選ぶと、このファイルが添付されます。受け取った側は、Qcardの「データ管理 → 読み込み」から取り込めます。',
+        shareLabel: '共有シートを開く',
+        doShare: function() { return qcardShareBlobAsFile(blob, filename, filename, 'Qcardのデータです。Qcardの「データ管理 → 読み込み」で開けます。'); },
+        onShared: function() { qcardSetShareFileFailed(false); },
+        onFail: function() { qcardSetShareFileFailed(true); },
+        failMessage: kind === 'qcf'
+            ? 'この端末（ブラウザ）では、ファイルを直接送れませんでした。「リンクで送る」か「ファイルとして保存」をお使いください。'
+            : 'この端末（ブラウザ）では、ファイルを直接送れませんでした。「ファイルとして保存」して、メールなどに添付してください。',
+        secondary: [{ act: 'save', label: 'ファイルとして保存', run: function() { downloadBlob(blob, filename); showToast('保存しました。メールなどに添付してください'); } }],
+        fallbackLink: kind === 'qcf' ? qcardShareLinkFlow : null
+    });
+}
+
+// ── 系統2：暗号化した共有リンクで送る（このシナリオのみ） ──
+async function qcardShareLinkFlow() {
+    var sc = getActive(), name = (sc && sc.name) ? sc.name : 'Qcardのシナリオ';
+    var res;
+    try { res = await window.shareCurrentScenario(true); }
+    catch (e) {
+        if (e && e.qcardCancelled) return;
+        console.error('[Share Link] failed:', e);
+        showToast('リンクの作成に失敗しました');
+        return;
+    }
+    if (!res || !res.friendlyUrl) return;   // 失敗時は共有処理側で案内済み
+    var exp = res.expiresAt ? new Date(res.expiresAt) : null;
+    var text = 'Qcardのシナリオを送ります（24時間有効）';
+    function copy() { return qcardCopyText(res.friendlyUrl).then(function(ok) { showToast(ok ? 'リンクをコピーしました' : 'コピーできませんでした。長押しで選択してコピーしてください'); return ok; }); }
+    qcardShareReadyDialog({
+        title: 'リンクの準備ができました', name: name, meta: exp ? '有効期限：' + exp.toLocaleString() : '',
+        note: 'リンクを開くと、暗号化された内容が自動でQcardに取り込まれます（Qcardを使ったことがない人も開けます）。リンクは「#」以降も含めて、そのまま送ってください。',
+        shareLabel: qcardCanShareUrl() ? '共有シートを開く' : 'リンクをコピー',
+        doShare: function() { return qcardCanShareUrl() ? qcardShareUrl(res.friendlyUrl, name, text) : copy().then(function(ok) { return ok ? 'shared' : 'unsupported'; }); },
+        failMessage: '共有メニューを開けませんでした。「リンクをコピー」して、メールやLINEに貼り付けてください。',
+        secondary: qcardCanShareUrl() ? [{ act: 'copy', label: 'リンクをコピー', run: function() { return copy().then(function() { return false; }); } }] : []
+    });
+}
+
+// ── 入口：送り方の選択 ──
+async function qcardShareExport(kind) {
+    try { closeDataModal(); } catch (_) {}
+    var canFile = qcardCanShareFiles();
+    var canLink = (kind === 'qcf');                // リンクは1シナリオ単位（QCPの全シナリオはファイルのみ）
+    var failed = qcardShareFileFailed();
+    var fileOpt = { act: 'file', label: 'ファイルで送る', desc: 'メールなどに添付。受け取った側が「読み込み」で取り込みます' + (failed ? '（この端末では送れない場合があります）' : '') };
+    var linkOpt = { act: 'link', label: 'リンクで送る（暗号化）', desc: '24時間有効。開くだけでQcardに取り込まれます' };
+    var opts = [];
+    if (failed) { if (canLink) opts.push(linkOpt); if (canFile) opts.push(fileOpt); }
+    else        { if (canFile) opts.push(fileOpt); if (canLink) opts.push(linkOpt); }
+    if (!opts.length) { showToast('この端末では送信メニューを使えません。書き出しボタンでファイルを保存してください'); return; }
+    var choice = (opts.length === 1) ? opts[0].act : await qcardChoiceDialog('送り方を選んでください', '', opts);
+    if (choice === 'link') return qcardShareLinkFlow();
+    if (choice === 'file') return qcardShareFileFlow(kind);
 }
 window.shareActiveQCF = function() { return qcardShareExport('qcf'); };
 window.shareAllQCP    = function() { return qcardShareExport('qcp'); };
-// 対応端末でのみ「送る」ボタンを出す（未対応端末は従来の書き出しボタンだけ）
+// 使える端末でだけ「送る」ボタンを出す：QCF＝ファイルまたはリンクが送れる端末、QCP＝ファイルが送れる端末
 function qcardInitShareFileButtons() {
-    if (!qcardCanShareFiles()) return;
+    var canFile = qcardCanShareFiles(), canAny = canFile || qcardCanShareUrl();
     var bs = document.querySelectorAll('[data-share-file]');
-    for (var i = 0; i < bs.length; i++) bs[i].style.display = '';
+    for (var i = 0; i < bs.length; i++) {
+        var kind = bs[i].getAttribute('data-share-file');
+        if (kind === 'qcp' ? canFile : canAny) bs[i].style.display = '';
+    }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', qcardInitShareFileButtons);
 else qcardInitShareFileButtons();
