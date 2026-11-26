@@ -5592,6 +5592,10 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">表計算用</div></div>
                 </button>
             </div>
+            <button class="dm-action" data-share-file style="display:none" onclick="shareActiveQCF()">
+                <span class="dm-icon">📤</span>
+                <div><div class="dm-label">QCFを送る</div><div class="dm-desc">メール・LINEなどに添付して送信</div></div>
+            </button>
             <button class="dm-action" onclick="copyToClipboard('active')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">テキストとしてコピー</div><div class="dm-desc">クリップボードにコピー</div></div>
@@ -5621,6 +5625,10 @@ min-height: 0;
                     <div><div class="dm-label">CSV</div><div class="dm-desc">全シナリオ</div></div>
                 </button>
             </div>
+            <button class="dm-action" data-share-file style="display:none" onclick="shareAllQCP()">
+                <span class="dm-icon">📤</span>
+                <div><div class="dm-label">QCP（全シナリオ）を送る</div><div class="dm-desc">メール・LINEなどに添付して送信</div></div>
+            </button>
             <button class="dm-action" onclick="copyToClipboard('all')">
                 <span class="dm-icon">📋</span>
                 <div><div class="dm-label">全シナリオをコピー</div></div>
@@ -14866,6 +14874,132 @@ function qcfLoadZipLib() {
     return _qcfZipLibPromise;
 }
 
+// QCF（このシナリオ）のZIPを生成（書き出し・共有で共通）
+async function qcfBuildActiveBlob(active) {
+    await qcfLoadZipLib();
+    var built = await buildQCFv2(active);
+    var zip = new JSZip();
+    zip.file('scenario.json', JSON.stringify(built.json, null, 2));
+    built.files.forEach(function(f) { zip.file(f.path, f.blob); });
+    return await zip.generateAsync({ type: 'blob' });
+}
+// QCP（全シナリオ）のZIPを生成（書き出し・共有で共通）
+async function qcpBuildAllBlob() {
+    await qcfLoadZipLib();
+    var outerZip = new JSZip();
+    var scenariosFolder = outerZip.folder('scenarios');
+    var manifestItems = [];
+    for (var i = 0; i < scenarios.length; i++) {
+        var s = scenarios[i];
+        var built = await buildQCFv2(s);
+        var innerZip = new JSZip();
+        innerZip.file('scenario.json', JSON.stringify(built.json, null, 2));
+        built.files.forEach(function(f) { innerZip.file(f.path, f.blob); });
+        var innerBlob = await innerZip.generateAsync({ type: 'blob' });
+        var fname = 'scenario_' + String(i + 1).padStart(3, '0') + '.qcf';
+        scenariosFolder.file(fname, innerBlob);
+        manifestItems.push({ file: 'scenarios/' + fname, qcfId: built.json.qcfId, title: built.json.title });
+    }
+    var manifest = {
+        packageVersion: '2.0',
+        packageId:      qcpUid(),
+        title:          'Qcard エクスポート',
+        createdAt:      nowMs(),
+        exportedAt:     nowMs(),
+        itemCount:      manifestItems.length,
+        items:          manifestItems
+    };
+    outerZip.file('manifest.json', JSON.stringify(manifest, null, 2));
+    return await outerZip.generateAsync({ type: 'blob' });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QCF/QCP を端末の共有メニューで送る（メール添付・LINE・メッセージ等）
+//  - Web Share API（ファイル共有）に対応した端末でのみボタンを表示する
+//  - ファイル生成に時間がかかると、共有メニューを開く操作（ユーザー操作の直後に限られる）が無効になる端末があるため、
+//    「準備 → 準備完了ダイアログ → ボタンを押して共有メニューを開く」の2段階にしている
+// ═══════════════════════════════════════════════════════════════
+function qcardCanShareFiles() {
+    try {
+        if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') return false;
+        return !!navigator.canShare({ files: [new File([new Uint8Array(1)], 'x.qcf', { type: 'application/octet-stream' })] });
+    } catch (_) { return false; }
+}
+// 戻り値: 'shared' | 'cancelled' | 'unsupported'（その他は例外）。共有メニューは呼び出し直後（await より前）に開く。
+function qcardShareBlobAsFile(blob, filename, title, text) {
+    var file = new File([blob], filename, { type: 'application/octet-stream' });
+    if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || !navigator.canShare({ files: [file] })) return Promise.resolve('unsupported');
+    return navigator.share({ files: [file], title: title, text: text }).then(
+        function() { return 'shared'; },
+        function(e) { if (e && e.name === 'AbortError') return 'cancelled'; throw e; });
+}
+function qcardShareFileDialog(blob, filename, title, text) {
+    var el = document.createElement('div');
+    el.className = 'qcard-dlc';
+    el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-modal', 'true');
+    el.innerHTML =
+        '<div class="qcard-dlc-panel">' +
+          '<div class="qcard-dlc-title">送る準備ができました</div>' +
+          '<div class="qcard-dlc-name"></div>' +
+          '<div class="qcard-dlc-size"></div>' +
+          '<div class="qcard-dlc-note">「共有シートを開く」で、メール・LINE・メッセージなどを選ぶと、このファイルが添付されます。受け取った側は、Qcardの「データ管理 → 読み込み」から取り込めます。</div>' +
+          '<div class="qcard-dlc-btns">' +
+            '<button type="button" class="qcard-dlc-btn primary" data-act="share">共有シートを開く</button>' +
+            '<button type="button" class="qcard-dlc-btn" data-act="save">ファイルとして保存</button>' +
+            '<button type="button" class="qcard-dlc-btn ghost" data-act="close">閉じる</button>' +
+          '</div>' +
+        '</div>';
+    el.querySelector('.qcard-dlc-name').textContent = filename;
+    el.querySelector('.qcard-dlc-size').textContent = qcardFormatBytes(blob.size);
+    function close() { el.removeEventListener('keydown', onKey); if (el.parentNode) el.parentNode.removeChild(el); }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(); } }
+    el.addEventListener('click', function(e) {
+        var b = e.target.closest && e.target.closest('[data-act]'); if (!b) return;
+        var act = b.getAttribute('data-act');
+        if (act === 'close') { close(); return; }
+        if (act === 'save') { downloadBlob(blob, filename); showToast('保存しました。メールなどに添付してください'); close(); return; }
+        // share：この click の中で共有メニューを開く（awaitの前）
+        qcardShareBlobAsFile(blob, filename, title, text).then(function(r) {
+            if (r === 'shared') { close(); }
+            else if (r === 'unsupported') { downloadBlob(blob, filename); showToast('この端末では直接送れないため、ファイルとして保存しました。メールなどに添付してください'); close(); }
+            // 'cancelled'：共有メニューを閉じただけ。ダイアログは残して、もう一度選べるようにする
+        }).catch(function(err) {
+            console.warn('[Share File]', err);
+            showToast('共有メニューを開けませんでした。「ファイルとして保存」をご利用ください');
+        });
+    });
+    el.addEventListener('keydown', onKey);
+    document.body.appendChild(el);
+    var first = el.querySelector('[data-act="share"]'); if (first) first.focus();
+}
+async function qcardShareExport(kind) {   // kind: 'qcf'（このシナリオ）| 'qcp'（全シナリオ）
+    try { closeDataModal(); } catch (_) {}
+    try { saveCurrentGridData(); } catch (_) {}
+    var active = getActive();
+    if (kind === 'qcf' && !active) return;
+    qcardProgress.show(kind === 'qcf' ? 'QCFを準備中' : 'QCPを準備中', '送るファイルを作成しています…');
+    var blob, filename;
+    try {
+        if (kind === 'qcf') { blob = await qcfBuildActiveBlob(active); filename = activeFilename('qcf'); }
+        else { blob = await qcpBuildAllBlob(); filename = 'qcard_' + today() + '.qcp'; }
+    } catch (e) {
+        console.error('[Share Export] build failed:', e);
+        showToast('⚠️ ファイルの準備に失敗しました');
+        return;
+    } finally { qcardProgress.hide(); }
+    qcardShareFileDialog(blob, filename, filename, 'Qcardのデータです。Qcardの「データ管理 → 読み込み」で開けます。');
+}
+window.shareActiveQCF = function() { return qcardShareExport('qcf'); };
+window.shareAllQCP    = function() { return qcardShareExport('qcp'); };
+// 対応端末でのみ「送る」ボタンを出す（未対応端末は従来の書き出しボタンだけ）
+function qcardInitShareFileButtons() {
+    if (!qcardCanShareFiles()) return;
+    var bs = document.querySelectorAll('[data-share-file]');
+    for (var i = 0; i < bs.length; i++) bs[i].style.display = '';
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', qcardInitShareFileButtons);
+else qcardInitShareFileButtons();
+
 // [MOD] v2化：常にZIPコンテナ(scenario.json + media/)として書き出す。
 // v1（JSON直書き）は今後の新規エクスポートでは使用しない（読み込みは引き続きサポート）。
 async function exportActiveJSON() {
@@ -14874,12 +15008,7 @@ async function exportActiveJSON() {
     var active = getActive();
     showToast('📦 書き出し準備中...');
     try {
-        await qcfLoadZipLib();
-        var built = await buildQCFv2(active);
-        var zip = new JSZip();
-        zip.file('scenario.json', JSON.stringify(built.json, null, 2));
-        built.files.forEach(function(f) { zip.file(f.path, f.blob); });
-        var blob = await zip.generateAsync({ type: 'blob' });
+        var blob = await qcfBuildActiveBlob(active);
         downloadBlob(blob, activeFilename('qcf'));
         showToast(t('toast_qcf_export'));
     } catch (e) {
@@ -14895,32 +15024,7 @@ async function exportJSON() {
     saveCurrentGridData();
     showToast('📦 書き出し準備中...');
     try {
-        await qcfLoadZipLib();
-        var outerZip = new JSZip();
-        var scenariosFolder = outerZip.folder('scenarios');
-        var manifestItems = [];
-        for (var i = 0; i < scenarios.length; i++) {
-            var s = scenarios[i];
-            var built = await buildQCFv2(s);
-            var innerZip = new JSZip();
-            innerZip.file('scenario.json', JSON.stringify(built.json, null, 2));
-            built.files.forEach(function(f) { innerZip.file(f.path, f.blob); });
-            var innerBlob = await innerZip.generateAsync({ type: 'blob' });
-            var fname = 'scenario_' + String(i + 1).padStart(3, '0') + '.qcf';
-            scenariosFolder.file(fname, innerBlob);
-            manifestItems.push({ file: 'scenarios/' + fname, qcfId: built.json.qcfId, title: built.json.title });
-        }
-        var manifest = {
-            packageVersion: '2.0',
-            packageId:      qcpUid(),
-            title:          'Qcard エクスポート',
-            createdAt:      nowMs(),
-            exportedAt:     nowMs(),
-            itemCount:      manifestItems.length,
-            items:          manifestItems
-        };
-        outerZip.file('manifest.json', JSON.stringify(manifest, null, 2));
-        var blob = await outerZip.generateAsync({ type: 'blob' });
+        var blob = await qcpBuildAllBlob();
         downloadBlob(blob, 'qcard_' + today() + '.qcp');
         showToast(t('toast_qcp_export'));
     } catch (e) {
