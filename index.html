@@ -2681,6 +2681,61 @@
     /* ══════════════════════════════════════
        MOBILE UI  (≤640px)
     ══════════════════════════════════════ */
+        /* ═══ 全幅（PC・スマホ共通）のオーバーレイ／ダイアログ用スタイル ═══
+           ※ 以前はスマホ用 @media (max-width: 640px) の中に置かれていたため、PCでは効いていなかった。 */
+        /* ── 受信などの長時間処理：進捗オーバーレイ（操作ブロック） ── */
+        #qcard-progress-overlay {
+            position: fixed; inset: 0; z-index: 10030;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+            opacity: 0; visibility: hidden; pointer-events: none; outline: none;
+            transition: opacity .15s, visibility 0s .15s;
+        }
+        /* 表示は0.25秒遅らせる（一瞬で終わる処理でチラつかせない）。ただし操作ブロックは即時。 */
+        #qcard-progress-overlay.open {
+            opacity: 1; visibility: visible; pointer-events: auto;
+            transition: opacity .2s .25s, visibility 0s 0s;
+        }
+        .qpo-panel {
+            width: min(86vw, 360px); box-sizing: border-box; padding: 20px 20px 16px; text-align: center;
+            background: var(--surface); color: var(--text); border: 1px solid var(--border2);
+            border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+        }
+        .qpo-head { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .qpo-spin {
+            width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
+            border: 2px solid var(--border2); border-top-color: var(--accent);
+            animation: qpoSpin .8s linear infinite;
+        }
+        .qpo-title { font-weight: 700; font-size: 1rem; }
+        .qpo-track { height: 8px; margin: 14px 0 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; }
+        .qpo-fill { height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s; }
+        .qpo-ind .qpo-fill { width: 40%; transition: none; animation: qpoSlide 1.1s ease-in-out infinite; }
+        .qpo-count { min-height: 1.2em; font-family: 'DM Mono', monospace; font-size: .85rem; color: var(--text); }
+        .qpo-label { margin-top: 2px; font-size: .8rem; color: var(--text-muted); }
+        .qpo-note { margin-top: 12px; font-size: .72rem; color: var(--text-dim); line-height: 1.5; }
+        @keyframes qpoSpin  { to { transform: rotate(360deg); } }
+        @keyframes qpoSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+        @media (prefers-reduced-motion: reduce) { .qpo-spin, .qpo-ind .qpo-fill { animation: none; } }
+        /* ── 受信前のダウンロード量の確認ダイアログ ── */
+        .qcard-dlc { position: fixed; inset: 0; z-index: 10040; display: flex; align-items: center; justify-content: center;
+            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+        .qcard-dlc-panel { width: min(90vw, 380px); box-sizing: border-box; padding: 20px; background: var(--surface); color: var(--text);
+            border: 1px solid var(--border2); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); text-align: center; }
+        .qcard-dlc-title { font-weight: 700; font-size: 1rem; }
+        .qcard-dlc-name { margin-top: 6px; font-size: .8rem; color: var(--text-muted); overflow-wrap: anywhere; }
+        .qcard-dlc-size { margin: 12px 0 2px; font-family: 'DM Mono', monospace; font-size: 1.6rem; font-weight: 500; color: var(--accent); }
+        .qcard-dlc-detail { font-size: .8rem; color: var(--text-muted); }
+        .qcard-dlc-note { margin: 12px 0 16px; font-size: .75rem; line-height: 1.55; color: var(--text-muted); }
+        .qcard-dlc-btns { display: flex; flex-direction: column; gap: 8px; }
+        .qcard-dlc-btn { min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: .9rem; cursor: pointer;
+            border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
+        .qcard-dlc-btn small { display: block; margin-top: 2px; font-size: .72rem; font-weight: 400; opacity: .8; }
+        .qcard-dlc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+        .qcard-dlc-btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+        .qcard-dlc-warn { margin: 10px 0 0; font-size: .78rem; line-height: 1.55; color: #e0a43c; }
+        .qcard-dlc-btn[disabled] { opacity: .5; cursor: not-allowed; }
+
     @media (max-width: 640px) {
 
         /* [v7] MOBILE — card内に完全に収める */
@@ -3171,58 +3226,6 @@
             padding: 4px 2px;
             cursor: pointer;
         }
-        /* ── 受信などの長時間処理：進捗オーバーレイ（操作ブロック） ── */
-        #qcard-progress-overlay {
-            position: fixed; inset: 0; z-index: 10030;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-            opacity: 0; visibility: hidden; pointer-events: none; outline: none;
-            transition: opacity .15s, visibility 0s .15s;
-        }
-        /* 表示は0.25秒遅らせる（一瞬で終わる処理でチラつかせない）。ただし操作ブロックは即時。 */
-        #qcard-progress-overlay.open {
-            opacity: 1; visibility: visible; pointer-events: auto;
-            transition: opacity .2s .25s, visibility 0s 0s;
-        }
-        .qpo-panel {
-            width: min(86vw, 360px); box-sizing: border-box; padding: 20px 20px 16px; text-align: center;
-            background: var(--surface); color: var(--text); border: 1px solid var(--border2);
-            border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-        }
-        .qpo-head { display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .qpo-spin {
-            width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
-            border: 2px solid var(--border2); border-top-color: var(--accent);
-            animation: qpoSpin .8s linear infinite;
-        }
-        .qpo-title { font-weight: 700; font-size: 1rem; }
-        .qpo-track { height: 8px; margin: 14px 0 8px; border-radius: 4px; background: var(--surface3); overflow: hidden; }
-        .qpo-fill { height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s; }
-        .qpo-ind .qpo-fill { width: 40%; transition: none; animation: qpoSlide 1.1s ease-in-out infinite; }
-        .qpo-count { min-height: 1.2em; font-family: 'DM Mono', monospace; font-size: .85rem; color: var(--text); }
-        .qpo-label { margin-top: 2px; font-size: .8rem; color: var(--text-muted); }
-        .qpo-note { margin-top: 12px; font-size: .72rem; color: var(--text-dim); line-height: 1.5; }
-        @keyframes qpoSpin  { to { transform: rotate(360deg); } }
-        @keyframes qpoSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
-        @media (prefers-reduced-motion: reduce) { .qpo-spin, .qpo-ind .qpo-fill { animation: none; } }
-        /* ── 受信前のダウンロード量の確認ダイアログ ── */
-        .qcard-dlc { position: fixed; inset: 0; z-index: 10040; display: flex; align-items: center; justify-content: center;
-            background: rgba(5,7,11,0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
-        .qcard-dlc-panel { width: min(90vw, 380px); box-sizing: border-box; padding: 20px; background: var(--surface); color: var(--text);
-            border: 1px solid var(--border2); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); text-align: center; }
-        .qcard-dlc-title { font-weight: 700; font-size: 1rem; }
-        .qcard-dlc-name { margin-top: 6px; font-size: .8rem; color: var(--text-muted); overflow-wrap: anywhere; }
-        .qcard-dlc-size { margin: 12px 0 2px; font-family: 'DM Mono', monospace; font-size: 1.6rem; font-weight: 500; color: var(--accent); }
-        .qcard-dlc-detail { font-size: .8rem; color: var(--text-muted); }
-        .qcard-dlc-note { margin: 12px 0 16px; font-size: .75rem; line-height: 1.55; color: var(--text-muted); }
-        .qcard-dlc-btns { display: flex; flex-direction: column; gap: 8px; }
-        .qcard-dlc-btn { min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: .9rem; cursor: pointer;
-            border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
-        .qcard-dlc-btn small { display: block; margin-top: 2px; font-size: .72rem; font-weight: 400; opacity: .8; }
-        .qcard-dlc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
-        .qcard-dlc-btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
-        .qcard-dlc-warn { margin: 10px 0 0; font-size: .78rem; line-height: 1.55; color: #e0a43c; }
-        .qcard-dlc-btn[disabled] { opacity: .5; cursor: not-allowed; }
         .mss-row-edit {
             flex-shrink: 0;
             min-width: 40px; height: 36px; margin: -6px -4px -6px 0;
