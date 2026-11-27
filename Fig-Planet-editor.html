@@ -167,21 +167,21 @@
             <div class="flex flex-col">
               <span class="text-[10px] text-zinc-400">推定SVGファイル容量</span>
               <div class="flex items-baseline gap-1.5 mt-0.5">
-                <span id="estSvgSizeVal" class="text-sm font-bold font-mono text-emerald-400">~28 KB</span>
-                <span id="estSvgSizeBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300">超軽量</span>
+                <span id="estSvgSizeVal" class="text-sm font-bold font-mono text-emerald-400">~24 KB</span>
+                <span id="estSvgSizeBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300">Qcard安全圏</span>
               </div>
             </div>
             <div class="flex flex-col border-l border-zinc-800 pl-2.5">
               <span class="text-[10px] text-zinc-400">稼働アニメーション数</span>
               <div class="flex items-baseline gap-1.5 mt-0.5">
-                <span id="estAnimCountVal" class="text-sm font-bold font-mono text-cyan-400">10 個</span>
-                <span class="text-[9px] text-zinc-500">(目標60以下)</span>
+                <span id="estAnimCountVal" class="text-sm font-bold font-mono text-cyan-400">45 個</span>
+                <span class="text-[9px] text-zinc-500">(軽量上限内)</span>
               </div>
             </div>
             <div class="flex flex-col border-l border-zinc-800 pl-2.5">
               <span class="text-[10px] text-zinc-400">描画ポリゴン総数</span>
               <div class="flex items-baseline gap-1.5 mt-0.5">
-                <span id="estPolyCountVal" class="text-sm font-bold font-mono text-purple-300">180 面</span>
+                <span id="estPolyCountVal" class="text-sm font-bold font-mono text-purple-300">45 面</span>
                 <span id="estModeTag" class="text-[9px] text-zinc-500">3D極軸ベクター</span>
               </div>
             </div>
@@ -383,14 +383,13 @@
         <div class="space-y-2">
           <div class="flex justify-between text-xs">
             <label for="subdivisionInput" class="font-medium text-zinc-300">ジオデシック分割精度 (Frequency)</label>
-            <span id="subdivisionVal" class="font-mono text-purple-400 font-semibold">3V (320面)</span>
+            <span id="subdivisionVal" class="font-mono text-purple-400 font-semibold">2V (80面)</span>
           </div>
-          <input id="subdivisionInput" type="range" min="1" max="4" step="1" value="3" class="w-full">
+          <input id="subdivisionInput" type="range" min="1" max="3" step="1" value="2" class="w-full">
           <div class="flex justify-between text-[10px] text-zinc-500">
-            <span>1V (正二十面体)</span>
-            <span>2V</span>
-            <span>3V</span>
-            <span>4V (高精細ドーム)</span>
+            <span>1V (正二十面体・最軽量)</span>
+            <span>2V (標準推奨)</span>
+            <span>3V (高精細・1〜2層時)</span>
           </div>
         </div>
 
@@ -420,13 +419,13 @@
         <div class="space-y-2">
           <div class="flex justify-between text-xs">
             <label for="shellsInput" class="font-medium text-zinc-300">多重ドーム層数 (Infinite Layers)</label>
-            <span id="shellsVal" class="font-mono text-purple-400 font-semibold">4層</span>
+            <span id="shellsVal" class="font-mono text-purple-400 font-semibold">1層 (シングル・最軽量)</span>
           </div>
-          <input id="shellsInput" type="range" min="1" max="6" step="1" value="4" class="w-full">
+          <input id="shellsInput" type="range" min="1" max="4" step="1" value="1" class="w-full">
           <div class="flex justify-between text-[10px] text-zinc-500">
-            <span>1層 (シングル惑星・超軽量)</span>
-            <span>4層 (標準多重)</span>
-            <span>6層</span>
+            <span>1層 (シングル惑星・推奨)</span>
+            <span>2層 (二重)</span>
+            <span>3〜4層 (多重・最大2V制限)</span>
           </div>
         </div>
 
@@ -520,10 +519,9 @@
             <div>
               <label for="qualitySelect" class="block text-xs text-zinc-400 mb-1.5">SVG軽量化エンジン / アニメ方式</label>
               <select id="qualitySelect" class="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-500">
-                <option value="morph18">3D極軸スピン・超軽量 (18ステップ / 立体360°回転)</option>
-                <option value="morph24" selected>3D極軸スピン・標準推奨 (24ステップ / 立体360°回転)</option>
-                <option value="morph36">3D極軸スピン・高精細 (36ステップ / 立体360°回転)</option>
-                <option value="groupLight">グループGPU擬似揺らぎ版 (超軽量・簡易モード)</option>
+                <option value="morph18" selected>3D極軸スピン・超軽量推奨 (18ステップ / 立体360°回転)</option>
+                <option value="morph24">3D極軸スピン・標準 (24ステップ / 立体360°回転)</option>
+                <option value="groupLight">グループGPU擬似揺らぎ版 (極小容量・簡易モード)</option>
               </select>
             </div>
           </div>
@@ -652,10 +650,10 @@
       },
       figMorph: 100,             // イチジク惑星フォルム変形率 (%)
       crystalMorph: 0,           // クリスタル結晶フォルム変形率 (%)
-      subdivision: 3,            // ジオデシック分割精度 (1V〜4V)
+      subdivision: 2,            // ジオデシック分割精度 (1V〜3V / デフォルト2V)
       twist: 2.4,                // 極軸ワームホールのねじれ (rad)
       flowDir: 'northToSouth',   // 極軸循環方向 ('northToSouth' | 'southToNorth')
-      shells: 4,                 // 多重ドーム層数 (1〜6)
+      shells: 1,                 // 多重ドーム層数 (1〜4 / デフォルト1層)
       tiltDeg: 28,               // カメラ俯角・チルト (°)
       glow: 75,                  // 中心ネオングロー強度 (%)
       brightness: 100,           // ジオデシック明度 (%)
@@ -663,7 +661,7 @@
       facetShade: 85,            // ダイヤモンド陰影強度 (%)
       canvasSize: 400,           // 基準出力サイズ (px)
       loopDuration: 24.0,        // ループ周期 (秒)
-      svgEngine: 'morph24',      // SVG軽量化エンジン ('morph18' | 'morph24' | 'morph36' | 'groupLight')
+      svgEngine: 'morph18',      // SVG軽量化エンジン ('morph18' | 'morph24' | 'groupLight')
       svgExportMode: 'auto',     // SVG書き出し方式 ('auto' | 'lightOnly' | 'darkOnly' | 'inline')
       bgCanvasMode: 'transparent', // 背景出力 ('transparent' | 'dark' | 'pureBlack' | 'pureWhite')
       previewSurface: 'dark',    // 配置背景プレビュー ('dark' | 'light' | 'transparent')
@@ -763,10 +761,11 @@
         }
         if (typeof cfg.figMorph === 'number') state.figMorph = cfg.figMorph;
         if (typeof cfg.crystalMorph === 'number') state.crystalMorph = cfg.crystalMorph;
-        if (typeof cfg.subdivision === 'number') state.subdivision = cfg.subdivision;
+        if (typeof cfg.subdivision === 'number') state.subdivision = Math.max(1, Math.min(3, cfg.subdivision));
         if (typeof cfg.twist === 'number') state.twist = cfg.twist;
         if (typeof cfg.flowDir === 'string') state.flowDir = cfg.flowDir;
-        if (typeof cfg.shells === 'number') state.shells = cfg.shells;
+        if (typeof cfg.shells === 'number') state.shells = Math.max(1, Math.min(4, cfg.shells));
+        if (state.shells >= 3 && state.subdivision > 2) state.subdivision = 2;
         if (typeof cfg.tiltDeg === 'number') state.tiltDeg = cfg.tiltDeg;
         if (typeof cfg.glow === 'number') state.glow = cfg.glow;
         if (typeof cfg.brightness === 'number') state.brightness = cfg.brightness;
@@ -774,7 +773,9 @@
         if (typeof cfg.facetShade === 'number') state.facetShade = cfg.facetShade;
         if (typeof cfg.canvasSize === 'number') state.canvasSize = cfg.canvasSize;
         if (typeof cfg.loopDuration === 'number') state.loopDuration = cfg.loopDuration;
-        if (typeof cfg.svgEngine === 'string') state.svgEngine = cfg.svgEngine;
+        if (typeof cfg.svgEngine === 'string') {
+          state.svgEngine = cfg.svgEngine === 'morph36' ? 'morph24' : cfg.svgEngine;
+        }
         if (typeof cfg.svgExportMode === 'string') state.svgExportMode = cfg.svgExportMode;
         if (typeof cfg.bgCanvasMode === 'string') state.bgCanvasMode = cfg.bgCanvasMode;
 
@@ -840,7 +841,7 @@
       document.getElementById('twistVal').textContent = `${state.twist.toFixed(1)} rad`;
 
       document.getElementById('shellsInput').value = state.shells;
-      document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル)' : `${state.shells}層`;
+      document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル・最軽量)' : `${state.shells}層`;
 
       document.getElementById('tiltInput').value = state.tiltDeg;
       document.getElementById('tiltVal').textContent = `${state.tiltDeg}°`;
@@ -1283,18 +1284,18 @@
       if (modeEl) modeEl.textContent = isGroupMode ? 'グループ擬似揺らぎ' : '3D極軸ベクター';
 
       if (badgeEl && sizeEl) {
-        if (estKB <= 140) {
+        if (estKB <= 90) {
           sizeEl.className = 'text-sm font-bold font-mono text-emerald-400';
           badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300';
-          badgeEl.textContent = '3D回転・軽量最適';
-        } else if (estKB <= 280) {
+          badgeEl.textContent = 'Qcard超軽量・最適';
+        } else if (estKB <= 180) {
           sizeEl.className = 'text-sm font-bold font-mono text-cyan-400';
           badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300';
-          badgeEl.textContent = '目標範囲内';
+          badgeEl.textContent = 'Qcard安全圏内';
         } else {
           sizeEl.className = 'text-sm font-bold font-mono text-amber-400';
           badgeEl.className = 'text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300';
-          badgeEl.textContent = 'やや重め';
+          badgeEl.textContent = '標準上限付近';
         }
       }
     }
@@ -2270,11 +2271,12 @@
         if (!state.isPlaying) renderAllPreviews();
       });
 
-      // 再生 / 一時停止ボタン
+      // 再生 / 一時停止トグル
       document.getElementById('togglePlayBtn').addEventListener('click', () => {
         state.isPlaying = !state.isPlaying;
         document.getElementById('playIcon').textContent = state.isPlaying ? '⏸' : '▶';
         document.getElementById('playText').textContent = state.isPlaying ? '一時停止' : '再生';
+        if (state.isPlaying) renderAllPreviews();
       });
 
       // イチジク惑星フォルム度
@@ -2295,10 +2297,16 @@
         if (!state.isPlaying) renderAllPreviews();
       });
 
-      // 分割精度
+      // 分割精度（多重層数が3〜4層のときはパフォーマンス保護のため最大2Vに制限）
       const subInput = document.getElementById('subdivisionInput');
       subInput.addEventListener('input', (e) => {
-        state.subdivision = parseInt(e.target.value, 10);
+        let nextSub = parseInt(e.target.value, 10);
+        if (state.shells >= 3 && nextSub > 2) {
+          nextSub = 2;
+          subInput.value = '2';
+          showToast('⚡', '3〜4層の多重ドーム時はサイト軽量化のため分割精度を2Vまでに制限しています');
+        }
+        state.subdivision = nextSub;
         rebuildMesh();
         updateSvgEstimateUI();
         if (!state.isPlaying) renderAllPreviews();
@@ -2312,11 +2320,17 @@
         if (!state.isPlaying) renderAllPreviews();
       });
 
-      // 多重ドーム層数
+      // 多重ドーム層数（3層以上にした場合は分割精度を自動で2V以下へ調整し描画負荷を抑制）
       const shellsInput = document.getElementById('shellsInput');
       shellsInput.addEventListener('input', (e) => {
         state.shells = parseInt(e.target.value, 10);
-        document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル)' : `${state.shells}層`;
+        document.getElementById('shellsVal').textContent = state.shells === 1 ? '1層 (シングル・最軽量)' : `${state.shells}層`;
+        if (state.shells >= 3 && state.subdivision > 2) {
+          state.subdivision = 2;
+          subInput.value = '2';
+          rebuildMesh();
+          showToast('⚡', 'サイト軽量化のため分割精度を自動で2Vに最適化しました');
+        }
         updateSvgEstimateUI();
         if (!state.isPlaying) renderAllPreviews();
       });
@@ -2394,23 +2408,23 @@
         state.bgCanvasMode = e.target.value;
       });
 
-      // リセットボタン
+      // リセットボタン（最もシンプルで軽量なデフォルト構成へ復元）
       document.getElementById('resetBtn').addEventListener('click', () => {
         state.planetName = 'Fig-Planet Prime';
         state.theme = 'figPlanet';
         state.figMorph = 100;
         state.crystalMorph = 0;
-        state.subdivision = 3;
+        state.subdivision = 2;
         state.twist = 2.4;
         state.flowDir = 'northToSouth';
-        state.shells = 4;
+        state.shells = 1;
         state.tiltDeg = 28;
         state.glow = 75;
         state.brightness = 100;
         state.lineWidthScale = 1.0;
         state.facetShade = 85;
         state.loopDuration = 24.0;
-        state.svgEngine = 'morph24';
+        state.svgEngine = 'morph18';
         state.svgExportMode = 'auto';
         state.bgCanvasMode = 'transparent';
 
@@ -2418,7 +2432,7 @@
         rebuildMesh();
         updateSvgEstimateUI();
         renderAllPreviews();
-        showToast('🔄', '設定を初期状態にリセットしました');
+        showToast('🔄', '最もシンプルで軽量な初期設定にリセットしました');
       });
 
       // SVG生成ボタン
